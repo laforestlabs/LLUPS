@@ -34,6 +34,7 @@ All scripts are in this skill's `scripts/` directory. Run them with `python3`.
 |--------|-------|-------------|
 | `score_layout.py` | `python3 scripts/score_layout.py <pcb> [--compare prev.json]` | Score layout quality (traces, DRC, connectivity, placement, vias, routing) |
 | `render_pcb.py` | `python3 scripts/render_pcb.py <pcb> [--views front_all back_copper]` | Render PCB layers to PNG for visual review |
+| `layout_session.py` | `python3 scripts/layout_session.py summary` | Track layout progress, token usage, and change classification across iterations |
 
 The scoring framework automatically renders PCB images alongside JSON results.
 
@@ -53,6 +54,16 @@ After running `score_layout.py`, you MUST complete a visual review:
    - [ ] **Board utilization**: Components spread out efficiently, no wasted space
    - [ ] **Mechanical fit**: Mounting holes accessible, no components blocking board edges
 4. **Report findings**: Include specific component references and locations for any issues found.
+
+#### Session Tracking
+
+Each `score_layout.py` run automatically records a board state snapshot in `results/session.json`. This tracks:
+
+- **Change classification**: Each iteration is classified as `NO_CHANGE`, `MINOR_TWEAK`, `MODERATE_REWORK`, or `MAJOR_REDESIGN` based on component movement distances and counts.
+- **Token budget**: Cumulative token usage across all iterations, plus tokens-per-score-point efficiency.
+- **Stagnation detection**: If score spread is <1 point over 3 consecutive runs, a warning is printed suggesting a major redesign instead of continued tweaking.
+
+Use `python3 scripts/layout_session.py summary` to review the full session history. Use `--no-track` on `score_layout.py` to skip recording.
 
 ## Important Rules
 
