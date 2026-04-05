@@ -1,0 +1,38 @@
+Designator,Qty,Value,Description,Package,MPN,Manufacturer,LCSC Part,Est. Price @100,LCSC URL
+J1,1,USB_C,USB-C Receptacle USB 2.0 16-pin,USB-C Mid-Mount,USB4085-GF-A,GCT,C7095263,$0.50,https://www.lcsc.com/product-detail/C7095263.html
+F1,1,2A_PTC,Resettable PTC Fuse 200mA 9V,0805,MF-PSMF020X-2,BOURNS,C89657,$0.03,https://www.lcsc.com/product-detail/C89657.html
+U1,1,USBLC6-2SC6,USB ESD Protection Array,SOT-23-6,USBLC6-2SC6,TECH PUBLIC,C2827654,$0.02,https://www.lcsc.com/product-detail/C2827654.html
+R1,1,5.1k,CC1 Pull-down Resistor,0402,0402WGF5101TCE,UNI-ROYAL,C25905,$0.001,https://www.lcsc.com/product-detail/C25905.html
+R2,1,5.1k,CC2 Pull-down Resistor,0402,0402WGF5101TCE,UNI-ROYAL,C25905,$0.001,https://www.lcsc.com/product-detail/C25905.html
+C1,1,10u,VBUS Input Capacitor,0805,CL21A106KAYNNNE,Samsung,C15850,$0.01,https://www.lcsc.com/product-detail/C15850.html
+U2,1,BQ24072,Li-Ion Charger with Power Path,VQFN-16,BQ24072RGTR,Texas Instruments,C140288,$0.67,https://www.lcsc.com/product-detail/C140288.html
+C2,1,4.7u,Charger IN Capacitor,0402,CL05A475MP5NRNC,Samsung,C23733,$0.003,https://www.lcsc.com/product-detail/C23733.html
+C3,1,4.7u,VSYS Capacitor,0402,CL05A475MP5NRNC,Samsung,C23733,$0.003,https://www.lcsc.com/product-detail/C23733.html
+C4,1,4.7u,VBAT Capacitor,0402,CL05A475MP5NRNC,Samsung,C23733,$0.003,https://www.lcsc.com/product-detail/C23733.html
+R3,1,1k,ISET Resistor,0402,0402WGF1001TCE,UNI-ROYAL,C11702,$0.0004,https://www.lcsc.com/product-detail/C11702.html
+R4,1,1.5k,ILIM Resistor,0402,0402WGF1501TCE,UNI-ROYAL,C25867,$0.001,https://www.lcsc.com/product-detail/C25867.html
+R5,1,10k,TMR Resistor,0402,RC0402FR-0710KL,YAGEO,C60490,$0.0004,https://www.lcsc.com/product-detail/C60490.html
+R6,1,1k,CHG LED Resistor,0402,0402WGF1001TCE,UNI-ROYAL,C11702,$0.0004,https://www.lcsc.com/product-detail/C11702.html
+R7,1,1k,PGOOD LED Resistor,0402,0402WGF1001TCE,UNI-ROYAL,C11702,$0.0004,https://www.lcsc.com/product-detail/C11702.html
+R8,1,10k,NTC Bias Resistor,0402,RC0402FR-0710KL,YAGEO,C60490,$0.0004,https://www.lcsc.com/product-detail/C60490.html
+D1,1,CHG,Charge Status LED (Red),0603,KT-0603R,Hubei KENTO,C2286,$0.003,https://www.lcsc.com/product-detail/C2286.html
+D2,1,PGOOD,Power Good LED (Green),0603,LTST-C193TGKT-5A,LITEON,C12065,$0.017,https://www.lcsc.com/product-detail/C12065.html
+BT1,1,18650,18650 Battery Holder,Through-Hole,BH-18650-A1AJ006,MYOUNG,C5290175,$0.26,https://www.lcsc.com/product-detail/C5290175.html
+BT2,1,18650,18650 Battery Holder,Through-Hole,BH-18650-A1AJ006,MYOUNG,C5290175,$0.26,https://www.lcsc.com/product-detail/C5290175.html
+RT1,1,10k_NTC,NTC Thermistor,0402,NCP15XH103F03RC,Murata,C77131,$0.006,https://www.lcsc.com/product-detail/C77131.html
+U3,1,HY2113-KB5B,1-Cell Li-Ion Battery Protection IC (2.8V OD / 3.0V rel),SOT-23-6,HY2113-KB5B,HYCON Tech,C168771,$0.059,https://www.lcsc.com/product-detail/C168771.html
+U6,1,LN61CN3302MR-G,Voltage Supervisor 3.3V (disables boost at low battery),SOT-23-3,LN61CN3302MR-G,NATLINEAR,C141417,$0.036,https://www.lcsc.com/product-detail/C141417.html
+Q1,1,FS8205A,Dual N-MOSFET for Battery Protection,SOT-23-6,FS8205A,TECH PUBLIC,C2830320,$0.03,https://www.lcsc.com/product-detail/C2830320.html
+U4,1,MT3608,1.2MHz Step-Up Boost Converter,SOT-23-6,MT3608,XI'AN Aerosemi,C84817,$0.06,https://www.lcsc.com/product-detail/C84817.html
+L1,1,4.7u,Boost Inductor (shielded),1008,PNLS252012-4R7M,DMBJ,C2849432,$0.023,https://www.lcsc.com/product-detail/C2849432.html
+D3,1,SS14,Schottky Diode 40V 1A,SMA,SS14,MDD,C2480,$0.01,https://www.lcsc.com/product-detail/C2480.html
+C5,1,10u,Boost Input Capacitor,0805,CL21A106KAYNNNE,Samsung,C15850,$0.01,https://www.lcsc.com/product-detail/C15850.html
+C6,1,22u,Boost Output Capacitor,0805,0805X226M160NT,FH,C129302,$0.015,https://www.lcsc.com/product-detail/C129302.html
+R9,1,75k,FB Divider Top,0402,RC0402FR-0775KL,YAGEO,C137935,$0.0006,https://www.lcsc.com/product-detail/C137935.html
+R10,1,10k,FB Divider Bottom,0402,RC0402FR-0710KL,YAGEO,C60490,$0.0004,https://www.lcsc.com/product-detail/C60490.html
+R11,1,100k,EN Pull-up Resistor,0402,0402WGF1003TCE,UNI-ROYAL,C25741,$0.001,https://www.lcsc.com/product-detail/C25741.html
+U5,1,AP2112K-3.3,600mA LDO 3.3V,SOT-23-5,AP2112K-3.3TRG1,Diodes Inc,C51118,$0.06,https://www.lcsc.com/product-detail/C51118.html
+C7,1,1u,LDO Input Capacitor,0402,CL05A105KA5NQNC,Samsung,C52923,$0.005,https://www.lcsc.com/product-detail/C52923.html
+C8,1,1u,LDO Output Capacitor,0402,CL05A105KA5NQNC,Samsung,C52923,$0.005,https://www.lcsc.com/product-detail/C52923.html
+J2,1,Output,5-Pin Output Header (5V/3.3V/GND/EN/VBAT),2.54mm 1x05,MTP125-1105S1,MINTRON,C358687,$0.03,https://www.lcsc.com/product-detail/C358687.html
+J3,1,Debug,3-Pin Debug Header (VBAT/NTC/CHG_N),2.54mm 1x03,2.54-1*3P,BOOMELE,C49257,$0.01,https://www.lcsc.com/product-detail/C49257.html

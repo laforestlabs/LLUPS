@@ -1,0 +1,13 @@
+# KiCad backup/cache
+*.kicad_prl
+fp-info-cache
+*-backups/
+__pycache__/
+*.pyc
+
+# Lock files
+.~lock.*
+
+# OS
+.DS_Store
+Thumbs.db
