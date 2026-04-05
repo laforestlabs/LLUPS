@@ -28,6 +28,23 @@ All scripts are in this skill's `scripts/` directory. Run them with `python3`.
 | `arrange_grid.py` | `python3 scripts/arrange_grid.py <pcb> <ref_prefix> --cols N --spacing-mm S [--start-x X --start-y Y]` | Arrange matching footprints in a grid |
 | `align_components.py` | `python3 scripts/align_components.py <pcb> <refs...> --axis x|y` | Align footprints along an axis |
 
+### Scoring & Visual Analysis
+
+| Script | Usage | Description |
+|--------|-------|-------------|
+| `score_layout.py` | `python3 scripts/score_layout.py <pcb> [--compare prev.json]` | Score layout quality (traces, DRC, connectivity, placement, vias, routing) |
+| `render_pcb.py` | `python3 scripts/render_pcb.py <pcb> [--views front_all back_copper]` | Render PCB layers to PNG for visual review |
+
+The scoring framework automatically renders PCB images alongside JSON results. After scoring, **read the rendered PNGs** (in `results/renders_*/`) to visually inspect:
+
+- Trace routing quality (unnecessary detours, 90° corners)
+- Ground plane continuity on B.Cu
+- Component grouping and signal flow
+- Thermal via placement under power ICs
+- Silkscreen readability
+
+Visual analysis is advisory (not scored) but critical for catching issues that programmatic checks miss.
+
 ## Important Rules
 
 1. **Always back up before modifying**: Scripts that modify the PCB save to `<filename>_modified.kicad_pcb` by default. Pass `--in-place` to overwrite.

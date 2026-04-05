@@ -44,7 +44,7 @@ def run_scoring(pcb_path, config):
             "display_name": check.display_name,
             "score": round(result.score, 1),
             "weight": w,
-            "weighted_contribution": round(result.score * w, 2),
+            "weighted_contribution": round(result.score * w, 2) if w > 0 else 0,
             "issue_count": {
                 "error": sum(1 for i in result.issues if i.severity == "error"),
                 "warning": sum(1 for i in result.issues if i.severity == "warning"),
@@ -54,17 +54,21 @@ def run_scoring(pcb_path, config):
             "metrics": result.metrics,
             "summary": result.summary,
         }
-        total_weighted += result.score * w
-        total_weight += w
+        if w > 0:  # only scored checks contribute to overall
+            total_weighted += result.score * w
+            total_weight += w
 
     overall = round(total_weighted / total_weight, 1) if total_weight > 0 else 0
+
+    # Strip internal config keys from output
+    clean_config = {k: v for k, v in config.items() if not k.startswith("_")}
 
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "pcb_file": os.path.basename(pcb_path),
         "overall_score": overall,
         "categories": results,
-        "config_used": config,
+        "config_used": clean_config,
     }
 
 
@@ -76,6 +80,15 @@ def print_summary(report):
     print(f"{'=' * 60}\n")
 
     for name, cat in report["categories"].items():
+        if cat["weight"] == 0:
+            # Advisory check (e.g. visual) — no score bar
+            print(f"  {cat['display_name']:<25} [advisory — not scored]")
+            if cat["summary"]:
+                print(f"    {cat['summary']}")
+            render_paths = cat.get("metrics", {}).get("render_paths", {})
+            for view, path in render_paths.items():
+                print(f"    {view}: {path}")
+            continue
         bar_len = int(cat["score"] / 2)
         bar = "#" * bar_len + "." * (50 - bar_len)
         ic = cat["issue_count"]
@@ -113,9 +126,17 @@ def main():
     parser.add_argument("--output-dir", default=None, help="Directory for JSON results (default: scripts/results/)")
     parser.add_argument("--compare", help="Path to previous result JSON for comparison")
     parser.add_argument("--no-save", action="store_true", help="Don't save JSON result")
+    parser.add_argument("--no-render", action="store_true", help="Skip visual rendering")
     args = parser.parse_args()
 
     config = load_config(args.config)
+
+    # Pass PCB path and render dir for visual check
+    out_dir = args.output_dir or os.path.join(os.path.dirname(__file__), "results")
+    config["_pcb_path"] = os.path.abspath(args.pcb) if not args.no_render else ""
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    config["_render_dir"] = os.path.join(out_dir, f"renders_{ts}") if not args.no_render else ""
+
     report = run_scoring(args.pcb, config)
     print_summary(report)
 

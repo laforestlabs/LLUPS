@@ -5,6 +5,7 @@ from .connectivity_check import ConnectivityCheck
 from .placement_check import PlacementCheck
 from .via_check import ViaCheck
 from .geometry_check import GeometryCheck
+from .visual_check import VisualCheck
 
 ALL_CHECKS = [
     TraceWidthCheck(),
@@ -13,4 +14,5 @@ ALL_CHECKS = [
     PlacementCheck(),
     ViaCheck(),
     GeometryCheck(),
+    VisualCheck(),
 ]
