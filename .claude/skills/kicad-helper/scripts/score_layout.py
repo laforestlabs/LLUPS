@@ -127,6 +127,7 @@ def main():
     parser.add_argument("--compare", help="Path to previous result JSON for comparison")
     parser.add_argument("--no-save", action="store_true", help="Don't save JSON result")
     parser.add_argument("--no-render", action="store_true", help="Skip visual rendering")
+    parser.add_argument("--review", action="store_true", help="Print render paths for visual review by Claude")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -149,6 +150,16 @@ def main():
         with open(out_path, "w") as f:
             json.dump(report, f, indent=2)
         print(f"  Results saved to: {out_path}\n")
+
+    # Visual review hint
+    visual = report.get("categories", {}).get("visual", {})
+    render_paths = visual.get("metrics", {}).get("render_paths", {})
+    if render_paths and args.review:
+        print(f"  === VISUAL REVIEW ===")
+        print(f"  The following renders are ready for visual inspection:")
+        for view, path in render_paths.items():
+            print(f"    READ: {os.path.abspath(path)}")
+        print(f"  Use Claude's Read tool to view each PNG and evaluate the checklist.\n")
 
     # Comparison
     if args.compare:

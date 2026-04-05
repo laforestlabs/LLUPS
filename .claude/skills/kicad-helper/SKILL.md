@@ -35,15 +35,24 @@ All scripts are in this skill's `scripts/` directory. Run them with `python3`.
 | `score_layout.py` | `python3 scripts/score_layout.py <pcb> [--compare prev.json]` | Score layout quality (traces, DRC, connectivity, placement, vias, routing) |
 | `render_pcb.py` | `python3 scripts/render_pcb.py <pcb> [--views front_all back_copper]` | Render PCB layers to PNG for visual review |
 
-The scoring framework automatically renders PCB images alongside JSON results. After scoring, **read the rendered PNGs** (in `results/renders_*/`) to visually inspect:
+The scoring framework automatically renders PCB images alongside JSON results.
 
-- Trace routing quality (unnecessary detours, 90° corners)
-- Ground plane continuity on B.Cu
-- Component grouping and signal flow
-- Thermal via placement under power ICs
-- Silkscreen readability
+#### Visual Review Workflow
 
-Visual analysis is advisory (not scored) but critical for catching issues that programmatic checks miss.
+After running `score_layout.py`, you MUST complete a visual review:
+
+1. **Find renders**: The JSON result contains `metrics.render_paths` in the `visual` category. The renders are in `results/renders_<timestamp>/`.
+2. **Read each PNG**: Use the Read tool to view each rendered PNG (`front_all.png`, `back_copper.png`, `copper_both.png`).
+3. **Review checklist** — evaluate and report on each:
+   - [ ] **Connector access**: USB, barrel jacks, headers, test points at board edges with correct orientation (not facing inward)
+   - [ ] **Component grouping**: Related components (e.g. buck converter + inductor + caps) placed close together
+   - [ ] **Trace routing**: No unnecessary detours, avoid 90-degree corners, clean flow
+   - [ ] **Ground plane**: B.Cu copper pour intact, no fragmentation from traces cutting through
+   - [ ] **Thermal management**: Power ICs have thermal vias, adequate copper area
+   - [ ] **Silkscreen**: Readable, not overlapping pads or other text
+   - [ ] **Board utilization**: Components spread out efficiently, no wasted space
+   - [ ] **Mechanical fit**: Mounting holes accessible, no components blocking board edges
+4. **Report findings**: Include specific component references and locations for any issues found.
 
 ## Important Rules
 

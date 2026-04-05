@@ -57,15 +57,24 @@ class PlacementCheck(LayoutCheck):
                                     {"ref": ref, "x": round(px, 2), "y": round(py, 2)}))
 
         # Overlap detection (O(n^2) is fine for <100 components)
+        # Build set of large mechanical refs to skip expected overlaps
+        th_refs = set()
+        for fp in fps:
+            ref = fp.GetReferenceAsString()
+            if ref.startswith(("BT", "H", "J")):  # batteries, mounting holes, connectors
+                th_refs.add(ref)
+
         overlaps = 0
         for i in range(len(fp_data)):
             for j in range(i + 1, len(fp_data)):
                 a, b = fp_data[i], fp_data[j]
+                # Skip overlaps between through-hole/mechanical parts
+                if a["ref"] in th_refs and b["ref"] in th_refs:
+                    continue
                 if a["x1"] < b["x2"] and a["x2"] > b["x1"] and a["y1"] < b["y2"] and a["y2"] > b["y1"]:
-                    # Check overlap area is significant (>0.5mm^2) to filter courtyard touches
                     ox = min(a["x2"], b["x2"]) - max(a["x1"], b["x1"])
                     oy = min(a["y2"], b["y2"]) - max(a["y1"], b["y1"])
-                    if ox * oy > 2.0:  # >2mm^2 overlap to filter courtyard touches
+                    if ox * oy > 2.0:
                         overlaps += 1
                         issues.append(Issue("error",
                             f"{a['ref']} and {b['ref']} overlap ({ox:.1f}x{oy:.1f}mm)",

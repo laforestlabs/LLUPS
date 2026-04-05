@@ -1464,9 +1464,9 @@ PCB_PLACEMENTS = [
     # USB-C: rot=90° so mating face points left (toward board edge)
     # At rot=90, pads span vertically. Place so shield aligns with edge.
     ("J1",  "Connector_USB:USB_C_Receptacle_GCT_USB4085",  3.5, 7.5,  90, "F.Cu"),
-    ("F1",  "Fuse:Fuse_0805_2012Metric",                   11, 3.5,    0, "F.Cu"),
-    ("C1",  "Capacitor_SMD:C_0805_2012Metric",             11, 6.5,    0, "F.Cu"),
-    ("U1",  "Package_TO_SOT_SMD:SOT-23-6",                 11, 10,     0, "F.Cu"),
+    ("F1",  "Fuse:Fuse_0805_2012Metric",                   13, 3.5,    0, "F.Cu"),
+    ("C1",  "Capacitor_SMD:C_0805_2012Metric",             13, 6.5,    0, "F.Cu"),
+    ("U1",  "Package_TO_SOT_SMD:SOT-23-6",                 13, 10,     0, "F.Cu"),
     ("R1",  "Resistor_SMD:R_0402_1005Metric",               7, 12,    90, "F.Cu"),
     ("R2",  "Resistor_SMD:R_0402_1005Metric",               9, 12,    90, "F.Cu"),
 
@@ -1756,17 +1756,17 @@ def generate_pcb_traces(pad_positions, pad_net_map, net_codes):
     #  POWER NETS — wide traces, routed first
     # ══════════════════════════════════════════════════════════
 
-    # ── Net-(F1-Pad2): J1 VBUS pads → F1.2(11.94,3.5) ──
+    # ── Net-(F1-Pad2): J1 VBUS pads → F1.2(13.94,3.5) ──
     # Pads: A4(3.5,8.35), B9(2.15,8.35), A9(3.5,12.6), B4(2.15,12.6)
     # J1 shield S1 at (2.52,6.15) has large PTH pads — keep traces away!
     nf = nc("Net-(F1-Pad2)")
     # A4+B9 merge at y=8.35, go right then UP to y=2, then right to F1.2
-    # This avoids crossing F1.1(10.06,3.5)=VBUS by approaching from above
+    # This avoids crossing F1.1(12.06,3.5)=VBUS by approaching from above
     T(2.15, 8.35, 3.5, 8.35, PW, "F.Cu", nf)
     T(3.5, 8.35, 6.5, 8.35, PW, "F.Cu", nf)
     T(6.5, 8.35, 6.5, 2, PW, "F.Cu", nf)
-    T(6.5, 2, 11.94, 2, PW, "F.Cu", nf)
-    T(11.94, 2, 11.94, 3.5, PW, "F.Cu", nf)
+    T(6.5, 2, 13.94, 2, PW, "F.Cu", nf)
+    T(13.94, 2, 13.94, 3.5, PW, "F.Cu", nf)
     # A9+B4 at y=12.6: via to B.Cu, run up to join at x=6.5
     T(2.15, 12.6, 3.5, 12.6, PW, "F.Cu", nf)
     T(3.5, 12.6, 6.5, 12.6, PW, "F.Cu", nf)
@@ -1774,22 +1774,22 @@ def generate_pcb_traces(pad_positions, pad_net_map, net_codes):
     T(6.5, 12.6, 6.5, 8.35, PW, "B.Cu", nf)
     V(6.5, 8.35, nf)
 
-    # ── /VBUS: F1.1(10.06,3.5) → C1.1(10.05,6.5), U1.5(12.14,10), ──
+    # ── /VBUS: F1.1(12.06,3.5) → C1.1(12.05,6.5), U1.5(14.14,10), ──
     # ──        C2.1(18.52,4), U2.13(26.75,6.3)                      ──
     nv = nc("/VBUS")
     # F1.1 → C1.1: straight down (C1.1 at 10.05 ≈ F1.1 at 10.06)
-    T(10.06, 3.5, 10.06, 6.5, PW, "F.Cu", nv)
+    T(12.06, 3.5, 12.06, 6.5, PW, "F.Cu", nv)
     # C1.1 → U1.5: via to B.Cu to avoid C1.2(11.95,6.5)=GND,
     # route at y=6.5 on B.Cu past C1.2 (SMD, no B.Cu pad), emerge at x=14
-    V(10.06, 6.5, nv)
-    T(10.06, 6.5, 14, 6.5, PW, "B.Cu", nv)
-    V(14, 6.5, nv)
-    T(14, 6.5, 14, 10, PW, "F.Cu", nv)
-    T(14, 10, 12.14, 10, PW, "F.Cu", nv)
+    V(12.06, 6.5, nv)
+    T(12.06, 6.5, 16, 6.5, PW, "B.Cu", nv)
+    V(16, 6.5, nv)
+    T(16, 6.5, 16, 10, PW, "F.Cu", nv)
+    T(16, 10, 14.14, 10, PW, "F.Cu", nv)
     # F1.1 → C2.1: go up to y=1.5, right on B.Cu
-    T(10.06, 3.5, 10.06, 1.5, PW, "F.Cu", nv)
-    V(10.06, 1.5, nv)
-    T(10.06, 1.5, 18.52, 1.5, PW, "B.Cu", nv)
+    T(12.06, 3.5, 12.06, 1.5, PW, "F.Cu", nv)
+    V(12.06, 1.5, nv)
+    T(12.06, 1.5, 18.52, 1.5, PW, "B.Cu", nv)
     V(18.52, 1.5, nv)
     T(18.52, 1.5, 18.52, 4, PW, "F.Cu", nv)
     # C2.1 → U2.13(26.75,6.3): at y=5.5
@@ -2008,34 +2008,34 @@ def generate_pcb_traces(pad_positions, pad_net_map, net_codes):
     T(31.5, 10, 31.5, 9.7, SW, "F.Cu", nd2k)
     T(31.5, 9.7, 26.25, 9.7, SW, "F.Cu", nd2k)
 
-    # ── Net-(J1-CC1): J1.A5(3.5,9.2) → U1.1(9.86,9.05) ──
+    # ── Net-(J1-CC1): J1.A5(3.5,9.2) → U1.1(11.86,9.05) ──
     # Route right from J1, avoiding S1 shield area at (2.52,6.15)
     ncc1 = nc("Net-(J1-CC1)")
     T(3.5, 9.2, 5.5, 9.2, SW, "F.Cu", ncc1)
     T(5.5, 9.2, 5.5, 9.05, SW, "F.Cu", ncc1)
-    T(5.5, 9.05, 9.86, 9.05, SW, "F.Cu", ncc1)
+    T(5.5, 9.05, 11.86, 9.05, SW, "F.Cu", ncc1)
 
-    # ── Net-(J1-CC2): J1.B5(2.15,11.75) → U1.3(9.86,10.95) ──
+    # ── Net-(J1-CC2): J1.B5(2.15,11.75) → U1.3(11.86,10.95) ──
     ncc2 = nc("Net-(J1-CC2)")
     T(2.15, 11.75, 4.5, 11.75, SW, "F.Cu", ncc2)
     T(4.5, 11.75, 4.5, 10.95, SW, "F.Cu", ncc2)
-    T(4.5, 10.95, 9.86, 10.95, SW, "F.Cu", ncc2)
+    T(4.5, 10.95, 11.86, 10.95, SW, "F.Cu", ncc2)
 
-    # ── Net-(R1-Pad1): R1.1(7,11.49) → U1.6(12.14,9.05) ──
+    # ── Net-(R1-Pad1): R1.1(7,11.49) → U1.6(14.14,9.05) ──
     # B.Cu to avoid CC1/CC2, far from S1
     nr1 = nc("Net-(R1-Pad1)")
     V(7, 11.49, nr1)
     T(7, 11.49, 7, 9.05, SW, "B.Cu", nr1)
-    T(7, 9.05, 12.14, 9.05, SW, "B.Cu", nr1)
-    V(12.14, 9.05, nr1)
+    T(7, 9.05, 14.14, 9.05, SW, "B.Cu", nr1)
+    V(14.14, 9.05, nr1)
 
-    # ── Net-(R2-Pad1): R2.1(9,11.49) → U1.4(12.14,10.95) ──
+    # ── Net-(R2-Pad1): R2.1(9,11.49) → U1.4(14.14,10.95) ──
     # B.Cu to avoid crossing CC2 at y=10.95
     nr2 = nc("Net-(R2-Pad1)")
     V(9, 11.49, nr2)
-    T(9, 11.49, 12.14, 11.49, SW, "B.Cu", nr2)
-    T(12.14, 11.49, 12.14, 10.95, SW, "B.Cu", nr2)
-    V(12.14, 10.95, nr2)
+    T(9, 11.49, 14.14, 11.49, SW, "B.Cu", nr2)
+    T(14.14, 11.49, 14.14, 10.95, SW, "B.Cu", nr2)
+    V(14.14, 10.95, nr2)
 
     # ── Net-(U2-ISET): R3.2(22.51,13) → U2.16(25.25,6.3) ──
     ni = nc("Net-(U2-ISET)")
