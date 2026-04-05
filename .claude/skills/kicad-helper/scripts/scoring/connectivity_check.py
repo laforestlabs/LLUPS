@@ -6,7 +6,7 @@ from .base import LayoutCheck, CheckResult, Issue
 class ConnectivityCheck(LayoutCheck):
     name = "connectivity"
     display_name = "Net Connectivity"
-    weight = 0.20
+    weight = 0.15
 
     def run(self, board, config: dict) -> CheckResult:
         board.BuildConnectivity()

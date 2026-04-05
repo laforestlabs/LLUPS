@@ -166,7 +166,7 @@ def main():
 
     # Pass PCB path and render dir for visual check
     out_dir = args.output_dir or os.path.join(os.path.dirname(__file__), "results")
-    config["_pcb_path"] = os.path.abspath(args.pcb) if not args.no_render else ""
+    config["_pcb_path"] = os.path.abspath(args.pcb)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     config["_render_dir"] = os.path.join(out_dir, f"renders_{ts}") if not args.no_render else ""
 
