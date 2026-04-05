@@ -38,9 +38,13 @@ python3 generate_project.py
 
 Requires KiCad 9 CLI tools (`kicad-cli`) for netlist export.
 
+## Scoring Dashboard
+
+![Layout Scoring Dashboard](dashboard.png)
+
 ## Scoring Framework
 
-A test suite scores PCB layout quality across 6 categories:
+A test suite scores PCB layout quality across 8 categories:
 
 ```bash
 python3 .claude/skills/kicad-helper/scripts/score_layout.py LLUPS.kicad_pcb
