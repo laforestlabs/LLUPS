@@ -63,11 +63,33 @@ def run_scoring(pcb_path, config):
     # Strip internal config keys from output
     clean_config = {k: v for k, v in config.items() if not k.startswith("_")}
 
+    # Estimate token cost of this scoring run
+    report_json = json.dumps(results, indent=2)
+    text_tokens = len(report_json) // 4  # ~4 chars per token
+    render_paths = results.get("visual", {}).get("metrics", {}).get("render_paths", {})
+    image_tokens = 0
+    image_bytes = 0
+    for path in render_paths.values():
+        if os.path.isfile(path):
+            sz = os.path.getsize(path)
+            image_bytes += sz
+            # Claude vision: ~1 token per 750 bytes for PNG images
+            image_tokens += sz // 750
+
+    token_usage = {
+        "text_tokens": text_tokens,
+        "image_tokens": image_tokens,
+        "total_tokens": text_tokens + image_tokens,
+        "image_bytes": image_bytes,
+        "render_count": len(render_paths),
+    }
+
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "pcb_file": os.path.basename(pcb_path),
         "overall_score": overall,
         "categories": results,
+        "token_usage": token_usage,
         "config_used": clean_config,
     }
 
@@ -96,6 +118,15 @@ def print_summary(report):
         print(f"  {cat['display_name']:<25} [{bar}] {cat['score']:5.1f}  {issues_str}")
         if cat["summary"]:
             print(f"    {cat['summary']}")
+
+    # Token usage
+    tu = report.get("token_usage", {})
+    if tu:
+        print(f"  {'─' * 58}")
+        print(f"  Token cost:  ~{tu['total_tokens']:,} tokens "
+              f"(text: {tu['text_tokens']:,} + images: {tu['image_tokens']:,})")
+        if tu["image_bytes"]:
+            print(f"  Image size:  {tu['image_bytes'] / 1024:.0f} KB across {tu['render_count']} renders")
     print()
 
 

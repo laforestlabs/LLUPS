@@ -18,6 +18,8 @@ def load_results(results_dir):
             data = json.load(fh)
         ts = datetime.fromisoformat(data["timestamp"])
         entry = {"timestamp": ts, "overall": data["overall_score"], "file": os.path.basename(f)}
+        tu = data.get("token_usage", {})
+        entry["tokens"] = tu.get("total_tokens", 0)
         for cat_name, cat_data in data["categories"].items():
             if cat_data["weight"] > 0:
                 entry[cat_name] = cat_data["score"]
@@ -34,7 +36,10 @@ def plot(runs, output_path):
     times = [r["timestamp"] for r in runs]
     indices = list(range(len(runs)))
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+    has_tokens = any(r.get("tokens", 0) > 0 for r in runs)
+    nrows = 3 if has_tokens else 2
+    fig, axes = plt.subplots(nrows, 1, figsize=(12, 4 * nrows), sharex=True)
+    ax1, ax2 = axes[0], axes[1]
 
     # Overall score
     overall = [r["overall"] for r in runs]
@@ -57,12 +62,33 @@ def plot(runs, output_path):
         ax2.plot(indices, vals, "-o", color=c, linewidth=1.5, markersize=5, label=cat.replace("_", " ").title())
 
     ax2.set_ylabel("Score (0-100)")
-    ax2.set_xlabel("Iteration")
     ax2.legend(loc="lower right", ncol=2, fontsize=8)
     ax2.set_ylim(0, 105)
     ax2.grid(True, alpha=0.3)
-    ax2.set_xticks(indices)
-    ax2.set_xticklabels([f"#{i+1}\n{r['timestamp'].strftime('%H:%M')}" for i, r in enumerate(runs)], fontsize=8)
+    # Token usage (third panel)
+    if has_tokens:
+        ax3 = axes[2]
+        tokens = [r.get("tokens", 0) for r in runs]
+        ax3.bar(indices, tokens, color="#e74c3c", alpha=0.7, width=0.6)
+        ax3.set_ylabel("Tokens per Run")
+        ax3.set_xlabel("Iteration")
+        ax3.grid(True, alpha=0.3)
+        cumulative = []
+        total = 0
+        for t in tokens:
+            total += t
+            cumulative.append(total)
+        ax3_twin = ax3.twinx()
+        ax3_twin.plot(indices, cumulative, "k--o", markersize=4, linewidth=1.5, label="Cumulative")
+        ax3_twin.set_ylabel("Cumulative Tokens")
+        ax3_twin.legend(loc="upper left", fontsize=8)
+        for i, v in enumerate(tokens):
+            if v > 0:
+                ax3.annotate(f"{v:,}", (i, v), textcoords="offset points", xytext=(0, 5), ha="center", fontsize=8)
+
+    last_ax = axes[-1]
+    last_ax.set_xticks(indices)
+    last_ax.set_xticklabels([f"#{i+1}\n{r['timestamp'].strftime('%H:%M')}" for i, r in enumerate(runs)], fontsize=8)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
