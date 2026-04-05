@@ -73,4 +73,4 @@ All in `.claude/skills/kicad-helper/scripts/`.
 
 ## License
 
-Proprietary. LaForest Labs.
+GPLv3 — see [LICENSE](LICENSE).
