@@ -5,6 +5,8 @@ from .connectivity_check import ConnectivityCheck
 from .placement_check import PlacementCheck
 from .via_check import ViaCheck
 from .geometry_check import GeometryCheck
+from .compactness_check import CompactnessCheck
+from .orientation_check import OrientationCheck
 from .visual_check import VisualCheck
 
 ALL_CHECKS = [
@@ -14,5 +16,7 @@ ALL_CHECKS = [
     PlacementCheck(),
     ViaCheck(),
     GeometryCheck(),
+    CompactnessCheck(),
+    OrientationCheck(),
     VisualCheck(),
 ]
