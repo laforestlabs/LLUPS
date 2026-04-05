@@ -1,5 +1,7 @@
 # LLUPS — Lithium Li-ion Universal Power Supply
 
+> **Status: Draft / Untested** — Schematic and layout are procedurally generated and have not been fabricated or validated on hardware. Review all design choices and run DRC before ordering boards.
+
 A compact PCB module providing regulated 5V and 3.3V power from two 18650 Li-ion cells (1S2P), charged via USB-C with passthrough capability.
 
 ## Specs
