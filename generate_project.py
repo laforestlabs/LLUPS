@@ -1732,15 +1732,25 @@ def generate_pcb_traces(pad_positions, pad_net_map, net_codes):
     def V(x, y, net, sz=0.6, dr=0.3):
         vias.append(pcb_via(x, y, net, sz, dr))
 
-    PW  = 0.5    # power trace width
-    PW2 = 0.8    # heavy power trace width
+    PW  = 1.0    # power trace width (spec: >=1mm for 2A on 1oz Cu)
+    PW2 = 1.2    # heavy power trace width (battery/VBAT runs)
     SW  = 0.25   # signal trace width
 
-    # ── GND stitching vias — battery area only (far from all signals) ──
+    # ── GND stitching vias — battery area + board edges ──
     nc_gnd = nc("GND")
     for gx in [10, 30, 50, 70, 80]:
         for gy in [24, 35, 45, 55]:
             V(gx, gy, nc_gnd)
+
+    # ── Thermal vias under U2 (BQ24072) exposed pad at (26, 8) ──
+    for dx in [-0.8, 0, 0.8]:
+        for dy in [-0.8, 0, 0.8]:
+            V(26 + dx, 8 + dy, nc_gnd)
+
+    # ── Thermal vias under U4 (MT3608) at (64, 8) ──
+    for dx in [-0.7, 0, 0.7]:
+        for dy in [-0.7, 0, 0.7]:
+            V(64 + dx, 8 + dy, nc_gnd)
 
     # ══════════════════════════════════════════════════════════
     #  POWER NETS — wide traces, routed first
