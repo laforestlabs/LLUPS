@@ -46,6 +46,7 @@ class PlacementEngine:
             "crossover_score": score.crossover_score,
             "edge_compliance": score.edge_compliance,
             "rotation_score": score.rotation_score,
+            "board_containment": score.board_containment,
         }
 
 
@@ -132,6 +133,7 @@ class FullPipeline:
             crossover_score=placement.get("crossover_score", 0),
             edge_compliance=placement.get("edge_compliance", 0),
             rotation_score=placement.get("rotation_score", 0),
+            board_containment=placement.get("board_containment", 0),
         )
         exp_score.compute()
 

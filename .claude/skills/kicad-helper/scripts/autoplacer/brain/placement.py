@@ -92,6 +92,7 @@ class PlacementScorer:
         s.compactness = self._score_compactness()
         s.edge_compliance = self._score_edge_compliance()
         s.rotation_score = self._score_rotation()
+        s.board_containment = self._score_board_containment()
         s.compute_total()
         return s
 
@@ -171,6 +172,48 @@ class PlacementScorer:
         if total == 0:
             return 100.0
         return (good / total) * 100
+
+    def _score_board_containment(self) -> float:
+        """Score how well components and pads stay within the board outline.
+
+        Checks three things with increasing severity:
+        1. Pad centers outside board outline (critical — unmanufacturable)
+        2. Component bounding boxes extending past edge cuts
+        3. Component bodies partially outside (clipped)
+
+        Any pad outside the board is a hard manufacturing failure,
+        so the penalty is steep: each violation costs 10 points.
+        """
+        tl, br = self.state.board_outline
+
+        # Count total checkable items and violations
+        total_pads = 0
+        pads_outside = 0
+        total_bodies = 0
+        bodies_outside = 0
+
+        for comp in self.state.components.values():
+            # Check component body (bounding box) against board outline
+            total_bodies += 1
+            c_tl, c_br = comp.bbox()
+            if (c_tl.x < tl.x or c_br.x > br.x or
+                    c_tl.y < tl.y or c_br.y > br.y):
+                bodies_outside += 1
+
+            # Check every pad center — these are the actual copper features
+            for pad in comp.pads:
+                total_pads += 1
+                if (pad.pos.x < tl.x or pad.pos.x > br.x or
+                        pad.pos.y < tl.y or pad.pos.y > br.y):
+                    pads_outside += 1
+
+        if total_pads == 0 and total_bodies == 0:
+            return 100.0
+
+        # Pads outside is critical: each one costs 10 points (hard floor at 0)
+        # Bodies outside is a warning: each one costs 3 points
+        penalty = pads_outside * 10.0 + bodies_outside * 3.0
+        return max(0.0, min(100.0, 100.0 - penalty))
 
 
 class PlacementSolver:
