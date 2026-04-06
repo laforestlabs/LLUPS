@@ -7,7 +7,7 @@ import json
 import os
 import sys
 
-from .brain.types import BoardState, PlacementScore
+from .brain.types import BoardState, PlacementScore, ExperimentScore
 from .brain.placement import PlacementSolver, PlacementScorer
 from .brain.router import RoutingSolver
 from .brain.conflict import RipUpRerouter
@@ -19,14 +19,15 @@ class PlacementEngine:
     """Run placement optimization: edge-first + clustering + force-directed."""
 
     def run(self, pcb_path: str, output_path: str = None,
-            config: dict = None, max_iterations: int = 300) -> dict:
+            config: dict = None, max_iterations: int = 300,
+            seed: int = 0) -> dict:
         cfg = {**DEFAULT_CONFIG, **(config or {})}
         adapter = KiCadAdapter(pcb_path)
         state = adapter.load()
 
         print(f"Loaded {len(state.components)} components, {len(state.nets)} nets")
 
-        solver = PlacementSolver(state, cfg)
+        solver = PlacementSolver(state, cfg, seed=seed)
         new_comps = solver.solve(max_iterations=max_iterations)
 
         out = output_path or pcb_path
@@ -89,7 +90,7 @@ class FullPipeline:
     """Run placement + routing + scoring in sequence."""
 
     def run(self, pcb_path: str, output_path: str = None,
-            config: dict = None) -> dict:
+            config: dict = None, seed: int = 0) -> dict:
         cfg = {**DEFAULT_CONFIG, **(config or {})}
         out = output_path or pcb_path
 
@@ -97,7 +98,7 @@ class FullPipeline:
         print("Phase 0: Placement Optimization")
         print("=" * 50)
         pe = PlacementEngine()
-        placement = pe.run(pcb_path, out, cfg)
+        placement = pe.run(pcb_path, out, cfg, seed=seed)
 
         print()
         print("=" * 50)
@@ -106,7 +107,36 @@ class FullPipeline:
         re = RoutingEngine()
         routing = re.run(out, out, cfg)
 
+        # Build unified experiment score
+        failed = routing["failed_nets"]
+        n_failed = len(failed) if isinstance(failed, list) else 0
+        # Load state to count total nets
+        adapter = KiCadAdapter(out)
+        state = adapter.load()
+        n_total = len([n for n in state.nets.values()
+                       if len(n.pad_refs) >= 2])
+
+        exp_score = ExperimentScore(
+            routed_nets=max(0, n_total - n_failed),
+            total_nets=n_total,
+            failed_nets=n_failed,
+            trace_count=routing["traces"],
+            via_count=routing["vias"],
+            total_trace_length_mm=routing["total_length_mm"],
+        )
+        # Attach placement score
+        exp_score.placement = PlacementScore(
+            total=placement.get("score", 0),
+            net_distance=placement.get("net_distance", 0),
+            crossover_count=placement.get("crossovers", 0),
+            crossover_score=placement.get("crossover_score", 0),
+            edge_compliance=placement.get("edge_compliance", 0),
+            rotation_score=placement.get("rotation_score", 0),
+        )
+        exp_score.compute()
+
         return {
             "placement": placement,
             "routing": routing,
+            "experiment_score": exp_score,
         }

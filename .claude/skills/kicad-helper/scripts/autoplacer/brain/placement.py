@@ -6,6 +6,7 @@ Pure Python. All iteration runs locally — no LLM calls in the loop.
 from __future__ import annotations
 import copy
 import math
+import random
 from collections import defaultdict
 
 from .types import (
@@ -180,9 +181,11 @@ class PlacementSolver:
     when score improvement plateaus.
     """
 
-    def __init__(self, state: BoardState, config: dict = None):
+    def __init__(self, state: BoardState, config: dict = None, seed: int = 0):
         self.state = state
         self.cfg = config or {}
+        self.seed = seed
+        self.rng = random.Random(seed)
         self.k_attract = self.cfg.get("force_attract_k", 0.08)
         self.k_repel = self.cfg.get("force_repel_k", 40.0)
         self.cooling = self.cfg.get("cooling_factor", 0.97)
@@ -205,11 +208,11 @@ class PlacementSolver:
         # Step 1: Pin edge components (connectors, mounting holes)
         self._pin_edge_components(comps)
 
-        # Step 2: Cluster by connectivity
-        clusters = find_communities(conn_graph)
+        # Step 2: Cluster by connectivity (seeded for reproducible variation)
+        clusters = find_communities(conn_graph, seed=self.seed)
         print(f"  Found {len(clusters)} component clusters")
 
-        # Step 3: Initial cluster placement
+        # Step 3: Initial cluster placement (with seeded jitter)
         self._place_clusters(comps, clusters, conn_graph)
 
         # Step 4: Try 4 rotations per IC/connector, keep best
@@ -373,12 +376,13 @@ class PlacementSolver:
             cx = max(tl.x + margin, min(br.x - margin, cx))
             cy = max(tl.y + margin, min(br.y - margin, cy))
 
-            # Spread components around centroid
+            # Spread components around centroid (with seeded jitter)
             n = len(unlocked)
+            self.rng.shuffle(unlocked)  # randomize cluster member ordering
             radius = math.sqrt(n) * 3.0  # spread based on count
             for i, ref in enumerate(unlocked):
-                angle = 2 * math.pi * i / max(n, 1)
-                r = radius * (0.5 + 0.5 * (i % 2))  # stagger
+                angle = 2 * math.pi * i / max(n, 1) + self.rng.gauss(0, 0.3)
+                r = radius * (0.5 + 0.5 * (i % 2)) * self.rng.uniform(0.8, 1.2)
                 old_pos = Point(comps[ref].pos.x, comps[ref].pos.y)
                 old_rot = comps[ref].rotation
                 comps[ref].pos = Point(

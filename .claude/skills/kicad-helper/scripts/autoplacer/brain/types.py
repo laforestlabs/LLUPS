@@ -180,3 +180,64 @@ class PlacementScore:
             getattr(self, k) * v for k, v in w.items()
         )
         return self.total
+
+
+@dataclass
+class ExperimentScore:
+    """Unified score combining placement + routing quality.
+    Single metric for the outer optimization loop. Higher = better."""
+    placement: PlacementScore = field(default_factory=PlacementScore)
+    routed_nets: int = 0
+    total_nets: int = 0
+    failed_nets: int = 0
+    trace_count: int = 0
+    via_count: int = 0
+    total_trace_length_mm: float = 0.0
+    total: float = 0.0
+
+    def compute(self, weights: Optional[dict] = None) -> float:
+        """Compute unified score. Routing completion dominates."""
+        w = weights or {
+            "placement": 0.20,       # placement quality (0-100)
+            "route_completion": 0.50, # % nets routed (0-100)
+            "trace_efficiency": 0.20, # shorter traces = better (0-100)
+            "via_penalty": 0.10,      # fewer vias = better (0-100)
+        }
+        # Route completion: most important metric
+        if self.total_nets > 0:
+            route_pct = ((self.total_nets - self.failed_nets)
+                         / self.total_nets) * 100
+        else:
+            route_pct = 100.0
+
+        # Trace efficiency: normalize against board diagonal * net count
+        # Lower total length is better; use a soft cap
+        if self.total_trace_length_mm > 0 and self.total_nets > 0:
+            avg_per_net = self.total_trace_length_mm / max(1, self.routed_nets)
+            # ~50mm avg per net = score 50, lower = better
+            trace_eff = max(0, min(100, 100 - avg_per_net))
+        else:
+            trace_eff = 50.0
+
+        # Via penalty: fewer vias per routed net = better
+        if self.routed_nets > 0:
+            vias_per_net = self.via_count / self.routed_nets
+            via_score = max(0, min(100, 100 - vias_per_net * 20))
+        else:
+            via_score = 50.0
+
+        self.total = (
+            w["placement"] * self.placement.total +
+            w["route_completion"] * route_pct +
+            w["trace_efficiency"] * trace_eff +
+            w["via_penalty"] * via_score
+        )
+        return self.total
+
+    def summary(self) -> str:
+        return (f"score={self.total:.1f} "
+                f"routed={self.routed_nets}/{self.total_nets} "
+                f"failed={self.failed_nets} "
+                f"traces={self.trace_count} vias={self.via_count} "
+                f"length={self.total_trace_length_mm:.0f}mm "
+                f"placement={self.placement.total:.1f}")
