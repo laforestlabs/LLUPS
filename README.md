@@ -79,7 +79,7 @@ Results log to `.experiments/experiments.jsonl`. Plot results:
 python3 plot_experiments.py ../../../../.experiments/experiments.jsonl
 ```
 
-![Experiment Results](experiments_dashboard.png)
+![Experiment Results](.experiments/experiments_dashboard.png)
 
 ### Layout Progress
 

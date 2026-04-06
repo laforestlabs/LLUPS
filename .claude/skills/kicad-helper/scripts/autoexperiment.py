@@ -323,7 +323,14 @@ def main():
     if score_weights:
         best_score.compute(score_weights)
 
-    print(f"  Baseline: {best_score.summary()} ({base_dur:.1f}s)")
+    # Apply same shorts penalty to baseline so it's directly comparable
+    base_drc = quick_drc(str(work_dir / "experiment.kicad_pcb"))
+    if base_drc["shorts"] > 0:
+        import math
+        base_penalty = 0.10 / (1 + math.log10(1 + base_drc["shorts"]))
+        best_score.total *= base_penalty
+
+    print(f"  Baseline: {best_score.summary()} drc={base_drc['total']} shorts={base_drc['shorts']} ({base_dur:.1f}s)")
 
     # Save baseline as current best
     shutil.copy2(str(work_dir / "experiment.kicad_pcb"),
@@ -360,10 +367,15 @@ def main():
         if score_weights:
             score.compute(score_weights)
 
-        # Run DRC — shorts are an instant dealbreaker
+        # Run DRC — shorts are heavily penalized but allow incremental improvement
         drc = quick_drc(str(work_dir / "experiment.kicad_pcb"))
         if drc["shorts"] > 0:
-            score.total *= 0.0  # shorts = failing score
+            # Logarithmic penalty: 1 short = ~10% of original, 10 shorts = ~5%,
+            # 100 shorts = ~3%, 1000 shorts = ~2%. Always positive so fewer
+            # shorts beats more shorts even when both are "failing".
+            import math
+            penalty_factor = 0.10 / (1 + math.log10(1 + drc["shorts"]))
+            score.total *= penalty_factor
 
         # Keep or discard
         kept = score.total > best_total
