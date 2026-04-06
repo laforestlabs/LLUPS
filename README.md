@@ -59,6 +59,32 @@ python3 .claude/skills/kicad-helper/scripts/score_layout.py LLUPS.kicad_pcb \
   --compare .claude/skills/kicad-helper/scripts/results/score_PREV.json
 ```
 
+## Autonomous Experiment Loop
+
+Run layout optimization offline — no AI tokens, just CPU time:
+
+```bash
+cd .claude/skills/kicad-helper/scripts
+
+# Run 50 rounds of placement+routing experiments
+python3 autoexperiment.py ../../../../LLUPS.kicad_pcb --rounds 50
+
+# Run overnight with longer plateau tolerance
+python3 autoexperiment.py ../../../../LLUPS.kicad_pcb --rounds 500 --plateau 8
+
+# Custom output and verbose logging
+python3 autoexperiment.py ../../../../LLUPS.kicad_pcb -n 100 -o best.kicad_pcb -v
+```
+
+Edit `program.md` to steer the search space (parameter ranges, scoring weights).
+Results log to `.experiments/experiments.jsonl`. Plot results:
+
+```bash
+python3 plot_experiments.py ../../../../.experiments/experiments.jsonl
+```
+
+![Experiment Results](experiments_dashboard.png)
+
 ## KiCad Helper Scripts
 
 Automation scripts using the KiCad 9 `pcbnew` Python API:
