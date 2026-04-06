@@ -127,21 +127,58 @@ class RipUpRerouter:
         """Build grid with component obstacles and existing traces (excluding one net)."""
         grid = RoutingGrid(self.state.board_outline, self.resolution)
 
-        # Component bodies
-        for comp in self.state.components.values():
-            tl, br = comp.bbox(self.clearance)
-            for layer in range(2):
-                grid.mark_rect(tl, br, layer, float("inf"))
+        # Build pad + escape corridor sets (same logic as RoutingSolver)
+        pad_cells: set[tuple[int, int, int]] = set()
+        escape_cells: set[tuple[int, int, int]] = set()
 
-        # Clear pad areas
         for comp in self.state.components.values():
+            comp_tl, comp_br = comp.bbox()
             for pad in comp.pads:
-                c = grid.to_cell(pad.pos, pad.layer)
+                pc = grid.to_cell(pad.pos, pad.layer)
                 for dc in range(-1, 2):
                     for dr in range(-1, 2):
-                        col, row = c.x + dc, c.y + dr
-                        if 0 <= col < grid.cols and 0 <= row < grid.rows:
-                            grid.cost[pad.layer][grid._idx(row, col)] = 0.0
+                        pad_cells.add((pc.x + dc, pc.y + dr, pad.layer))
+                # Escape to nearest edge
+                dx_l = pad.pos.x - comp_tl.x
+                dx_r = comp_br.x - pad.pos.x
+                dy_t = pad.pos.y - comp_tl.y
+                dy_b = comp_br.y - pad.pos.y
+                min_d = min(dx_l, dx_r, dy_t, dy_b)
+                if min_d == dx_l:
+                    ce = grid.to_cell(Point(comp_tl.x - self.clearance * 2, pad.pos.y), pad.layer)
+                    for c in range(ce.x, pc.x + 1):
+                        for dr in range(-1, 2):
+                            escape_cells.add((c, pc.y + dr, pad.layer))
+                elif min_d == dx_r:
+                    ce = grid.to_cell(Point(comp_br.x + self.clearance * 2, pad.pos.y), pad.layer)
+                    for c in range(pc.x, ce.x + 1):
+                        for dr in range(-1, 2):
+                            escape_cells.add((c, pc.y + dr, pad.layer))
+                elif min_d == dy_t:
+                    ce = grid.to_cell(Point(pad.pos.x, comp_tl.y - self.clearance * 2), pad.layer)
+                    for r in range(ce.y, pc.y + 1):
+                        for dc in range(-1, 2):
+                            escape_cells.add((pc.x + dc, r, pad.layer))
+                else:
+                    ce = grid.to_cell(Point(pad.pos.x, comp_br.y + self.clearance * 2), pad.layer)
+                    for r in range(pc.y, ce.y + 1):
+                        for dc in range(-1, 2):
+                            escape_cells.add((pc.x + dc, r, pad.layer))
+
+        COMPONENT_COST = 100.0
+        for comp in self.state.components.values():
+            tl, br = comp.bbox(self.clearance)
+            c1 = max(0, int((tl.x - grid.origin.x) / grid.resolution) - 1)
+            r1 = max(0, int((tl.y - grid.origin.y) / grid.resolution) - 1)
+            c2 = min(grid.cols - 1, int((br.x - grid.origin.x) / grid.resolution) + 1)
+            r2 = min(grid.rows - 1, int((br.y - grid.origin.y) / grid.resolution) + 1)
+            for layer in range(2):
+                for r in range(r1, r2 + 1):
+                    for c in range(c1, c2 + 1):
+                        if (c, r, layer) in pad_cells or (c, r, layer) in escape_cells:
+                            continue
+                        idx = grid._idx(r, c)
+                        grid.cost[layer][idx] = max(grid.cost[layer][idx], COMPONENT_COST)
 
         # Existing traces as soft obstacles (except excluded net)
         for net_name, segs in net_traces.items():

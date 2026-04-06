@@ -112,67 +112,88 @@ class AStarRouter:
 
     def find_path(self, start: GridCell, end: GridCell,
                   width_cells: int = 1,
-                  max_search: int = 200000) -> Optional[list[GridCell]]:
-        """A* with Manhattan heuristic. Returns path or None."""
+                  max_search: int = 100000) -> Optional[list[GridCell]]:
+        """A* with Manhattan heuristic. Uses tuples internally for speed."""
         if start == end:
             return [start]
 
         grid = self.grid
-        # Priority queue: (f_cost, tiebreaker, cell)
-        counter = 0
-        open_set: list[tuple[float, int, GridCell]] = []
-        g_score: dict[GridCell, float] = {start: 0.0}
-        came_from: dict[GridCell, GridCell] = {}
+        ex, ey, el = end.x, end.y, end.layer
+        sx, sy, sl = start.x, start.y, start.layer
+        cols, rows = grid.cols, grid.rows
+        via_cost = self.VIA_COST
 
-        h = self._heuristic(start, end)
-        heapq.heappush(open_set, (h, counter, start))
+        # Use tuples (x, y, layer) internally for speed
+        start_t = (sx, sy, sl)
+        end_t = (ex, ey, el)
+
+        # Pre-compute layer biases
+        bias_h = [self.LAYER_BIAS[Layer.FRONT]["h"], self.LAYER_BIAS[Layer.BACK]["h"]]
+        bias_v = [self.LAYER_BIAS[Layer.FRONT]["v"], self.LAYER_BIAS[Layer.BACK]["v"]]
+
+        counter = 0
+        open_set = []
+        g_score: dict[tuple, float] = {start_t: 0.0}
+        came_from: dict[tuple, tuple] = {}
+
+        h = abs(sx - ex) + abs(sy - ey) + (via_cost if sl != el else 0)
+        heapq.heappush(open_set, (h, counter, start_t))
+
+        cost_arrays = grid.cost  # direct reference
 
         while open_set and counter < max_search:
-            f, _, current = heapq.heappop(open_set)
+            f, _, cur = heapq.heappop(open_set)
+            cx, cy, cl = cur
 
-            if current == end:
-                return self._reconstruct(came_from, current)
+            if cur == end_t:
+                # Reconstruct path
+                path = [GridCell(ex, ey, Layer(el))]
+                t = cur
+                while t in came_from:
+                    t = came_from[t]
+                    path.append(GridCell(t[0], t[1], Layer(t[2])))
+                path.reverse()
+                return path
 
-            current_g = g_score.get(current, float("inf"))
+            cur_g = g_score.get(cur, 1e18)
+            if f > cur_g + abs(cx - ex) + abs(cy - ey) + 50:
+                continue  # stale entry
 
-            # Same-layer neighbors (4-connected)
-            for dx, dy in self.NEIGHBOR_OFFSETS:
-                nx, ny = current.x + dx, current.y + dy
-                nbr = GridCell(nx, ny, current.layer)
-                if not grid.in_bounds(nbr):
+            # 4-connected same-layer neighbors
+            layer_costs = cost_arrays[cl]
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = cx + dx, cy + dy
+                if not (0 <= nx < cols and 0 <= ny < rows):
                     continue
 
-                # Check corridor (width-aware)
-                cell_cost = self._corridor_cost(nx, ny, current.layer, width_cells)
-                if cell_cost >= float("inf"):
+                # Get cell cost directly
+                cell_cost = layer_costs[ny * cols + nx]
+                if cell_cost >= 1e6:
                     continue
 
-                # Direction bias
-                if dx != 0:  # horizontal move
-                    bias = self.LAYER_BIAS[Layer(current.layer)]["h"]
-                else:  # vertical move
-                    bias = self.LAYER_BIAS[Layer(current.layer)]["v"]
+                bias = bias_h[cl] if dx != 0 else bias_v[cl]
+                tent_g = cur_g + bias + cell_cost * 0.1  # scale down obstacle cost
 
-                tentative_g = current_g + bias + cell_cost
-
-                if tentative_g < g_score.get(nbr, float("inf")):
-                    g_score[nbr] = tentative_g
-                    came_from[nbr] = current
-                    h = self._heuristic(nbr, end)
+                nbr = (nx, ny, cl)
+                if tent_g < g_score.get(nbr, 1e18):
+                    g_score[nbr] = tent_g
+                    came_from[nbr] = cur
+                    h = abs(nx - ex) + abs(ny - ey) + (via_cost if cl != el else 0)
                     counter += 1
-                    heapq.heappush(open_set, (tentative_g + h, counter, nbr))
+                    heapq.heappush(open_set, (tent_g + h, counter, nbr))
 
             # Layer transition (via)
-            other_layer = Layer.BACK if current.layer == Layer.FRONT else Layer.FRONT
-            via_cell = GridCell(current.x, current.y, other_layer)
-            if grid.in_bounds(via_cell):
-                via_g = current_g + self.VIA_COST + grid.get_cost(via_cell)
-                if via_g < g_score.get(via_cell, float("inf")):
-                    g_score[via_cell] = via_g
-                    came_from[via_cell] = current
+            ol = 1 - cl  # other layer
+            other_cost = cost_arrays[ol][cy * cols + cx]
+            if other_cost < 1e6:
+                via_g = cur_g + via_cost + other_cost * 0.1
+                nbr_v = (cx, cy, ol)
+                if via_g < g_score.get(nbr_v, 1e18):
+                    g_score[nbr_v] = via_g
+                    came_from[nbr_v] = cur
+                    h = abs(cx - ex) + abs(cy - ey) + (via_cost if ol != el else 0)
                     counter += 1
-                    h = self._heuristic(via_cell, end)
-                    heapq.heappush(open_set, (via_g + h, counter, via_cell))
+                    heapq.heappush(open_set, (via_g + h, counter, nbr_v))
 
         return None  # no path found
 
@@ -262,31 +283,70 @@ class RoutingSolver:
         return all_traces, all_vias, failed
 
     def _build_grid(self) -> RoutingGrid:
-        """Create grid and mark component obstacles."""
+        """Create grid and mark component obstacles with pad escape corridors."""
         grid = RoutingGrid(self.state.board_outline, self.resolution)
 
-        # Mark component bodies as hard obstacles (except pad areas)
-        for comp in self.state.components.values():
-            tl, br = comp.bbox(self.clearance)
-            for layer in range(2):
-                grid.mark_rect(tl, br, layer, float("inf"))
+        # Collect all pad cells first so we can exclude them from obstacles
+        pad_cells: set[tuple[int, int, int]] = set()  # (col, row, layer)
+        escape_cells: set[tuple[int, int, int]] = set()
 
-        # Clear pad locations (they're connection targets, not obstacles)
         for comp in self.state.components.values():
+            comp_tl, comp_br = comp.bbox()
             for pad in comp.pads:
-                pad_size = self.resolution * 2
-                grid.mark_rect(
-                    Point(pad.pos.x - pad_size, pad.pos.y - pad_size),
-                    Point(pad.pos.x + pad_size, pad.pos.y + pad_size),
-                    pad.layer, 0.0)  # Note: set_cost uses max(), so this won't clear
-                # We need direct write to clear pad areas
-                c = grid.to_cell(pad.pos, pad.layer)
+                pc = grid.to_cell(pad.pos, pad.layer)
+                # Mark pad area (3x3)
                 for dc in range(-1, 2):
                     for dr in range(-1, 2):
-                        col, row = c.x + dc, c.y + dr
-                        if 0 <= col < grid.cols and 0 <= row < grid.rows:
-                            idx = grid._idx(row, col)
-                            grid.cost[pad.layer][idx] = 0.0
+                        pad_cells.add((pc.x + dc, pc.y + dr, pad.layer))
+
+                # Create escape corridor from pad to nearest component edge
+                # Find which edge is closest
+                dx_left = pad.pos.x - comp_tl.x
+                dx_right = comp_br.x - pad.pos.x
+                dy_top = pad.pos.y - comp_tl.y
+                dy_bottom = comp_br.y - pad.pos.y
+                min_dist = min(dx_left, dx_right, dy_top, dy_bottom)
+
+                if min_dist == dx_left:
+                    # Escape left
+                    c_edge = grid.to_cell(Point(comp_tl.x - self.clearance * 2, pad.pos.y), pad.layer)
+                    for c in range(c_edge.x, pc.x + 1):
+                        for dr in range(-1, 2):
+                            escape_cells.add((c, pc.y + dr, pad.layer))
+                elif min_dist == dx_right:
+                    # Escape right
+                    c_edge = grid.to_cell(Point(comp_br.x + self.clearance * 2, pad.pos.y), pad.layer)
+                    for c in range(pc.x, c_edge.x + 1):
+                        for dr in range(-1, 2):
+                            escape_cells.add((c, pc.y + dr, pad.layer))
+                elif min_dist == dy_top:
+                    # Escape up
+                    c_edge = grid.to_cell(Point(pad.pos.x, comp_tl.y - self.clearance * 2), pad.layer)
+                    for r in range(c_edge.y, pc.y + 1):
+                        for dc in range(-1, 2):
+                            escape_cells.add((pc.x + dc, r, pad.layer))
+                else:
+                    # Escape down
+                    c_edge = grid.to_cell(Point(pad.pos.x, comp_br.y + self.clearance * 2), pad.layer)
+                    for r in range(pc.y, c_edge.y + 1):
+                        for dc in range(-1, 2):
+                            escape_cells.add((pc.x + dc, r, pad.layer))
+
+        # Mark component bodies as obstacles, but skip pad/escape cells
+        COMPONENT_COST = 100.0  # High but not infinite — last resort path
+        for comp in self.state.components.values():
+            tl, br = comp.bbox(self.clearance)
+            c1 = max(0, int((tl.x - grid.origin.x) / grid.resolution) - 1)
+            r1 = max(0, int((tl.y - grid.origin.y) / grid.resolution) - 1)
+            c2 = min(grid.cols - 1, int((br.x - grid.origin.x) / grid.resolution) + 1)
+            r2 = min(grid.rows - 1, int((br.y - grid.origin.y) / grid.resolution) + 1)
+            for layer in range(2):
+                for r in range(r1, r2 + 1):
+                    for c in range(c1, c2 + 1):
+                        if (c, r, layer) in pad_cells or (c, r, layer) in escape_cells:
+                            continue
+                        idx = grid._idx(r, c)
+                        grid.cost[layer][idx] = max(grid.cost[layer][idx], COMPONENT_COST)
 
         return grid
 

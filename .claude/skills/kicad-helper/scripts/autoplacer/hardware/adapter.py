@@ -201,49 +201,51 @@ class KiCadAdapter:
                       thermal_refs: list[str] = None,
                       thermal_radius_mm: float = 3.0,
                       output_path: str = None):
-        """Write traces and vias to board."""
-        self._ensure_loaded()
-        board = self.board
-
-        if clear_existing:
-            self._clear_tracks(preserve_thermal_vias, thermal_refs or [],
-                               thermal_radius_mm)
-
-        # Add traces
-        for seg in traces:
-            track = pcbnew.PCB_TRACK(board)
-            track.SetStart(pcbnew.VECTOR2I(
-                pcbnew.FromMM(seg.start.x), pcbnew.FromMM(seg.start.y)))
-            track.SetEnd(pcbnew.VECTOR2I(
-                pcbnew.FromMM(seg.end.x), pcbnew.FromMM(seg.end.y)))
-            track.SetLayer(_enum_to_layer(seg.layer))
-            net_item = board.GetNetInfo().GetNetItem(seg.net)
-            if net_item:
-                track.SetNet(net_item)
-            track.SetWidth(pcbnew.FromMM(seg.width_mm))
-            board.Add(track)
-
-        # Add vias
-        for v in vias:
-            via = pcbnew.PCB_VIA(board)
-            via.SetPosition(pcbnew.VECTOR2I(
-                pcbnew.FromMM(v.pos.x), pcbnew.FromMM(v.pos.y)))
-            via.SetDrill(pcbnew.FromMM(v.drill_mm))
-            via.SetWidth(pcbnew.FromMM(v.size_mm))
-            net_item = board.GetNetInfo().GetNetItem(v.net)
-            if net_item:
-                via.SetNet(net_item)
-            via.SetViaType(pcbnew.VIATYPE_THROUGH)
-            board.Add(via)
+        """Write traces and vias to board via subprocess (avoids SWIG reload bugs)."""
+        import subprocess, json, tempfile
 
         out = output_path or self.pcb_path
-        board.Save(out)
+
+        # Serialize routing data to JSON
+        routing_data = {
+            "pcb_path": out,
+            "clear_existing": clear_existing,
+            "preserve_thermal": preserve_thermal_vias,
+            "thermal_refs": thermal_refs or [],
+            "thermal_radius_mm": thermal_radius_mm,
+            "traces": [
+                {"sx": s.start.x, "sy": s.start.y, "ex": s.end.x, "ey": s.end.y,
+                 "layer": int(s.layer), "net": s.net, "width": s.width_mm}
+                for s in traces
+            ],
+            "vias": [
+                {"x": v.pos.x, "y": v.pos.y, "net": v.net,
+                 "drill": v.drill_mm, "size": v.size_mm}
+                for v in vias
+            ],
+        }
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(routing_data, f)
+            tmp_path = f.name
+
+        # Run writer in separate process to get clean pcbnew state
+        script = os.path.join(os.path.dirname(__file__), "..", "_apply_routing.py")
+        result = subprocess.run(
+            ["python3", script, tmp_path],
+            capture_output=True, text=True
+        )
+        os.unlink(tmp_path)
+
+        if result.returncode != 0:
+            print(f"Routing write failed: {result.stderr[-500:]}")
+            raise RuntimeError("apply_routing subprocess failed")
+
         print(f"Routing saved: {len(traces)} traces, {len(vias)} vias -> {out}")
 
-    def _clear_tracks(self, preserve_thermal: bool, thermal_refs: list[str],
-                      thermal_radius_mm: float):
-        """Remove tracks/vias, optionally preserving thermal vias."""
-        board = self.board
+    def _clear_tracks_on(self, board, preserve_thermal: bool,
+                         thermal_refs: list[str], thermal_radius_mm: float):
+        """Remove tracks/vias on given board object."""
         thermal_centers = []
         if preserve_thermal:
             for ref in thermal_refs:
