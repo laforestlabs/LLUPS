@@ -47,7 +47,8 @@ def plot_experiments(experiments, output_path):
                     edgecolors="black" if k else "none", linewidths=1.5 if k else 0)
 
     ax1.plot(rounds, best, "k-", linewidth=2, alpha=0.7, label="Best so far")
-    ax1.set_ylabel("Experiment Score", fontsize=11)
+    ax1.set_ylabel("Experiment Score (log)", fontsize=11)
+    ax1.set_yscale("symlog", linthresh=1)
     ax1.set_title("Autoexperiment: PCB Layout Optimization", fontsize=14, fontweight="bold")
     ax1.legend(loc="lower right", fontsize=9)
     ax1.grid(True, alpha=0.3)
