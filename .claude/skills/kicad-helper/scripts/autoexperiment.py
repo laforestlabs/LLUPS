@@ -45,6 +45,19 @@ class Experiment:
     details: str = ""
     duration_s: float = 0.0
     kept: bool = False
+    # Scoring breakdown
+    placement_score: float = 0.0
+    route_completion: float = 0.0
+    trace_efficiency: float = 0.0
+    via_score: float = 0.0
+    courtyard_overlap: float = 0.0
+    board_containment: float = 0.0
+    # DRC counts
+    drc_shorts: int = 0
+    drc_unconnected: int = 0
+    drc_clearance: int = 0
+    drc_courtyard: int = 0
+    drc_total: int = 0
 
 
 def load_program(path: str) -> dict:
@@ -139,6 +152,40 @@ def config_delta(base: dict, candidate: dict) -> dict:
         if k in base and candidate[k] != base[k]:
             delta[k] = candidate[k]
     return delta
+
+
+def quick_drc(pcb_path: str) -> dict:
+    """Run kicad-cli DRC and return violation counts by category."""
+    import re
+    counts = {"shorts": 0, "unconnected": 0, "clearance": 0, "courtyard": 0, "total": 0}
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+            report_path = f.name
+        subprocess.run(
+            ["kicad-cli", "pcb", "drc", "-o", report_path, pcb_path],
+            capture_output=True, text=True, timeout=30,
+        )
+        with open(report_path) as f:
+            report = f.read()
+        os.remove(report_path)
+
+        for line in report.splitlines():
+            m = re.match(r'^\[(\w+)\]:', line)
+            if not m:
+                continue
+            vtype = m.group(1)
+            counts["total"] += 1
+            if vtype == "shorting_items":
+                counts["shorts"] += 1
+            elif vtype == "unconnected_items":
+                counts["unconnected"] += 1
+            elif vtype in ("clearance", "hole_clearance", "copper_edge_clearance"):
+                counts["clearance"] += 1
+            elif vtype == "courtyards_overlap":
+                counts["courtyard"] += 1
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+    return counts
 
 
 def snapshot_pcb(pcb_path: str, output_png: str):
@@ -330,7 +377,25 @@ def main():
             minor_stagnant += 1
             marker = f"discard (stagnant={minor_stagnant})"
 
-        print(f"  {t_label}: {score.summary()} [{marker}] ({duration:.1f}s)")
+        # Run DRC on the experiment PCB
+        drc = quick_drc(str(work_dir / "experiment.kicad_pcb"))
+
+        print(f"  {t_label}: {score.summary()} drc={drc['total']} [{marker}] ({duration:.1f}s)")
+
+        # Compute sub-scores for breakdown logging
+        if score.total_nets > 0:
+            route_pct = ((score.total_nets - score.failed_nets) / score.total_nets) * 100
+        else:
+            route_pct = 100.0
+        if score.total_trace_length_mm > 0 and score.total_nets > 0:
+            avg_per_net = score.total_trace_length_mm / max(1, score.routed_nets)
+            trace_eff = max(0, min(100, 100 - avg_per_net))
+        else:
+            trace_eff = 50.0
+        if score.routed_nets > 0:
+            via_sc = max(0, min(100, 100 - (score.via_count / score.routed_nets) * 20))
+        else:
+            via_sc = 50.0
 
         # Log
         exp = Experiment(
@@ -342,6 +407,17 @@ def main():
             details=score.summary(),
             duration_s=round(duration, 1),
             kept=kept,
+            placement_score=round(score.placement.total, 1),
+            route_completion=round(route_pct, 1),
+            trace_efficiency=round(trace_eff, 1),
+            via_score=round(via_sc, 1),
+            courtyard_overlap=round(score.placement.courtyard_overlap, 1),
+            board_containment=round(score.placement.board_containment, 1),
+            drc_shorts=drc["shorts"],
+            drc_unconnected=drc["unconnected"],
+            drc_clearance=drc["clearance"],
+            drc_courtyard=drc["courtyard"],
+            drc_total=drc["total"],
         )
         experiments.append(exp)
 

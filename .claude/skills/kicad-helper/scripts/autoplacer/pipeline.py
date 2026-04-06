@@ -47,6 +47,7 @@ class PlacementEngine:
             "edge_compliance": score.edge_compliance,
             "rotation_score": score.rotation_score,
             "board_containment": score.board_containment,
+            "courtyard_overlap": score.courtyard_overlap,
         }
 
 
@@ -134,6 +135,7 @@ class FullPipeline:
             edge_compliance=placement.get("edge_compliance", 0),
             rotation_score=placement.get("rotation_score", 0),
             board_containment=placement.get("board_containment", 0),
+            courtyard_overlap=placement.get("courtyard_overlap", 0),
         )
         exp_score.compute()
 
