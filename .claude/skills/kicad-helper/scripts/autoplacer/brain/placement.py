@@ -176,31 +176,27 @@ class PlacementScorer:
     def _score_board_containment(self) -> float:
         """Score how well components and pads stay within the board outline.
 
-        Checks three things with increasing severity:
-        1. Pad centers outside board outline (critical — unmanufacturable)
-        2. Component bounding boxes extending past edge cuts
-        3. Component bodies partially outside (clipped)
-
-        Any pad outside the board is a hard manufacturing failure,
-        so the penalty is steep: each violation costs 10 points.
+        Edge-mounted connectors (kind=connector) are excluded — their pads
+        intentionally overhang the board edge (USB, battery holders, etc).
         """
         tl, br = self.state.board_outline
 
-        # Count total checkable items and violations
         total_pads = 0
         pads_outside = 0
         total_bodies = 0
         bodies_outside = 0
 
         for comp in self.state.components.values():
-            # Check component body (bounding box) against board outline
+            # Connectors are edge-mounted by design — skip containment check
+            if comp.kind in ("connector", "mounting_hole"):
+                continue
+
             total_bodies += 1
             c_tl, c_br = comp.bbox()
             if (c_tl.x < tl.x or c_br.x > br.x or
                     c_tl.y < tl.y or c_br.y > br.y):
                 bodies_outside += 1
 
-            # Check every pad center — these are the actual copper features
             for pad in comp.pads:
                 total_pads += 1
                 if (pad.pos.x < tl.x or pad.pos.x > br.x or
@@ -210,8 +206,6 @@ class PlacementScorer:
         if total_pads == 0 and total_bodies == 0:
             return 100.0
 
-        # Pads outside is critical: each one costs 10 points (hard floor at 0)
-        # Bodies outside is a warning: each one costs 3 points
         penalty = pads_outside * 10.0 + bodies_outside * 3.0
         return max(0.0, min(100.0, 100.0 - penalty))
 
@@ -336,6 +330,9 @@ class PlacementSolver:
 
         # Step 7: Snap to grid
         self._snap_to_grid(best_comps)
+
+        # Step 8: Hard clamp — nothing outside the board
+        self._clamp_to_board(best_comps)
 
         # Final score
         work_state.components = best_comps
@@ -538,9 +535,9 @@ class PlacementSolver:
                     forces[ref_list[j]].x -= fx
                     forces[ref_list[j]].y -= fy
 
-        # Boundary: spring force at edges
+        # Boundary: strong spring force at edges
         margin = self.edge_margin + 2.0
-        k_boundary = 2.0
+        k_boundary = 10.0
         for ref in refs:
             c = comps[ref]
             hw, hh = c.width_mm / 2, c.height_mm / 2
@@ -570,6 +567,13 @@ class PlacementSolver:
             old_rot = comps[ref].rotation
             comps[ref].pos.x += dx
             comps[ref].pos.y += dy
+
+            # Hard clamp: component bounding box must stay inside board
+            c = comps[ref]
+            hw, hh = c.width_mm / 2, c.height_mm / 2
+            c.pos.x = max(tl.x + hw + 1.0, min(br.x - hw - 1.0, c.pos.x))
+            c.pos.y = max(tl.y + hh + 1.0, min(br.y - hh - 1.0, c.pos.y))
+
             _update_pad_positions(comps[ref], old_pos, old_rot)
 
             max_disp = max(max_disp, mag)
@@ -610,6 +614,19 @@ class PlacementSolver:
                     moved = True
             if not moved:
                 break
+
+    def _clamp_to_board(self, comps: dict[str, Component]):
+        """Hard clamp: force every component's bounding box inside the board."""
+        tl, br = self.state.board_outline
+        for comp in comps.values():
+            if comp.locked:
+                continue
+            hw, hh = comp.width_mm / 2, comp.height_mm / 2
+            old_pos = Point(comp.pos.x, comp.pos.y)
+            comp.pos.x = max(tl.x + hw + 1.0, min(br.x - hw - 1.0, comp.pos.x))
+            comp.pos.y = max(tl.y + hh + 1.0, min(br.y - hh - 1.0, comp.pos.y))
+            if comp.pos.x != old_pos.x or comp.pos.y != old_pos.y:
+                _update_pad_positions(comp, old_pos, comp.rotation)
 
     def _snap_to_grid(self, comps: dict[str, Component]):
         """Snap all unlocked components to placement grid."""

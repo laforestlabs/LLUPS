@@ -228,12 +228,16 @@ class ExperimentScore:
         else:
             via_score = 50.0
 
-        self.total = (
+        raw = (
             w["placement"] * self.placement.total +
             w["route_completion"] * route_pct +
             w["trace_efficiency"] * trace_eff +
             w["via_penalty"] * via_score
         )
+        # Hard penalty: pads outside board makes layout unmanufacturable
+        # Scale total by containment fraction so escapes tank the score
+        containment_frac = self.placement.board_containment / 100.0
+        self.total = raw * containment_frac
         return self.total
 
     def summary(self) -> str:
