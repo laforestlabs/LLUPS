@@ -91,11 +91,11 @@ def mutate_config_minor(base: dict, rng: random.Random,
 
     # Parameters eligible for minor mutation with (min, max, sigma_frac)
     tunable = {
-        "force_attract_k": (0.01, 0.5, 0.15),
-        "force_repel_k":   (5.0, 200.0, 0.15),
+        "force_attract_k": (0.01, 0.3, 0.15),
+        "force_repel_k":   (30.0, 300.0, 0.15),
         "cooling_factor":  (0.90, 0.995, 0.05),
-        "edge_margin_mm":  (1.0, 5.0, 0.1),
-        "clearance_mm":    (0.15, 1.0, 0.1),
+        "edge_margin_mm":  (2.0, 6.0, 0.1),
+        "clearance_mm":    (0.25, 1.5, 0.1),
         "existing_trace_cost": (1.0, 50.0, 0.2),
         "max_rips_per_net": (2, 15, 0.2),
     }
@@ -360,6 +360,11 @@ def main():
         if score_weights:
             score.compute(score_weights)
 
+        # Run DRC — shorts are an instant dealbreaker
+        drc = quick_drc(str(work_dir / "experiment.kicad_pcb"))
+        if drc["shorts"] > 0:
+            score.total *= 0.0  # shorts = failing score
+
         # Keep or discard
         kept = score.total > best_total
         if kept:
@@ -376,9 +381,6 @@ def main():
         else:
             minor_stagnant += 1
             marker = f"discard (stagnant={minor_stagnant})"
-
-        # Run DRC on the experiment PCB
-        drc = quick_drc(str(work_dir / "experiment.kicad_pcb"))
 
         print(f"  {t_label}: {score.summary()} drc={drc['total']} [{marker}] ({duration:.1f}s)")
 

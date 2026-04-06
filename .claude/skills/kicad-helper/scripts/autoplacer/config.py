@@ -13,7 +13,7 @@ DEFAULT_CONFIG = {
     "via_size_mm": 0.6,
 
     # Clearances
-    "clearance_mm": 0.2,
+    "clearance_mm": 0.35,
 
     # Power nets
     "power_nets": {
@@ -24,9 +24,9 @@ DEFAULT_CONFIG = {
 
     # Placement
     "placement_grid_mm": 0.5,
-    "edge_margin_mm": 2.0,
-    "force_attract_k": 0.08,
-    "force_repel_k": 40.0,
+    "edge_margin_mm": 3.0,
+    "force_attract_k": 0.04,
+    "force_repel_k": 80.0,
     "cooling_factor": 0.97,
 
     # Routing
