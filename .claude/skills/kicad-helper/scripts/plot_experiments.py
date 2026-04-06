@@ -83,14 +83,29 @@ def plot_experiments(experiments, output_path):
                 data.append(row)
                 labels.append(f"R{e['round_num']}")
 
-            ax2.set_title("Config Deltas (Kept Experiments)", fontsize=11)
+            ax2.set_title("Config Values (Kept Experiments) — per-param normalized", fontsize=11)
             if len(data) > 0 and len(data[0]) > 0:
-                im = ax2.imshow(np.array(data).T, aspect="auto", cmap="RdYlGn")
+                arr = np.array(data).T  # shape: (params, experiments)
+                # Normalize each param row to 0-1 so different scales don't blow out
+                for row_i in range(arr.shape[0]):
+                    row_min, row_max = arr[row_i].min(), arr[row_i].max()
+                    if row_max - row_min > 1e-9:
+                        arr[row_i] = (arr[row_i] - row_min) / (row_max - row_min)
+                    else:
+                        arr[row_i] = 0.5
+                im = ax2.imshow(arr, aspect="auto", cmap="RdYlGn", vmin=0, vmax=1)
                 ax2.set_xticks(range(len(labels)))
                 ax2.set_xticklabels(labels, fontsize=8)
                 ax2.set_yticks(range(len(all_keys)))
-                ax2.set_yticklabels([k.replace("_", "\n") for k in all_keys], fontsize=7)
-                plt.colorbar(im, ax=ax2, shrink=0.8)
+                # Show actual value range in label
+                raw = np.array(data).T
+                ylabels = []
+                for ki, k in enumerate(all_keys):
+                    lo, hi = raw[ki].min(), raw[ki].max()
+                    ylabels.append(f"{k.replace('_', ' ')}\n[{lo:.3g}–{hi:.3g}]")
+                ax2.set_yticklabels(ylabels, fontsize=7)
+                cbar = plt.colorbar(im, ax=ax2, shrink=0.8)
+                cbar.set_label("Normalized (0=min, 1=max)", fontsize=8)
             else:
                 ax2.text(0.5, 0.5, "No param changes in kept experiments",
                          ha="center", va="center", transform=ax2.transAxes)
