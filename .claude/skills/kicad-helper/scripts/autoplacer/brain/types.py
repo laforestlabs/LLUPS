@@ -168,15 +168,17 @@ class PlacementScore:
     edge_compliance: float = 0.0    # connectors/holes on edges
     rotation_score: float = 0.0     # pad alignment quality
     board_containment: float = 0.0  # % of pads/bodies inside board outline
+    courtyard_overlap: float = 0.0  # 100 = no overlaps
 
     def compute_total(self, weights: Optional[dict] = None) -> float:
         w = weights or {
-            "net_distance": 0.25,
-            "crossover_score": 0.25,
-            "compactness": 0.05,
-            "edge_compliance": 0.10,
+            "net_distance": 0.20,
+            "crossover_score": 0.20,
+            "compactness": 0.02,
+            "edge_compliance": 0.08,
             "rotation_score": 0.05,
-            "board_containment": 0.30,
+            "board_containment": 0.25,
+            "courtyard_overlap": 0.20,
         }
         self.total = sum(
             getattr(self, k) * v for k, v in w.items()

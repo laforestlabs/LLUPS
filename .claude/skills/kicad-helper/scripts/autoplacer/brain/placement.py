@@ -93,6 +93,7 @@ class PlacementScorer:
         s.edge_compliance = self._score_edge_compliance()
         s.rotation_score = self._score_rotation()
         s.board_containment = self._score_board_containment()
+        s.courtyard_overlap = self._score_courtyard_overlap()
         s.compute_total()
         return s
 
@@ -121,12 +122,15 @@ class PlacementScorer:
         return max(0, min(100, (1.0 - ratio) * 100))
 
     def _score_compactness(self) -> float:
-        """Ratio of component area to board area. Higher = more compact."""
+        """Ratio of component area to board area. Gentle reward for smaller layouts.
+        20% fill = 50, 40% fill = 75, 60%+ = 100. Not heavily penalized."""
         total_area = sum(c.area for c in self.state.components.values())
         board_area = self.state.board_width * self.state.board_height
         if board_area == 0:
             return 0.0
-        return min(100, (total_area / board_area) * 200)  # 50% fill = 100 score
+        fill = total_area / board_area
+        # Gentle curve: 10% fill ≈ 40, 30% ≈ 65, 50%+ ≈ 90+
+        return min(100, fill * 150 + 25)
 
     def _score_edge_compliance(self) -> float:
         """Check connectors and mounting holes are near board edges."""
@@ -209,6 +213,31 @@ class PlacementScorer:
         penalty = pads_outside * 10.0 + bodies_outside * 3.0
         return max(0.0, min(100.0, 100.0 - penalty))
 
+    def _score_courtyard_overlap(self) -> float:
+        """Penalize overlapping component courtyards.
+        Uses bbox with clearance as courtyard proxy."""
+        comps = list(self.state.components.values())
+        clearance = 0.25  # mm courtyard margin
+        n = len(comps)
+        overlaps = 0
+        total_pairs = 0
+
+        for i in range(n):
+            a = comps[i]
+            for j in range(i + 1, n):
+                b = comps[j]
+                total_pairs += 1
+                a_tl, a_br = a.bbox(clearance)
+                b_tl, b_br = b.bbox(clearance)
+                if (a_tl.x < b_br.x and a_br.x > b_tl.x and
+                        a_tl.y < b_br.y and a_br.y > b_tl.y):
+                    overlaps += 1
+
+        if total_pairs == 0:
+            return 100.0
+        # Each overlap costs 5 points
+        return max(0.0, min(100.0, 100.0 - overlaps * 5.0))
+
 
 class PlacementSolver:
     """Force-directed placement with edge-first constraints and scoring feedback.
@@ -252,10 +281,13 @@ class PlacementSolver:
         # Step 3: Initial cluster placement (with seeded jitter)
         self._place_clusters(comps, clusters, conn_graph)
 
-        # Step 4: Try 4 rotations per IC/connector, keep best
+        # Step 4: Optimize layout within each cluster before global layout
+        self._optimize_intra_cluster(comps, clusters, conn_graph)
+
+        # Step 5: Try 4 rotations per IC/connector, keep best
         self._optimize_rotations(comps, work_state)
 
-        # Step 5: Force-directed refinement with scoring feedback
+        # Step 6: Force-directed refinement with scoring feedback
         scorer = PlacementScorer(work_state)
         best_score = scorer.score()
         best_comps = {r: copy.deepcopy(c) for r, c in comps.items()}
@@ -294,7 +326,7 @@ class PlacementSolver:
                 print(f"  Displacement converged at iteration {iteration+1}")
                 break
 
-        # Step 6: Swap optimization — directly minimize crossovers
+        # Step 7: Swap optimization — directly minimize crossovers
         comps = best_comps
         work_state.components = comps
         best_cross = count_crossings(work_state)
@@ -328,10 +360,10 @@ class PlacementSolver:
 
         best_comps = comps
 
-        # Step 7: Snap to grid
+        # Step 8: Snap to grid
         self._snap_to_grid(best_comps)
 
-        # Step 8: Hard clamp — nothing outside the board
+        # Step 9: Hard clamp — nothing outside the board
         self._clamp_to_board(best_comps)
 
         # Final score
@@ -430,6 +462,86 @@ class PlacementSolver:
                     cy + r * math.sin(angle),
                 )
                 _update_pad_positions(comps[ref], old_pos, old_rot)
+
+    def _optimize_intra_cluster(self, comps: dict[str, Component],
+                                clusters: list[set[str]],
+                                conn_graph: AdjacencyGraph):
+        """Run a short force-directed pass within each cluster independently.
+
+        This arranges components within functional groups (e.g. charger IC
+        with its caps and resistors) before the global layout decides
+        where groups go relative to each other.
+        """
+        tl, br = self.state.board_outline
+        for cluster in clusters:
+            unlocked = [r for r in cluster if not comps[r].locked]
+            if len(unlocked) < 2:
+                continue
+
+            # Compute cluster centroid
+            cx = sum(comps[r].pos.x for r in unlocked) / len(unlocked)
+            cy = sum(comps[r].pos.y for r in unlocked) / len(unlocked)
+
+            # Mini force-directed loop: attract connected, repel overlapping
+            damping = 1.0
+            for _ in range(50):
+                forces = {r: Point(0, 0) for r in unlocked}
+
+                # Attract connected pairs within cluster
+                for i, ra in enumerate(unlocked):
+                    for rb in unlocked[i + 1:]:
+                        w = conn_graph.weight(ra, rb)
+                        if w <= 0:
+                            continue
+                        a, b = comps[ra], comps[rb]
+                        d = max(a.pos.dist(b.pos), 0.1)
+                        # Pull together proportional to distance and weight
+                        f = self.k_attract * w * d
+                        dx = (b.pos.x - a.pos.x) / d * f
+                        dy = (b.pos.y - a.pos.y) / d * f
+                        forces[ra].x += dx
+                        forces[ra].y += dy
+                        forces[rb].x -= dx
+                        forces[rb].y -= dy
+
+                # Repel overlapping bboxes
+                for i, ra in enumerate(unlocked):
+                    for rb in unlocked[i + 1:]:
+                        a, b = comps[ra], comps[rb]
+                        overlap = _bbox_overlap_amount(a, b)
+                        if overlap <= 0:
+                            continue
+                        d = max(a.pos.dist(b.pos), 0.1)
+                        f = 3.0 * math.sqrt(overlap)
+                        dx = (a.pos.x - b.pos.x) / d * f
+                        dy = (a.pos.y - b.pos.y) / d * f
+                        forces[ra].x += dx
+                        forces[ra].y += dy
+                        forces[rb].x -= dx
+                        forces[rb].y -= dy
+
+                # Apply forces
+                for r in unlocked:
+                    dx = forces[r].x * damping
+                    dy = forces[r].y * damping
+                    mag = math.hypot(dx, dy)
+                    max_step = 1.5 * damping
+                    if mag > max_step:
+                        dx *= max_step / mag
+                        dy *= max_step / mag
+
+                    old_pos = Point(comps[r].pos.x, comps[r].pos.y)
+                    comps[r].pos.x += dx
+                    comps[r].pos.y += dy
+                    # Clamp to board
+                    hw, hh = comps[r].width_mm / 2, comps[r].height_mm / 2
+                    comps[r].pos.x = max(tl.x + hw + 1.0, min(br.x - hw - 1.0, comps[r].pos.x))
+                    comps[r].pos.y = max(tl.y + hh + 1.0, min(br.y - hh - 1.0, comps[r].pos.y))
+                    _update_pad_positions(comps[r], old_pos, comps[r].rotation)
+
+                damping *= 0.95
+
+        print(f"  Intra-cluster optimization done ({len(clusters)} clusters)")
 
     def _optimize_rotations(self, comps: dict[str, Component],
                             work_state: BoardState):

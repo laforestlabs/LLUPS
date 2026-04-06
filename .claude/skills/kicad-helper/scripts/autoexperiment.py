@@ -348,10 +348,10 @@ def main():
         with open(log_path, 'a') as f:
             f.write(json.dumps(asdict(exp), default=str) + '\n')
 
-        # Snapshot PCB for progress GIF
-        if not args.no_render:
+        # Snapshot kept improvements for progress GIF
+        if not args.no_render and kept:
             frame_png = str(frames_dir / f"frame_{round_num:04d}.png")
-            snapshot_pcb(str(work_dir / "experiment.kicad_pcb"), frame_png)
+            snapshot_pcb(str(best_dir / "best.kicad_pcb"), frame_png)
 
     # Assemble progress GIF from frames
     if not args.no_render:
