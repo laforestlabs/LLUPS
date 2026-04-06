@@ -23,7 +23,7 @@ def load_experiments(path):
 
 
 def plot_experiments(experiments, output_path):
-    rounds = [e["round_num"] for e in experiments]
+    rounds = list(range(1, len(experiments) + 1))
     scores = [e["score"] for e in experiments]
     modes = [e["mode"] for e in experiments]
     kept = [e["kept"] for e in experiments]
@@ -90,10 +90,12 @@ def plot_experiments(experiments, output_path):
         if all_keys:
             data = []
             labels = []
-            for e in kept_exps:
+            for idx, e in enumerate(kept_exps):
                 row = [e["config_delta"].get(k, 0) for k in all_keys]
                 data.append(row)
-                labels.append(f"R{e['round_num']}")
+                # Use sequential kept-index since round_num restarts across runs
+                kept_idx = next(i for i, exp in enumerate(experiments) if exp is e) + 1
+                labels.append(f"#{kept_idx}")
 
             ax2.set_title("Config Values (Kept Experiments) — per-param normalized", fontsize=11)
             if len(data) > 0 and len(data[0]) > 0:

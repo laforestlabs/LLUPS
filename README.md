@@ -81,6 +81,10 @@ python3 plot_experiments.py ../../../../.experiments/experiments.jsonl
 
 ![Experiment Results](experiments_dashboard.png)
 
+### Layout Progress
+
+![Layout Progress GIF](.experiments/progress.gif)
+
 ## KiCad Helper Scripts
 
 Automation scripts using the KiCad 9 `pcbnew` Python API:

@@ -17,11 +17,14 @@ Usage:
 from __future__ import annotations
 import argparse
 import copy
+import glob
 import json
 import os
 import random
 import shutil
+import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -138,6 +141,47 @@ def config_delta(base: dict, candidate: dict) -> dict:
     return delta
 
 
+def snapshot_pcb(pcb_path: str, output_png: str):
+    """Export a quick PNG snapshot of the PCB for progress GIF."""
+    try:
+        # Use kicad-cli SVG export then convert — same approach as render_pcb.py
+        with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp:
+            svg_path = tmp.name
+        subprocess.run([
+            "kicad-cli", "pcb", "export", "svg",
+            "--layers", "F.Cu,B.Cu,F.SilkS,Edge.Cuts",
+            "--mode-single", "--fit-page-to-board",
+            "--exclude-drawing-sheet", "--drill-shape-opt", "2",
+            "-o", svg_path, pcb_path,
+        ], capture_output=True, check=True)
+        subprocess.run([
+            "magick", "-density", "150", svg_path,
+            "-resize", "800x800", output_png,
+        ], capture_output=True, check=True)
+        os.remove(svg_path)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass  # non-fatal — skip snapshot if tools missing
+
+
+def assemble_gif(frames_dir: Path, output_path: str, delay_cs: int = 50):
+    """Stitch numbered PNG frames into an animated GIF using ImageMagick."""
+    frames = sorted(glob.glob(str(frames_dir / "frame_*.png")))
+    if len(frames) < 2:
+        return
+    # Hold last frame longer
+    cmd = [
+        "magick", "-delay", str(delay_cs), "-loop", "0",
+    ]
+    cmd.extend(frames[:-1])
+    cmd.extend(["-delay", "200", frames[-1]])
+    cmd.extend(["-layers", "Optimize", output_path])
+    try:
+        subprocess.run(cmd, capture_output=True, check=True)
+        print(f"  GIF saved: {output_path} ({len(frames)} frames)")
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"  GIF assembly failed: {e}", file=sys.stderr)
+
+
 def run_experiment(pcb_path: str, work_dir: Path, cfg: dict,
                    seed: int, quiet: bool = True) -> tuple[ExperimentScore, float]:
     """Run one full pipeline experiment. Returns (score, duration_seconds)."""
@@ -189,6 +233,8 @@ def main():
                         help="Suppress pipeline output (default: on)")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="Show pipeline output")
+    parser.add_argument("--no-render", action="store_true",
+                        help="Skip PCB snapshot rendering (saves time)")
     args = parser.parse_args()
 
     if args.verbose:
@@ -205,6 +251,9 @@ def main():
     work_dir.mkdir(exist_ok=True)
     best_dir = work_dir / "best"
     best_dir.mkdir(exist_ok=True)
+    frames_dir = work_dir / "frames"
+    if not args.no_render:
+        frames_dir.mkdir(exist_ok=True)
 
     output_path = args.output or str(Path(args.pcb).with_suffix('')) + "_best.kicad_pcb"
     log_path = work_dir / args.log
@@ -298,6 +347,16 @@ def main():
 
         with open(log_path, 'a') as f:
             f.write(json.dumps(asdict(exp), default=str) + '\n')
+
+        # Snapshot PCB for progress GIF
+        if not args.no_render:
+            frame_png = str(frames_dir / f"frame_{round_num:04d}.png")
+            snapshot_pcb(str(work_dir / "experiment.kicad_pcb"), frame_png)
+
+    # Assemble progress GIF from frames
+    if not args.no_render:
+        gif_path = str(work_dir / "progress.gif")
+        assemble_gif(frames_dir, gif_path)
 
     # Copy best result to output
     best_pcb = str(best_dir / "best.kicad_pcb")
