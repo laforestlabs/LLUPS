@@ -46,9 +46,20 @@ def plot_experiments(experiments, output_path):
         ax1.scatter(r, s, c=color, marker=marker, s=60, zorder=5,
                     edgecolors="black" if k else "none", linewidths=1.5 if k else 0)
 
-    ax1.plot(rounds, best, "k-", linewidth=2, alpha=0.7, label="Best so far")
-    ax1.set_ylabel("Experiment Score (log)", fontsize=11)
-    ax1.set_yscale("symlog", linthresh=1)
+    # Best-so-far starts at 0 before first kept — clip to actual scores for display
+    first_kept_idx = next((i for i, b in enumerate(best) if b > 0), 0)
+    best_display = best[first_kept_idx:]
+    rounds_display = rounds[first_kept_idx:]
+    ax1.plot(rounds_display, best_display, "k-", linewidth=2, alpha=0.7, label="Best so far")
+
+    # Zoom y-axis to the data range with some padding
+    all_scores_nonzero = [s for s in scores if s > 0]
+    if all_scores_nonzero:
+        y_min = min(all_scores_nonzero) - 1
+        y_max = max(all_scores_nonzero) + 1
+        ax1.set_ylim(y_min, y_max)
+
+    ax1.set_ylabel("Experiment Score", fontsize=11)
     ax1.set_title("Autoexperiment: PCB Layout Optimization", fontsize=14, fontweight="bold")
     ax1.legend(loc="lower right", fontsize=9)
     ax1.grid(True, alpha=0.3)
