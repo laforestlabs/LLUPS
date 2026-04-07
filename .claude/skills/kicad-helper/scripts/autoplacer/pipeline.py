@@ -80,10 +80,17 @@ class RoutingEngine:
             output_path=out,
         )
 
+        # Count routable nets from the already-loaded state (avoids an extra board load)
+        skip_gnd = cfg.get("skip_gnd_routing", True)
+        n_total = len([n for n in state.nets.values()
+                       if len(n.pad_refs) >= 2 and
+                       not (skip_gnd and n.name in ("GND", "/GND"))])
+
         return {
             "traces": len(traces),
             "vias": len(vias),
             "failed_nets": failed,
+            "total_nets": n_total,
             "total_length_mm": sum(s.length for s in traces),
         }
 
@@ -112,11 +119,7 @@ class FullPipeline:
         # Build unified experiment score
         failed = routing["failed_nets"]
         n_failed = len(failed) if isinstance(failed, list) else 0
-        # Load state to count total nets
-        adapter = KiCadAdapter(out)
-        state = adapter.load()
-        n_total = len([n for n in state.nets.values()
-                       if len(n.pad_refs) >= 2])
+        n_total = routing["total_nets"]  # returned by RoutingEngine, no extra load
 
         exp_score = ExperimentScore(
             routed_nets=max(0, n_total - n_failed),

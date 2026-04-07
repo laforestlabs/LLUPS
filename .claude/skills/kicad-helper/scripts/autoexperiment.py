@@ -19,6 +19,7 @@ import argparse
 import copy
 import glob
 import json
+import multiprocessing as mp
 import os
 import random
 import re
@@ -27,8 +28,14 @@ import subprocess
 import sys
 import tempfile
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+
+# Must come before autoplacer imports so spawn workers can find the package
+_SCRIPT_DIR = str(Path(__file__).parent.absolute())
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
 
 from autoplacer.config import DEFAULT_CONFIG
 from autoplacer.pipeline import FullPipeline
@@ -260,27 +267,73 @@ def assemble_gif(frames_dir: Path, output_path: str, delay_cs: int = 50):
         print(f"  GIF assembly failed: {e}", file=sys.stderr)
 
 
-def run_experiment(pcb_path: str, work_dir: Path, cfg: dict,
+def _suppress_output():
+    """Redirect fd 1+2 to /dev/null. Returns (saved_out_fd, saved_err_fd, old_stdout, old_stderr)."""
+    devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    saved_out = os.dup(1)
+    saved_err = os.dup(2)
+    os.dup2(devnull_fd, 1)
+    os.dup2(devnull_fd, 2)
+    os.close(devnull_fd)
+    old_stdout, old_stderr = sys.stdout, sys.stderr
+    sys.stdout = open(os.devnull, 'w')
+    sys.stderr = open(os.devnull, 'w')
+    return saved_out, saved_err, old_stdout, old_stderr
+
+
+def _restore_output(saved_out, saved_err, old_stdout, old_stderr):
+    """Restore fd 1+2 and Python streams."""
+    sys.stdout.close()
+    sys.stderr.close()
+    sys.stdout, sys.stderr = old_stdout, old_stderr
+    os.dup2(saved_out, 1)
+    os.dup2(saved_err, 2)
+    os.close(saved_out)
+    os.close(saved_err)
+
+
+def _worker_run(args: tuple) -> tuple[ExperimentScore, float, str]:
+    """Top-level picklable worker for ProcessPoolExecutor.
+
+    Each parallel experiment runs in its own process with its own work_pcb
+    path so there are no file conflicts between concurrent workers.
+    Returns (ExperimentScore, duration_seconds, work_pcb_path).
+    """
+    pcb_src, work_pcb, cfg, seed, score_weights, script_dir = args
+
+    # Ensure autoplacer is importable (needed when using spawn context)
+    if script_dir not in sys.path:
+        sys.path.insert(0, script_dir)
+
+    shutil.copy2(pcb_src, work_pcb)
+    saved = _suppress_output()
+    t0 = time.monotonic()
+    try:
+        from autoplacer.pipeline import FullPipeline
+        from autoplacer.brain.types import ExperimentScore as ES
+        pipeline = FullPipeline()
+        result = pipeline.run(work_pcb, work_pcb, config=cfg, seed=seed)
+        exp_score = result["experiment_score"]
+        if score_weights:
+            exp_score.compute(score_weights)
+    except Exception:
+        from autoplacer.brain.types import ExperimentScore as ES
+        exp_score = ES()
+        exp_score.total = -1.0
+    finally:
+        duration = time.monotonic() - t0
+        _restore_output(*saved)
+
+    return exp_score, duration, work_pcb
+
+
+def run_experiment(pcb_path: str, work_pcb: str, cfg: dict,
                    seed: int, quiet: bool = True) -> tuple[ExperimentScore, float]:
-    """Run one full pipeline experiment. Returns (score, duration_seconds)."""
-    # Work on a copy so we don't corrupt the original
-    work_pcb = str(work_dir / "experiment.kicad_pcb")
+    """Run one full pipeline experiment in-process. Returns (score, duration_seconds)."""
     shutil.copy2(pcb_path, work_pcb)
 
-    # Suppress stdout/stderr during experiment if quiet.
-    # wxWidgets writes debug spam directly to fd 1/2, so we redirect
-    # the underlying file descriptors, not just Python's sys.std*.
     if quiet:
-        devnull_fd = os.open(os.devnull, os.O_WRONLY)
-        saved_stdout_fd = os.dup(1)
-        saved_stderr_fd = os.dup(2)
-        os.dup2(devnull_fd, 1)
-        os.dup2(devnull_fd, 2)
-        os.close(devnull_fd)
-        old_stdout = sys.stdout
-        old_stderr = sys.stderr
-        sys.stdout = open(os.devnull, 'w')
-        sys.stderr = open(os.devnull, 'w')
+        saved = _suppress_output()
 
     t0 = time.monotonic()
     try:
@@ -295,16 +348,40 @@ def run_experiment(pcb_path: str, work_dir: Path, cfg: dict,
     finally:
         duration = time.monotonic() - t0
         if quiet:
-            sys.stdout.close()
-            sys.stderr.close()
-            sys.stdout = old_stdout
-            sys.stderr = old_stderr
-            os.dup2(saved_stdout_fd, 1)
-            os.dup2(saved_stderr_fd, 2)
-            os.close(saved_stdout_fd)
-            os.close(saved_stderr_fd)
+            _restore_output(*saved)
 
     return exp_score, duration
+
+
+def _apply_shorts_penalty(score: ExperimentScore, shorts: int) -> None:
+    """Apply log-scale shorts penalty in-place."""
+    if shorts > 0:
+        import math
+        score.total *= 0.10 / (1 + math.log10(1 + shorts))
+
+
+def _log_and_record(exp: Experiment, experiments: list, log_path: Path) -> None:
+    experiments.append(exp)
+    with open(log_path, 'a') as f:
+        f.write(json.dumps(asdict(exp), default=str) + '\n')
+
+
+def _score_sub_fields(score: ExperimentScore) -> tuple[float, float, float]:
+    """Return (route_pct, trace_eff, via_sc) for logging."""
+    if score.total_nets > 0:
+        route_pct = ((score.total_nets - score.failed_nets) / score.total_nets) * 100
+    else:
+        route_pct = 100.0
+    if score.total_trace_length_mm > 0 and score.total_nets > 0:
+        avg_per_net = score.total_trace_length_mm / max(1, score.routed_nets)
+        trace_eff = max(0, min(100, 100 - avg_per_net))
+    else:
+        trace_eff = 50.0
+    if score.routed_nets > 0:
+        via_sc = max(0, min(100, 100 - (score.via_count / score.routed_nets) * 20))
+    else:
+        via_sc = 50.0
+    return route_pct, trace_eff, via_sc
 
 
 def main():
@@ -313,6 +390,8 @@ def main():
     parser.add_argument("pcb", help="Input .kicad_pcb file")
     parser.add_argument("--rounds", "-n", type=int, default=50,
                         help="Max experiment rounds (default: 50)")
+    parser.add_argument("--workers", "-w", type=int, default=0,
+                        help="Parallel workers (0=auto: cpu_count//2, capped at 10)")
     parser.add_argument("--program", "-p", default="program.md",
                         help="Path to program.md search space definition")
     parser.add_argument("--output", "-o",
@@ -334,6 +413,9 @@ def main():
     if args.verbose:
         args.quiet = False
 
+    # Worker count: auto = half the logical cores, capped at 10
+    n_workers = args.workers or max(1, min(mp.cpu_count() // 2, 10))
+
     # Setup
     master_seed = args.seed if args.seed is not None else random.randint(0, 2**31)
     rng = random.Random(master_seed)
@@ -348,6 +430,14 @@ def main():
     frames_dir = work_dir / "frames"
     if not args.no_render:
         frames_dir.mkdir(exist_ok=True)
+
+    # Per-worker scratch directories (avoid file conflicts in parallel mode)
+    workers_dir = work_dir / "workers"
+    workers_dir.mkdir(exist_ok=True)
+    for i in range(n_workers):
+        (workers_dir / f"w{i}").mkdir(exist_ok=True)
+    # Baseline uses w0
+    baseline_pcb = str(workers_dir / "w0" / "experiment.kicad_pcb")
 
     output_path = args.output or str(Path(args.pcb).with_suffix('')) + "_best.kicad_pcb"
     log_path = work_dir / args.log
@@ -369,157 +459,179 @@ def main():
     print(f"=== Autonomous PCB Experiment Loop ===")
     print(f"PCB:         {args.pcb}")
     print(f"Rounds:      {args.rounds}")
+    print(f"Workers:     {n_workers} parallel")
     print(f"Master seed: {master_seed}")
     print(f"Plateau:     {args.plateau} minor rounds -> MAJOR")
     print(f"Log:         {log_path}")
     print(f"Output:      {output_path}")
     print()
 
-    # Run baseline
+    # Run baseline (serial, in-process)
     print("Round   0/-- [BASE ] running baseline...", flush=True)
     best_cfg = dict(DEFAULT_CONFIG)
     best_seed = 0
     best_score, base_dur = run_experiment(
-        args.pcb, work_dir, best_cfg, best_seed, quiet=args.quiet)
+        args.pcb, baseline_pcb, best_cfg, best_seed, quiet=args.quiet)
     if score_weights:
         best_score.compute(score_weights)
 
-    # Apply same shorts penalty to baseline so it's directly comparable
-    base_drc = quick_drc(str(work_dir / "experiment.kicad_pcb"))
-    if base_drc["shorts"] > 0:
-        import math
-        base_penalty = 0.10 / (1 + math.log10(1 + base_drc["shorts"]))
-        best_score.total *= base_penalty
+    base_drc = quick_drc(baseline_pcb)
+    _apply_shorts_penalty(best_score, base_drc["shorts"])
 
     print(f"  -> baseline score={best_score.total:6.2f} shorts={base_drc['shorts']} "
           f"drc={base_drc['total']} ({base_dur:.1f}s)", flush=True)
 
-    # Save baseline as current best
-    shutil.copy2(str(work_dir / "experiment.kicad_pcb"),
-                 str(best_dir / "best.kicad_pcb"))
+    shutil.copy2(baseline_pcb, str(best_dir / "best.kicad_pcb"))
     best_total = best_score.total
 
     experiments: list[Experiment] = []
     minor_stagnant = 0
     kept_count = 0
+    round_num = 0
     loop_t0 = time.monotonic()
 
-    for round_num in range(1, args.rounds + 1):
-        # Decide mode
-        if minor_stagnant >= args.plateau:
-            mode = "major"
-            minor_stagnant = 0
-        else:
-            mode = "minor"
+    # Use spawn context: each worker starts a clean Python process.
+    # fork deadlocks because wx holds mutexes at fork time that children can't release.
+    ctx = mp.get_context("spawn")
 
-        # Mutate
-        exp_seed = rng.randint(0, 2**31)
-        if mode == "minor":
-            candidate_cfg = mutate_config_minor(best_cfg, rng, param_ranges)
-            candidate_seed = best_seed  # keep same seed for minor tweaks
-        else:
-            candidate_cfg = mutate_config_major(best_cfg, rng, param_ranges)
-            candidate_seed = exp_seed   # new seed = new initial placement
+    with ProcessPoolExecutor(max_workers=n_workers, mp_context=ctx) as pool:
+        while round_num < args.rounds:
+            batch_size = min(n_workers, args.rounds - round_num)
 
-        delta = config_delta(DEFAULT_CONFIG, candidate_cfg)
+            # Generate batch of candidates
+            batch: list[tuple[str, dict, int, dict]] = []  # (mode, cfg, seed, delta)
+            for _ in range(batch_size):
+                if minor_stagnant >= args.plateau:
+                    mode = "major"
+                    minor_stagnant = 0
+                else:
+                    mode = "minor"
+                exp_seed = rng.randint(0, 2**31)
+                if mode == "minor":
+                    candidate_cfg = mutate_config_minor(best_cfg, rng, param_ranges)
+                    candidate_seed = best_seed
+                else:
+                    candidate_cfg = mutate_config_major(best_cfg, rng, param_ranges)
+                    candidate_seed = exp_seed
+                delta = config_delta(DEFAULT_CONFIG, candidate_cfg)
+                batch.append((mode, candidate_cfg, candidate_seed, delta))
 
-        # Run — announce BEFORE so user sees progress immediately
-        t_label = f"Round {round_num:3d}/{args.rounds} [{mode[:5].upper():5s}]"
-        delta_str = " ".join(f"{k}={v}" for k, v in delta.items()) or "(no delta)"
-        print(f"{t_label} running... {delta_str[:80]}", flush=True)
-        score, duration = run_experiment(
-            args.pcb, work_dir, candidate_cfg, candidate_seed, quiet=args.quiet)
+            if n_workers == 1:
+                # Single-worker: run in-process (no subprocess overhead)
+                mode, candidate_cfg, candidate_seed, delta = batch[0]
+                work_pcb = str(workers_dir / "w0" / "experiment.kicad_pcb")
+                delta_str = " ".join(f"{k}={v}" for k, v in delta.items()) or "(no delta)"
+                round_num += 1
+                t_label = f"Round {round_num:3d}/{args.rounds} [{mode[:5].upper():5s}]"
+                print(f"{t_label} running... {delta_str[:80]}", flush=True)
+                score, duration = run_experiment(
+                    args.pcb, work_pcb, candidate_cfg, candidate_seed,
+                    quiet=args.quiet)
+                if score_weights:
+                    score.compute(score_weights)
+                drc = quick_drc(work_pcb)
+                _apply_shorts_penalty(score, drc["shorts"])
+                results = [(score, duration, work_pcb, drc, mode, candidate_cfg,
+                            candidate_seed, delta)]
+            else:
+                # Multi-worker: submit batch, announce, collect
+                delta_strs = [
+                    " ".join(f"{k}={v}" for k, v in d.items()) or "(no delta)"
+                    for _, _, _, d in batch
+                ]
+                for i, (mode, _, _, delta) in enumerate(batch):
+                    print(f"  W{i} [{mode[:5].upper():5s}] {delta_strs[i][:60]}",
+                          flush=True)
 
-        if score_weights:
-            score.compute(score_weights)
+                worker_args = [
+                    (args.pcb,
+                     str(workers_dir / f"w{i}" / "experiment.kicad_pcb"),
+                     cfg, seed, score_weights, _SCRIPT_DIR)
+                    for i, (_, cfg, seed, _) in enumerate(batch)
+                ]
+                futures = {
+                    pool.submit(_worker_run, wa): i
+                    for i, wa in enumerate(worker_args)
+                }
 
-        # Run DRC — shorts are heavily penalized but allow incremental improvement
-        drc = quick_drc(str(work_dir / "experiment.kicad_pcb"))
-        if drc["shorts"] > 0:
-            # Logarithmic penalty: 1 short = ~10% of original, 10 shorts = ~5%,
-            # 100 shorts = ~3%, 1000 shorts = ~2%. Always positive so fewer
-            # shorts beats more shorts even when both are "failing".
-            import math
-            penalty_factor = 0.10 / (1 + math.log10(1 + drc["shorts"]))
-            score.total *= penalty_factor
+                results = []
+                for future in as_completed(futures):
+                    i = futures[future]
+                    mode, candidate_cfg, candidate_seed, delta = batch[i]
+                    work_pcb = str(workers_dir / f"w{i}" / "experiment.kicad_pcb")
+                    try:
+                        score, duration, _ = future.result()
+                    except Exception as e:
+                        print(f"  Worker {i} exception: {e}", flush=True)
+                        score = ExperimentScore()
+                        score.total = -1.0
+                        duration = 0.0
+                    drc = quick_drc(work_pcb)
+                    _apply_shorts_penalty(score, drc["shorts"])
+                    results.append((score, duration, work_pcb, drc, mode,
+                                    candidate_cfg, candidate_seed, delta))
 
-        # Keep or discard
-        kept = score.total > best_total
-        if kept:
-            improvement = score.total - best_total
-            best_total = score.total
-            best_cfg = candidate_cfg
-            best_seed = candidate_seed
-            best_score = score
-            minor_stagnant = 0
-            kept_count += 1
-            # Save best PCB
-            shutil.copy2(str(work_dir / "experiment.kicad_pcb"),
-                         str(best_dir / "best.kicad_pcb"))
-            marker = f"NEW BEST +{improvement:.2f}"
-        else:
-            minor_stagnant += 1
-            marker = f"discard (stagnant={minor_stagnant})"
+            # Process all results from this batch
+            for (score, duration, work_pcb, drc, mode,
+                 candidate_cfg, candidate_seed, delta) in results:
+                round_num_local = round_num if n_workers == 1 else (round_num + 1)
+                if n_workers > 1:
+                    round_num += 1
 
-        # Per-round line + running progress summary (ETA, kept count)
-        elapsed = time.monotonic() - loop_t0
-        avg_round = elapsed / round_num
-        eta_s = avg_round * (args.rounds - round_num)
-        eta_str = f"{int(eta_s // 60)}m{int(eta_s % 60):02d}s"
-        print(f"  -> score={score.total:6.2f} best={best_total:6.2f} "
-              f"shorts={drc['shorts']:3d} drc={drc['total']:4d} "
-              f"({duration:.1f}s) [{marker}]", flush=True)
-        print(f"     [progress {round_num}/{args.rounds}  kept={kept_count}  "
-              f"elapsed={int(elapsed//60)}m{int(elapsed%60):02d}s  ETA={eta_str}]",
-              flush=True)
+                kept = score.total > best_total
+                if kept:
+                    improvement = score.total - best_total
+                    best_total = score.total
+                    best_cfg = candidate_cfg
+                    best_seed = candidate_seed
+                    best_score = score
+                    minor_stagnant = 0
+                    kept_count += 1
+                    shutil.copy2(work_pcb, str(best_dir / "best.kicad_pcb"))
+                    marker = f"NEW BEST +{improvement:.2f}"
+                else:
+                    minor_stagnant += 1
+                    marker = f"discard (stagnant={minor_stagnant})"
 
-        # Compute sub-scores for breakdown logging
-        if score.total_nets > 0:
-            route_pct = ((score.total_nets - score.failed_nets) / score.total_nets) * 100
-        else:
-            route_pct = 100.0
-        if score.total_trace_length_mm > 0 and score.total_nets > 0:
-            avg_per_net = score.total_trace_length_mm / max(1, score.routed_nets)
-            trace_eff = max(0, min(100, 100 - avg_per_net))
-        else:
-            trace_eff = 50.0
-        if score.routed_nets > 0:
-            via_sc = max(0, min(100, 100 - (score.via_count / score.routed_nets) * 20))
-        else:
-            via_sc = 50.0
+                elapsed = time.monotonic() - loop_t0
+                avg_round = elapsed / max(round_num, 1)
+                eta_s = avg_round * (args.rounds - round_num)
+                eta_str = f"{int(eta_s // 60)}m{int(eta_s % 60):02d}s"
+                print(f"  -> score={score.total:6.2f} best={best_total:6.2f} "
+                      f"shorts={drc['shorts']:3d} drc={drc['total']:4d} "
+                      f"({duration:.1f}s) [{marker}]", flush=True)
+                print(f"     [progress {round_num}/{args.rounds}  kept={kept_count}  "
+                      f"elapsed={int(elapsed//60)}m{int(elapsed%60):02d}s  "
+                      f"ETA={eta_str}]", flush=True)
 
-        # Log
-        exp = Experiment(
-            round_num=round_num,
-            seed=candidate_seed,
-            config_delta=delta,
-            mode=mode,
-            score=score.total,
-            details=score.summary(),
-            duration_s=round(duration, 1),
-            kept=kept,
-            placement_score=round(score.placement.total, 1),
-            route_completion=round(route_pct, 1),
-            trace_efficiency=round(trace_eff, 1),
-            via_score=round(via_sc, 1),
-            courtyard_overlap=round(score.placement.courtyard_overlap, 1),
-            board_containment=round(score.placement.board_containment, 1),
-            drc_shorts=drc["shorts"],
-            drc_unconnected=drc["unconnected"],
-            drc_clearance=drc["clearance"],
-            drc_courtyard=drc["courtyard"],
-            drc_total=drc["total"],
-        )
-        experiments.append(exp)
+                route_pct, trace_eff, via_sc = _score_sub_fields(score)
+                exp = Experiment(
+                    round_num=round_num,
+                    seed=candidate_seed,
+                    config_delta=delta,
+                    mode=mode,
+                    score=score.total,
+                    details=score.summary(),
+                    duration_s=round(duration, 1),
+                    kept=kept,
+                    placement_score=round(score.placement.total, 1),
+                    route_completion=round(route_pct, 1),
+                    trace_efficiency=round(trace_eff, 1),
+                    via_score=round(via_sc, 1),
+                    courtyard_overlap=round(score.placement.courtyard_overlap, 1),
+                    board_containment=round(score.placement.board_containment, 1),
+                    drc_shorts=drc["shorts"],
+                    drc_unconnected=drc["unconnected"],
+                    drc_clearance=drc["clearance"],
+                    drc_courtyard=drc["courtyard"],
+                    drc_total=drc["total"],
+                )
+                _log_and_record(exp, experiments, log_path)
 
-        with open(log_path, 'a') as f:
-            f.write(json.dumps(asdict(exp), default=str) + '\n')
-
-        # Snapshot kept improvements for progress GIF
-        if not args.no_render and kept:
-            frame_png = str(frames_dir / f"frame_{round_num:04d}.png")
-            snapshot_pcb(str(best_dir / "best.kicad_pcb"), frame_png,
-                         board_mm=board_mm)
+                if not args.no_render and kept:
+                    frame_png = str(frames_dir / f"frame_{round_num:04d}.png")
+                    snapshot_pcb(str(best_dir / "best.kicad_pcb"), frame_png,
+                                 board_mm=board_mm)
 
     # Assemble progress GIF from frames
     if not args.no_render:
@@ -534,7 +646,8 @@ def main():
     print()
     print(f"=== Done: {len(experiments)} experiments ===")
     print(f"Best score: {best_score.summary()}")
-    print(f"Best config delta from default: {json.dumps(config_delta(DEFAULT_CONFIG, best_cfg), indent=2)}")
+    print(f"Best config delta from default: "
+          f"{json.dumps(config_delta(DEFAULT_CONFIG, best_cfg), indent=2)}")
     print(f"Best seed: {best_seed}")
     print(f"Output: {output_path}")
     print(f"Log:    {log_path}")
