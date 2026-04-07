@@ -357,7 +357,7 @@ def _apply_shorts_penalty(score: ExperimentScore, shorts: int) -> None:
     """Apply log-scale shorts penalty in-place."""
     if shorts > 0:
         import math
-        score.total *= 0.10 / (1 + math.log10(1 + shorts))
+        score.total *= 1.0 / (1 + math.log10(1 + shorts))
 
 
 def _log_and_record(exp: Experiment, experiments: list, log_path: Path) -> None:

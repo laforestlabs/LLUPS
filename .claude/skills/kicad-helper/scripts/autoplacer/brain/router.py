@@ -118,7 +118,11 @@ class AStarRouter:
         Layer.BACK:  {"h": 1.3, "v": 1.0},
     }
     VIA_COST = 8.0
-    NEIGHBOR_OFFSETS = [(1, 0), (-1, 0), (0, 1), (0, -1)]  # 4-connected
+    # 8-connected: cardinals + diagonals. Diagonals are sqrt(2) longer
+    # and require both cardinal neighbors to be free (no corner cutting).
+    NEIGHBOR_OFFSETS = [(1, 0), (-1, 0), (0, 1), (0, -1),
+                        (1, 1), (1, -1), (-1, 1), (-1, -1)]
+    DIAG_COST = 1.41421356  # sqrt(2)
 
     def __init__(self, grid: RoutingGrid):
         self.grid = grid
@@ -157,11 +161,14 @@ class AStarRouter:
             g_arr = np.full((2, n_cells), INF, dtype=np.float64)
             g_arr[sl, sy * cols + sx] = 0.0
 
-            # Precompute Manhattan distance heuristic for all cells → goal
+            # Octile distance heuristic — admissible for 8-connected grid
+            # with unit cardinal cost and sqrt(2) diagonal cost.
             col_idx = np.arange(cols, dtype=np.float64)
             row_idx = np.arange(rows, dtype=np.float64)
-            h_2d = (np.abs(col_idx - ex)[np.newaxis, :] +
-                    np.abs(row_idx - ey)[:, np.newaxis])  # (rows, cols)
+            dx_arr = np.abs(col_idx - ex)[np.newaxis, :]  # (1, cols)
+            dy_arr = np.abs(row_idx - ey)[:, np.newaxis]  # (rows, 1)
+            # octile = max(dx,dy) + (sqrt2-1)*min(dx,dy)
+            h_2d = np.maximum(dx_arr, dy_arr) + (self.DIAG_COST - 1.0) * np.minimum(dx_arr, dy_arr)
             h_flat = h_2d.flatten()  # (n_cells,)
             h_arr = np.empty((2, n_cells), dtype=np.float64)
             h_arr[0] = h_flat + (via_cost if 0 != el else 0.0)
@@ -195,8 +202,11 @@ class AStarRouter:
                 layer_costs = cost_arrays[cl]
                 bh = bias_h[cl]
                 bv = bias_v[cl]
+                diag_bias = (bh + bv) * 0.5 * self.DIAG_COST
 
-                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                # Cardinals first — used for corner-cut check on diagonals
+                card_free = [False, False, False, False]  # E, W, S, N
+                for i, (dx, dy) in enumerate(((1, 0), (-1, 0), (0, 1), (0, -1))):
                     nx, ny = cx + dx, cy + dy
                     if not (0 <= nx < cols and 0 <= ny < rows):
                         continue
@@ -204,8 +214,33 @@ class AStarRouter:
                     cell_cost = layer_costs[nidx]
                     if cell_cost >= 1e6:
                         continue
+                    card_free[i] = True
                     bias = bh if dx != 0 else bv
-                    tent_g = cur_g + bias + cell_cost * 0.1
+                    tent_g = cur_g + bias + cell_cost * 0.5
+                    if tent_g < g_arr[cl, nidx]:
+                        g_arr[cl, nidx] = tent_g
+                        nbr = (nx, ny, cl)
+                        came_from[nbr] = cur
+                        counter += 1
+                        heapq.heappush(open_set,
+                                       (tent_g + h_arr[cl, nidx], counter, nbr))
+
+                # Diagonals — only if both cardinal neighbors are free
+                # (prevents slipping diagonally between two obstacles).
+                # (dx,dy): need card_free indices mapping E=0,W=1,S=2,N=3
+                diag_dirs = ((1, 1, 0, 2), (1, -1, 0, 3),
+                             (-1, 1, 1, 2), (-1, -1, 1, 3))
+                for dx, dy, ci1, ci2 in diag_dirs:
+                    if not (card_free[ci1] and card_free[ci2]):
+                        continue
+                    nx, ny = cx + dx, cy + dy
+                    if not (0 <= nx < cols and 0 <= ny < rows):
+                        continue
+                    nidx = ny * cols + nx
+                    cell_cost = layer_costs[nidx]
+                    if cell_cost >= 1e6:
+                        continue
+                    tent_g = cur_g + diag_bias + cell_cost * 0.5 * self.DIAG_COST
                     if tent_g < g_arr[cl, nidx]:
                         g_arr[cl, nidx] = tent_g
                         nbr = (nx, ny, cl)
@@ -218,7 +253,7 @@ class AStarRouter:
                 ol = 1 - cl
                 other_cost = cost_arrays[ol][cur_idx]
                 if other_cost < 1e6:
-                    via_g = cur_g + via_cost + other_cost * 0.1
+                    via_g = cur_g + via_cost + other_cost * 0.5
                     if via_g < g_arr[ol, cur_idx]:
                         g_arr[ol, cur_idx] = via_g
                         nbr_v = (cx, cy, ol)
@@ -265,7 +300,7 @@ class AStarRouter:
                 if cell_cost >= 1e6:
                     continue
                 bias = bias_h[cl] if dx != 0 else bias_v[cl]
-                tent_g = cur_g + bias + cell_cost * 0.1
+                tent_g = cur_g + bias + cell_cost * 0.5
                 nbr = (nx, ny, cl)
                 if tent_g < g_score.get(nbr, 1e18):
                     g_score[nbr] = tent_g
@@ -277,7 +312,7 @@ class AStarRouter:
             ol = 1 - cl
             other_cost = cost_arrays[ol][cy * cols + cx]
             if other_cost < 1e6:
-                via_g = cur_g + via_cost + other_cost * 0.1
+                via_g = cur_g + via_cost + other_cost * 0.5
                 nbr_v = (cx, cy, ol)
                 if via_g < g_score.get(nbr_v, 1e18):
                     g_score[nbr_v] = via_g

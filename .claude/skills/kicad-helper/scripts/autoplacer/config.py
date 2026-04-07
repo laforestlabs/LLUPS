@@ -34,9 +34,11 @@ DEFAULT_CONFIG = {
     "force_repel_k": 400.0,   # stronger repulsion to keep parts separated
     "cooling_factor": 0.97,
 
-    # Routing — high cost makes existing traces near-impassable so the
-    # router prefers detours over shorts. RRR recovers nets that block.
-    "existing_trace_cost": 1000.0,
+    # Routing — cost applied per cell when crossing an existing trace.
+    # Combined with 0.5 multiplier in A*, this gives ~50-cell detour budget
+    # before the router considers shorting through. Heavier than via (8)
+    # so detours via other layer are preferred.
+    "existing_trace_cost": 100.0,
     "skip_gnd_routing": True,
 
     # RRR
