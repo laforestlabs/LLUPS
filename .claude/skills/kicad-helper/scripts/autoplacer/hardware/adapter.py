@@ -86,15 +86,31 @@ class KiCadAdapter:
             ref = fp.GetReferenceAsString()
             val = fp.GetFieldText("Value")
             pos = fp.GetPosition()
-            # Try courtyard bbox first, fall back to full bbox
-            fp_bbox = fp.GetBoundingBox(False, False)
-            w_mm = pcbnew.ToMM(fp_bbox.GetWidth())
-            h_mm = pcbnew.ToMM(fp_bbox.GetHeight())
-            # Cap unreasonable sizes (e.g., battery holders with huge courtyard)
-            max_dim = 30.0
-            w_mm = min(w_mm, max_dim)
-            h_mm = min(h_mm, max_dim)
+            # Use courtyard bbox for physical size — it represents the keep-out
+            # area on the PCB plane (excludes battery tube space above board).
+            # Fall back to copper bounding box if no courtyard is defined.
+            try:
+                cy = fp.GetCourtyard(
+                    pcbnew.F_CrtYd if fp.GetLayer() == pcbnew.F_Cu
+                    else pcbnew.B_CrtYd)
+                cbox = cy.BBox()
+                if cbox.GetWidth() > 0 and cbox.GetHeight() > 0:
+                    w_mm = pcbnew.ToMM(cbox.GetWidth())
+                    h_mm = pcbnew.ToMM(cbox.GetHeight())
+                else:
+                    raise ValueError("empty courtyard")
+            except Exception:
+                fp_bbox = fp.GetBoundingBox(False, False)
+                w_mm = pcbnew.ToMM(fp_bbox.GetWidth())
+                h_mm = pcbnew.ToMM(fp_bbox.GetHeight())
+            # Sanity cap at board size — prevents degenerate courtyard bboxes
+            w_mm = min(w_mm, 150.0)
+            h_mm = min(h_mm, 150.0)
 
+            kind = _classify_component(ref, val)
+            # Lock mechanically-fixed parts regardless of KiCad lock flag.
+            # Battery holders have fixed positions; connectors are edge-pinned.
+            is_locked = fp.IsLocked() or kind in ("connector", "mounting_hole", "battery")
             comp = Component(
                 ref=ref,
                 value=val,
@@ -104,8 +120,8 @@ class KiCadAdapter:
                 width_mm=w_mm,
                 height_mm=h_mm,
                 pads=[],
-                locked=fp.IsLocked(),
-                kind=_classify_component(ref, val),
+                locked=is_locked,
+                kind=kind,
             )
 
             for pad in fp.Pads():

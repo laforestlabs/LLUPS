@@ -4,16 +4,21 @@ DEFAULT_CONFIG = {
     # Grid (0.5mm = good speed/quality tradeoff for 2-layer board)
     "grid_resolution_mm": 0.5,
 
-    # Trace widths
-    "signal_width_mm": 0.25,
-    "power_width_mm": 1.0,
+    # Trace widths (thin to start — give router headroom)
+    "signal_width_mm": 0.15,
+    "power_width_mm": 0.5,
 
     # Via
     "via_drill_mm": 0.3,
     "via_size_mm": 0.6,
 
-    # Clearances
-    "clearance_mm": 0.35,
+    # Routing clearance (trace-to-trace / trace-to-pad)
+    "clearance_mm": 0.2,
+
+    # Placement clearance — minimum gap between component bounding boxes.
+    # Kept separate from routing clearance so the router isn't over-constrained.
+    # 2.5mm gives breathing room for traces between pads of adjacent parts.
+    "placement_clearance_mm": 2.5,
 
     # Power nets
     "power_nets": {
@@ -22,15 +27,16 @@ DEFAULT_CONFIG = {
         "/CELL_NEG", "/EN",
     },
 
-    # Placement
-    "placement_grid_mm": 0.5,
-    "edge_margin_mm": 3.0,
-    "force_attract_k": 0.04,
-    "force_repel_k": 80.0,
+    # Placement (spread components — room to route, no courtyard overlaps)
+    "placement_grid_mm": 1.0,
+    "edge_margin_mm": 6.0,
+    "force_attract_k": 0.02,
+    "force_repel_k": 400.0,   # stronger repulsion to keep parts separated
     "cooling_factor": 0.97,
 
-    # Routing
-    "existing_trace_cost": 10.0,
+    # Routing — high cost makes existing traces near-impassable so the
+    # router prefers detours over shorts. RRR recovers nets that block.
+    "existing_trace_cost": 1000.0,
     "skip_gnd_routing": True,
 
     # RRR

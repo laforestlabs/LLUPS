@@ -61,7 +61,10 @@ class PlacementCheck(LayoutCheck):
         th_refs = set()
         for fp in fps:
             ref = fp.GetReferenceAsString()
-            if ref.startswith(("BT", "H", "J")):  # batteries, mounting holes, connectors
+            # Skip overlap checks for through-board mechanical parts:
+            # BT = battery holders (batteries live above PCB plane, not in 2D footprint),
+            # H = mounting holes, J = connectors (edge-mounted, courtyard extends off-board)
+            if ref.startswith(("BT", "H", "J")):
                 th_refs.add(ref)
 
         overlaps = 0

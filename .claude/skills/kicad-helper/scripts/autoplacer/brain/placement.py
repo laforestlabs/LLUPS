@@ -257,7 +257,12 @@ class PlacementSolver:
         self.cooling = self.cfg.get("cooling_factor", 0.97)
         self.edge_margin = self.cfg.get("edge_margin_mm", 2.0)
         self.grid_snap = self.cfg.get("placement_grid_mm", 0.5)
-        self.clearance = self.cfg.get("clearance_mm", 0.5)
+        # placement_clearance_mm is the min gap between component bboxes.
+        # Falls back to clearance_mm for backwards compatibility, then 2.5mm.
+        self.clearance = self.cfg.get(
+            "placement_clearance_mm",
+            self.cfg.get("clearance_mm", 2.5)
+        )
 
     def solve(self, max_iterations: int = 300,
               convergence_threshold: float = 0.5) -> dict[str, Component]:
@@ -363,7 +368,12 @@ class PlacementSolver:
         # Step 8: Snap to grid
         self._snap_to_grid(best_comps)
 
-        # Step 9: Hard clamp — nothing outside the board
+        # Step 9: Final exhaustive overlap resolution — guarantee no courtyard
+        # overlaps before routing. Must run after snap since snapping can
+        # re-introduce small overlaps.
+        self._resolve_overlaps(best_comps)
+
+        # Step 10: Hard clamp — nothing outside the board
         self._clamp_to_board(best_comps)
 
         # Final score
@@ -621,14 +631,16 @@ class PlacementSolver:
                 forces[ref].x += f_mag * math.cos(angle)
                 forces[ref].y += f_mag * math.sin(angle)
 
-        # Repulsion: push overlapping/close components apart
+        # Repulsion: push overlapping/close components apart.
+        # Locked components (connectors, holes) act as repellers even though
+        # they don't move — this keeps unlocked parts from clustering against them.
         ref_list = list(comps.keys())
         for i in range(len(ref_list)):
-            if comps[ref_list[i]].locked:
-                continue
             a = comps[ref_list[i]]
             for j in range(i + 1, len(ref_list)):
                 b = comps[ref_list[j]]
+                if a.locked and b.locked:
+                    continue  # both fixed, nothing to do
                 d = a.pos.dist(b.pos)
                 min_dist = (max(a.width_mm, a.height_mm) +
                             max(b.width_mm, b.height_mm)) / 2 + self.clearance
@@ -693,39 +705,108 @@ class PlacementSolver:
         return max_disp
 
     def _resolve_overlaps(self, comps: dict[str, Component]):
-        """Push apart overlapping components."""
+        """Push apart components until no bboxes overlap (including clearance gap).
+
+        For each overlapping pair, picks the escape direction that requires the
+        least travel distance AND keeps the free component within board bounds.
+        This handles edge cases where the shortest-axis push would send a component
+        into a board edge (e.g. a small part trapped between a large locked battery
+        holder and the board boundary).
+        """
         refs = list(comps.keys())
-        for _ in range(5):  # few iterations
+        half_gap = self.clearance / 2.0
+        tl, br = self.state.board_outline
+
+        def _escape(free_c: Component, lock_tl: Point, lock_br: Point) -> bool:
+            """Push free_c out of lock bbox. Returns True if moved."""
+            hw, hh = free_c.width_mm / 2, free_c.height_mm / 2
+            fc_tl, fc_br = free_c.bbox(half_gap)
+            ox = min(lock_br.x, fc_br.x) - max(lock_tl.x, fc_tl.x)
+            oy = min(lock_br.y, fc_br.y) - max(lock_tl.y, fc_tl.y)
+            if ox <= 0 or oy <= 0:
+                return False
+
+            # 4 candidate escape moves: (travel_dist, new_x, new_y)
+            # "escape right": move fc's left edge to lock's right edge
+            # "escape left":  move fc's right edge to lock's left edge
+            # "escape down":  move fc's top edge to lock's bottom edge
+            # "escape up":    move fc's bottom edge to lock's top edge
+            moves = [
+                (ox + 0.1, free_c.pos.x + ox + 0.1, free_c.pos.y),  # right
+                (ox + 0.1, free_c.pos.x - ox - 0.1, free_c.pos.y),  # left
+                (oy + 0.1, free_c.pos.x, free_c.pos.y + oy + 0.1),  # down
+                (oy + 0.1, free_c.pos.x, free_c.pos.y - oy - 0.1),  # up
+            ]
+
+            # Prefer moves that don't require clamping at the board edge
+            best = None
+            for travel, nx, ny in moves:
+                nx_c = max(tl.x + hw + 1.0, min(br.x - hw - 1.0, nx))
+                ny_c = max(tl.y + hh + 1.0, min(br.y - hh - 1.0, ny))
+                clamped = (abs(nx_c - nx) > 0.01 or abs(ny_c - ny) > 0.01)
+                key = (1 if clamped else 0, travel)
+                if best is None or key < best[0]:
+                    best = (key, nx_c, ny_c)
+
+            _, nx, ny = best
+            old = Point(free_c.pos.x, free_c.pos.y)
+            free_c.pos.x, free_c.pos.y = nx, ny
+            _update_pad_positions(free_c, old, free_c.rotation)
+            return True
+
+        for iteration in range(300):
             moved = False
             for i in range(len(refs)):
                 a = comps[refs[i]]
-                if a.locked:
-                    continue
+                a_tl, a_br = a.bbox(half_gap)
                 for j in range(i + 1, len(refs)):
                     b = comps[refs[j]]
-                    overlap = _bbox_overlap_amount(a, b)
-                    if overlap <= 0:
+                    if a.locked and b.locked:
                         continue
-                    # Push apart along center-to-center axis
-                    d = a.pos.dist(b.pos)
-                    if d < 0.1:
-                        d = 0.1
-                    push = math.sqrt(overlap) + self.clearance
-                    dx = (a.pos.x - b.pos.x) / d * push * 0.5
-                    dy = (a.pos.y - b.pos.y) / d * push * 0.5
-                    if not a.locked:
-                        old = Point(a.pos.x, a.pos.y)
-                        a.pos.x += dx
-                        a.pos.y += dy
-                        _update_pad_positions(a, old, a.rotation)
-                    if not b.locked:
-                        old = Point(b.pos.x, b.pos.y)
-                        b.pos.x -= dx
-                        b.pos.y -= dy
-                        _update_pad_positions(b, old, b.rotation)
-                    moved = True
+
+                    b_tl, b_br = b.bbox(half_gap)
+                    ox = min(a_br.x, b_br.x) - max(a_tl.x, b_tl.x)
+                    oy = min(a_br.y, b_br.y) - max(a_tl.y, b_tl.y)
+                    if ox <= 0 or oy <= 0:
+                        continue
+
+                    if a.locked:
+                        if _escape(b, a_tl, a_br):
+                            b_tl, b_br = b.bbox(half_gap)
+                            moved = True
+                    elif b.locked:
+                        if _escape(a, b_tl, b_br):
+                            a_tl, a_br = a.bbox(half_gap)
+                            moved = True
+                    else:
+                        # Both free: split the push evenly
+                        hw_a, hh_a = a.width_mm / 2, a.height_mm / 2
+                        hw_b, hh_b = b.width_mm / 2, b.height_mm / 2
+                        if ox < oy:
+                            push = (ox + 0.1) / 2
+                            sign = 1.0 if a.pos.x >= b.pos.x else -1.0
+                            old_a = Point(a.pos.x, a.pos.y)
+                            old_b = Point(b.pos.x, b.pos.y)
+                            a.pos.x = max(tl.x + hw_a + 1.0,
+                                          min(br.x - hw_a - 1.0, a.pos.x + sign * push))
+                            b.pos.x = max(tl.x + hw_b + 1.0,
+                                          min(br.x - hw_b - 1.0, b.pos.x - sign * push))
+                        else:
+                            push = (oy + 0.1) / 2
+                            sign = 1.0 if a.pos.y >= b.pos.y else -1.0
+                            old_a = Point(a.pos.x, a.pos.y)
+                            old_b = Point(b.pos.x, b.pos.y)
+                            a.pos.y = max(tl.y + hh_a + 1.0,
+                                          min(br.y - hh_a - 1.0, a.pos.y + sign * push))
+                            b.pos.y = max(tl.y + hh_b + 1.0,
+                                          min(br.y - hh_b - 1.0, b.pos.y - sign * push))
+                        _update_pad_positions(a, old_a, a.rotation)
+                        _update_pad_positions(b, old_b, b.rotation)
+                        a_tl, a_br = a.bbox(half_gap)
+                        moved = True
+
             if not moved:
-                break
+                break  # fully separated
 
     def _clamp_to_board(self, comps: dict[str, Component]):
         """Hard clamp: force every component's bounding box inside the board."""
