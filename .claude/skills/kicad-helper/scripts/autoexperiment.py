@@ -648,6 +648,20 @@ def main():
         gif_path = str(work_dir / "progress.gif")
         assemble_gif(frames_dir, gif_path)
 
+    # Regenerate dashboard PNG from the full experiments.jsonl history
+    dashboard_path = work_dir / "experiments_dashboard.png"
+    plot_script = Path(__file__).parent / "plot_experiments.py"
+    if plot_script.exists():
+        try:
+            subprocess.run(
+                ["python3", str(plot_script), str(log_path), str(dashboard_path)],
+                check=True, capture_output=True,
+            )
+            print(f"  Dashboard saved: {dashboard_path}")
+        except subprocess.CalledProcessError as e:
+            print(f"  Dashboard regeneration failed: {e.stderr.decode()}",
+                  file=sys.stderr)
+
     # Copy best result to output
     best_pcb = str(best_dir / "best.kicad_pcb")
     if os.path.exists(best_pcb):
