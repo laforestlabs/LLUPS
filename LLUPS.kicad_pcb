@@ -8040,7 +8040,7 @@
 	)
 	(gr_rect
 		(start 0 0)
-		(end 90 58)
+		(end 140 90)
 		(stroke
 			(width 0.1)
 			(type solid)

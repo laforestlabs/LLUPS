@@ -429,6 +429,11 @@ def main():
     best_dir.mkdir(exist_ok=True)
     frames_dir = work_dir / "frames"
     if not args.no_render:
+        # Clear any frames from previous runs so the GIF doesn't include stale data
+        if frames_dir.exists():
+            import glob as _glob
+            for f in _glob.glob(str(frames_dir / "frame_*.png")):
+                os.remove(f)
         frames_dir.mkdir(exist_ok=True)
 
     # Per-worker scratch directories (avoid file conflicts in parallel mode)
@@ -483,6 +488,11 @@ def main():
 
     shutil.copy2(baseline_pcb, str(best_dir / "best.kicad_pcb"))
     best_total = best_score.total
+
+    # Capture baseline frame for GIF
+    if not args.no_render:
+        snapshot_pcb(baseline_pcb, str(frames_dir / "frame_0000.png"),
+                     board_mm=board_mm)
 
     experiments: list[Experiment] = []
     minor_stagnant = 0
