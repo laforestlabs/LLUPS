@@ -21,6 +21,7 @@ import glob
 import json
 import os
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -91,12 +92,12 @@ def mutate_config_minor(base: dict, rng: random.Random,
 
     # Parameters eligible for minor mutation with (min, max, sigma_frac)
     tunable = {
-        "force_attract_k": (0.01, 0.3, 0.15),
-        "force_repel_k":   (30.0, 300.0, 0.15),
+        "force_attract_k": (0.005, 0.1, 0.15),
+        "force_repel_k":   (150.0, 400.0, 0.15),
         "cooling_factor":  (0.90, 0.995, 0.05),
-        "edge_margin_mm":  (2.0, 6.0, 0.1),
-        "clearance_mm":    (0.25, 1.5, 0.1),
-        "existing_trace_cost": (1.0, 50.0, 0.2),
+        "edge_margin_mm":  (4.0, 10.0, 0.1),
+        "clearance_mm":    (0.15, 0.4, 0.1),
+        "existing_trace_cost": (200.0, 5000.0, 0.2),
         "max_rips_per_net": (2, 15, 0.2),
     }
     # Override with program.md ranges if provided
@@ -130,8 +131,8 @@ def mutate_config_major(base: dict, rng: random.Random,
 
     # Also mutate more aggressively — wider sigma
     aggressive_tunable = {
-        "force_attract_k": (0.01, 0.5, 0.4),
-        "force_repel_k":   (5.0, 200.0, 0.4),
+        "force_attract_k": (0.005, 0.15, 0.4),
+        "force_repel_k":   (100.0, 500.0, 0.4),
         "cooling_factor":  (0.90, 0.995, 0.15),
     }
     keys = rng.sample(list(aggressive_tunable.keys()),
@@ -188,12 +189,20 @@ def quick_drc(pcb_path: str) -> dict:
     return counts
 
 
-def snapshot_pcb(pcb_path: str, output_png: str):
-    """Export a quick PNG snapshot of the PCB for progress GIF."""
+def snapshot_pcb(pcb_path: str, output_png: str,
+                 canvas_px: int = 900, board_mm: tuple = (140.0, 90.0)):
+    """Export a fixed-scale PNG snapshot for progress GIF.
+
+    Renders to a constant canvas (canvas_px square) with the board bbox
+    sized to ~80% of the canvas — same scale every frame regardless of
+    where components have moved. White opaque background for contrast
+    and to prevent prior frames bleeding through GIF disposal.
+    """
     try:
-        # Use kicad-cli SVG export then convert — same approach as render_pcb.py
         with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp:
             svg_path = tmp.name
+        # Use --fit-page-to-board so SVG viewBox = exact board outline.
+        # We'll then rescale at fixed mm-to-pixel ratio in magick.
         subprocess.run([
             "kicad-cli", "pcb", "export", "svg",
             "--layers", "F.Cu,B.Cu,F.SilkS,Edge.Cuts",
@@ -201,9 +210,25 @@ def snapshot_pcb(pcb_path: str, output_png: str):
             "--exclude-drawing-sheet", "--drill-shape-opt", "2",
             "-o", svg_path, pcb_path,
         ], capture_output=True, check=True)
+
+        # Fixed scale: canvas is canvas_px square, board occupies 80%.
+        bw, bh = board_mm
+        scale = (canvas_px * 0.80) / max(bw, bh)
+        target_w = int(round(bw * scale))
+        target_h = int(round(bh * scale))
+
         subprocess.run([
-            "magick", "-density", "150", svg_path,
-            "-resize", "800x800", output_png,
+            "magick",
+            "-density", "300",
+            "-background", "white",
+            svg_path,
+            "-flatten",
+            "-resize", f"{target_w}x{target_h}!",
+            "-bordercolor", "#222", "-border", "3",
+            "-background", "white",
+            "-gravity", "center",
+            "-extent", f"{canvas_px}x{canvas_px}",
+            output_png,
         ], capture_output=True, check=True)
         os.remove(svg_path)
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -211,17 +236,23 @@ def snapshot_pcb(pcb_path: str, output_png: str):
 
 
 def assemble_gif(frames_dir: Path, output_path: str, delay_cs: int = 50):
-    """Stitch numbered PNG frames into an animated GIF using ImageMagick."""
+    """Stitch numbered PNG frames into an animated GIF using ImageMagick.
+
+    Uses -dispose Background and skips -layers Optimize so each frame is
+    a full redraw — prevents stale pixels from prior frames sticking around.
+    """
     frames = sorted(glob.glob(str(frames_dir / "frame_*.png")))
     if len(frames) < 2:
         return
-    # Hold last frame longer
     cmd = [
-        "magick", "-delay", str(delay_cs), "-loop", "0",
+        "magick",
+        "-dispose", "Background",
+        "-delay", str(delay_cs), "-loop", "0",
     ]
     cmd.extend(frames[:-1])
     cmd.extend(["-delay", "200", frames[-1]])
-    cmd.extend(["-layers", "Optimize", output_path])
+    # Coalesce ensures every frame is independent (no incremental diffs).
+    cmd.extend(["-coalesce", output_path])
     try:
         subprocess.run(cmd, capture_output=True, check=True)
         print(f"  GIF saved: {output_path} ({len(frames)} frames)")
@@ -236,10 +267,20 @@ def run_experiment(pcb_path: str, work_dir: Path, cfg: dict,
     work_pcb = str(work_dir / "experiment.kicad_pcb")
     shutil.copy2(pcb_path, work_pcb)
 
-    # Suppress stdout during experiment if quiet
+    # Suppress stdout/stderr during experiment if quiet.
+    # wxWidgets writes debug spam directly to fd 1/2, so we redirect
+    # the underlying file descriptors, not just Python's sys.std*.
     if quiet:
+        devnull_fd = os.open(os.devnull, os.O_WRONLY)
+        saved_stdout_fd = os.dup(1)
+        saved_stderr_fd = os.dup(2)
+        os.dup2(devnull_fd, 1)
+        os.dup2(devnull_fd, 2)
+        os.close(devnull_fd)
         old_stdout = sys.stdout
+        old_stderr = sys.stderr
         sys.stdout = open(os.devnull, 'w')
+        sys.stderr = open(os.devnull, 'w')
 
     t0 = time.monotonic()
     try:
@@ -255,7 +296,13 @@ def run_experiment(pcb_path: str, work_dir: Path, cfg: dict,
         duration = time.monotonic() - t0
         if quiet:
             sys.stdout.close()
+            sys.stderr.close()
             sys.stdout = old_stdout
+            sys.stderr = old_stderr
+            os.dup2(saved_stdout_fd, 1)
+            os.dup2(saved_stderr_fd, 2)
+            os.close(saved_stdout_fd)
+            os.close(saved_stderr_fd)
 
     return exp_score, duration
 
@@ -305,6 +352,20 @@ def main():
     output_path = args.output or str(Path(args.pcb).with_suffix('')) + "_best.kicad_pcb"
     log_path = work_dir / args.log
 
+    # Sniff board outline once so all GIF frames render at the same scale.
+    board_mm = (140.0, 90.0)
+    try:
+        with open(args.pcb) as f:
+            pcb_text = f.read()
+        m = re.search(r'\(gr_rect\s+\(start\s+([\d.\-]+)\s+([\d.\-]+)\)\s+'
+                      r'\(end\s+([\d.\-]+)\s+([\d.\-]+)\)', pcb_text)
+        if m:
+            x0, y0, x1, y1 = (float(v) for v in m.groups())
+            board_mm = (abs(x1 - x0), abs(y1 - y0))
+            print(f"Board outline: {board_mm[0]:.1f} x {board_mm[1]:.1f} mm")
+    except (OSError, ValueError):
+        pass
+
     print(f"=== Autonomous PCB Experiment Loop ===")
     print(f"PCB:         {args.pcb}")
     print(f"Rounds:      {args.rounds}")
@@ -315,7 +376,7 @@ def main():
     print()
 
     # Run baseline
-    print("Round 0: baseline...")
+    print("Round   0/-- [BASE ] running baseline...", flush=True)
     best_cfg = dict(DEFAULT_CONFIG)
     best_seed = 0
     best_score, base_dur = run_experiment(
@@ -330,7 +391,8 @@ def main():
         base_penalty = 0.10 / (1 + math.log10(1 + base_drc["shorts"]))
         best_score.total *= base_penalty
 
-    print(f"  Baseline: {best_score.summary()} drc={base_drc['total']} shorts={base_drc['shorts']} ({base_dur:.1f}s)")
+    print(f"  -> baseline score={best_score.total:6.2f} shorts={base_drc['shorts']} "
+          f"drc={base_drc['total']} ({base_dur:.1f}s)", flush=True)
 
     # Save baseline as current best
     shutil.copy2(str(work_dir / "experiment.kicad_pcb"),
@@ -339,6 +401,8 @@ def main():
 
     experiments: list[Experiment] = []
     minor_stagnant = 0
+    kept_count = 0
+    loop_t0 = time.monotonic()
 
     for round_num in range(1, args.rounds + 1):
         # Decide mode
@@ -359,8 +423,10 @@ def main():
 
         delta = config_delta(DEFAULT_CONFIG, candidate_cfg)
 
-        # Run
-        t_label = f"Round {round_num}/{args.rounds} [{mode.upper()}]"
+        # Run — announce BEFORE so user sees progress immediately
+        t_label = f"Round {round_num:3d}/{args.rounds} [{mode[:5].upper():5s}]"
+        delta_str = " ".join(f"{k}={v}" for k, v in delta.items()) or "(no delta)"
+        print(f"{t_label} running... {delta_str[:80]}", flush=True)
         score, duration = run_experiment(
             args.pcb, work_dir, candidate_cfg, candidate_seed, quiet=args.quiet)
 
@@ -386,15 +452,26 @@ def main():
             best_seed = candidate_seed
             best_score = score
             minor_stagnant = 0
+            kept_count += 1
             # Save best PCB
             shutil.copy2(str(work_dir / "experiment.kicad_pcb"),
                          str(best_dir / "best.kicad_pcb"))
-            marker = f"+{improvement:.1f} NEW BEST"
+            marker = f"NEW BEST +{improvement:.2f}"
         else:
             minor_stagnant += 1
             marker = f"discard (stagnant={minor_stagnant})"
 
-        print(f"  {t_label}: {score.summary()} drc={drc['total']} [{marker}] ({duration:.1f}s)")
+        # Per-round line + running progress summary (ETA, kept count)
+        elapsed = time.monotonic() - loop_t0
+        avg_round = elapsed / round_num
+        eta_s = avg_round * (args.rounds - round_num)
+        eta_str = f"{int(eta_s // 60)}m{int(eta_s % 60):02d}s"
+        print(f"  -> score={score.total:6.2f} best={best_total:6.2f} "
+              f"shorts={drc['shorts']:3d} drc={drc['total']:4d} "
+              f"({duration:.1f}s) [{marker}]", flush=True)
+        print(f"     [progress {round_num}/{args.rounds}  kept={kept_count}  "
+              f"elapsed={int(elapsed//60)}m{int(elapsed%60):02d}s  ETA={eta_str}]",
+              flush=True)
 
         # Compute sub-scores for breakdown logging
         if score.total_nets > 0:
@@ -441,7 +518,8 @@ def main():
         # Snapshot kept improvements for progress GIF
         if not args.no_render and kept:
             frame_png = str(frames_dir / f"frame_{round_num:04d}.png")
-            snapshot_pcb(str(best_dir / "best.kicad_pcb"), frame_png)
+            snapshot_pcb(str(best_dir / "best.kicad_pcb"), frame_png,
+                         board_mm=board_mm)
 
     # Assemble progress GIF from frames
     if not args.no_render:

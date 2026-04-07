@@ -46,7 +46,7 @@ A test suite scores PCB layout quality across 8 categories:
 python3 .claude/skills/kicad-helper/scripts/score_layout.py LLUPS.kicad_pcb
 ```
 
-Categories: trace widths, DRC, connectivity, placement, vias, routing efficiency. Results are saved as timestamped JSON in `scripts/results/` for regression tracking.
+Results are saved as timestamped JSON in `scripts/results/` for regression tracking.
 
 Compare runs:
 
@@ -54,6 +54,87 @@ Compare runs:
 python3 .claude/skills/kicad-helper/scripts/score_layout.py LLUPS.kicad_pcb \
   --compare .claude/skills/kicad-helper/scripts/results/score_PREV.json
 ```
+
+### Scoring Math
+
+#### Static scorer (`score_layout.py`) — 0–100 scale
+
+The **overall score** is a weighted average of 6 scored checks (2 are advisory, weight=0):
+
+```
+overall = Σ(score_i × weight_i) / Σ(weight_i)
+```
+
+| Check | Weight | Formula |
+|---|---|---|
+| **Trace Width Compliance** | 0.10 | `100 - 15×power_violations - 5×signal_violations` |
+| **DRC Violations** | 0.35 | Logarithmic per-category (see below) |
+| **Net Connectivity** | 0.15 | `100 - 10×single_pad_nets - 5×unassigned_pads` |
+| **Component Placement** | 0.20 | `overlap(40) + bounds(20) + utilization(40)` |
+| **Via Analysis** | 0.10 | `thermal(40) + density(30) + presence(30)` |
+| **Routing Efficiency** | 0.10 | `efficiency(40) + orphan(30) + segments(30)` |
+| Board Compactness | 0 (advisory) | `bbox_score(50) + grid_score(50)` |
+| Footprint Orientation | 0 (advisory) | `100 × passed / checked` |
+
+**DRC scoring** (35% of total) uses logarithmic decay so any improvement always registers:
+
+```
+issue_score(count, weight) = weight × (1 - log10(1+count) / log10(100))
+```
+
+Applied as: shorts→40pts, unconnected→30pts, crossings→15pts, clearance→10pts, cosmetic→5pts.
+At 1 short: shorts contribution = 40×(1−0/2) = 40×0.5 = 20. At 10 shorts: ≈40×0.25 = 10.
+
+**Placement scoring** (20%):
+- Overlaps: 40pts (binary — any overlap = 0)
+- Out-of-bounds centers: 20pts (binary)
+- Utilization: 40pts, peaks at 30–70% footprint area / board area
+
+**Via scoring** (10%):
+- Thermal vias near U2/U4 within 3mm: 40pts (linear to min_thermal=4)
+- Via density 2–20 /cm²: 30pts (linear outside range)
+- Any vias present: 30pts (binary)
+
+**Routing efficiency** (10%):
+- Avg actual/MST ratio ≤1.5: 40pts; ≤3.0: linear; >3.0: 0pts
+- Orphaned trace segments: 30 - 10×orphaned
+- Has traces at all: 30pts
+
+#### Experiment optimizer (`autoexperiment.py`) — single objective
+
+The optimizer uses `ExperimentScore.compute()` which combines placement + routing into one scalar:
+
+```
+raw = 0.20×placement + 0.50×route_completion + 0.20×trace_efficiency + 0.10×via_score
+final = raw × (board_containment / 100)          # hard penalty for out-of-board pads
+```
+
+Where:
+- `placement` = `PlacementScore.total` (weighted sum of sub-scores, 0–100)
+- `route_completion` = `(total_nets - failed_nets) / total_nets × 100`
+- `trace_efficiency` = `max(0, min(100, 100 - avg_mm_per_routed_net))`
+- `via_score` = `max(0, min(100, 100 - vias_per_routed_net × 20))`
+
+If **shorts > 0**, an additional log-scale penalty is applied after DRC:
+
+```
+penalty = 0.10 / (1 + log10(1 + shorts))
+final = final × penalty
+```
+
+1 short → ×0.05, 10 shorts → ×0.033, 100 shorts → ×0.025. Scores stay positive so the optimizer can still distinguish "fewer shorts is better" even when all candidates are failing.
+
+**PlacementScore sub-weights** (applied inside `compute_total()`):
+
+| Sub-score | Weight | Meaning |
+|---|---|---|
+| net_distance | 0.20 | connected components are close |
+| crossover_score | 0.20 | fewer ratsnest crossings |
+| compactness | 0.02 | board area utilization |
+| edge_compliance | 0.08 | connectors/holes near edges |
+| rotation_score | 0.05 | pad alignment quality |
+| board_containment | 0.25 | fraction of pads inside outline |
+| courtyard_overlap | 0.20 | no courtyard collisions |
 
 ## Autonomous Experiment Loop
 
