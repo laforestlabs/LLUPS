@@ -1,0 +1,709 @@
+{
+  "timestamp": "2026-04-05T18:59:09.290927+00:00",
+  "pcb_file": "LLUPS.kicad_pcb",
+  "overall_score": 66.0,
+  "categories": {
+    "trace_widths": {
+      "display_name": "Trace Width Compliance",
+      "score": 100,
+      "weight": 0.1,
+      "weighted_contribution": 10.0,
+      "issue_count": {
+        "error": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "issues": [],
+      "metrics": {
+        "total_traces": 164,
+        "power_violations": 0,
+        "signal_violations": 0,
+        "nets": {
+          "/3V3": {
+            "min_mm": 1.0,
+            "max_mm": 1.0,
+            "mean_mm": 1.0,
+            "count": 5,
+            "is_power": true
+          },
+          "/5V": {
+            "min_mm": 1.0,
+            "max_mm": 1.0,
+            "mean_mm": 1.0,
+            "count": 11,
+            "is_power": true
+          },
+          "/CELL_NEG": {
+            "min_mm": 1.0,
+            "max_mm": 1.2,
+            "mean_mm": 1.029,
+            "count": 7,
+            "is_power": false
+          },
+          "/CHG_N": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 8,
+            "is_power": false
+          },
+          "/EN": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 11,
+            "is_power": false
+          },
+          "/NTC_SENSE": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 10,
+            "is_power": false
+          },
+          "/VBAT": {
+            "min_mm": 1.0,
+            "max_mm": 1.2,
+            "mean_mm": 1.063,
+            "count": 19,
+            "is_power": true
+          },
+          "/VBUS": {
+            "min_mm": 1.0,
+            "max_mm": 1.0,
+            "mean_mm": 1.0,
+            "count": 10,
+            "is_power": true
+          },
+          "/VSYS": {
+            "min_mm": 0.25,
+            "max_mm": 1.0,
+            "mean_mm": 0.912,
+            "count": 17,
+            "is_power": false
+          },
+          "/VSYS_BOOST": {
+            "min_mm": 1.0,
+            "max_mm": 1.0,
+            "mean_mm": 1.0,
+            "count": 6,
+            "is_power": false
+          },
+          "Net-(D1-A)": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 1,
+            "is_power": false
+          },
+          "Net-(D2-A)": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 1,
+            "is_power": false
+          },
+          "Net-(D2-K)": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 3,
+            "is_power": false
+          },
+          "Net-(D3-A)": {
+            "min_mm": 1.0,
+            "max_mm": 1.0,
+            "mean_mm": 1.0,
+            "count": 6,
+            "is_power": false
+          },
+          "Net-(F1-Pad2)": {
+            "min_mm": 1.0,
+            "max_mm": 1.0,
+            "mean_mm": 1.0,
+            "count": 8,
+            "is_power": false
+          },
+          "Net-(J1-CC1)": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 3,
+            "is_power": false
+          },
+          "Net-(J1-CC2)": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 3,
+            "is_power": false
+          },
+          "Net-(Q1A-D)": {
+            "min_mm": 1.0,
+            "max_mm": 1.0,
+            "mean_mm": 1.0,
+            "count": 4,
+            "is_power": false
+          },
+          "Net-(Q1A-G)": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 4,
+            "is_power": false
+          },
+          "Net-(Q1B-G)": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 5,
+            "is_power": false
+          },
+          "Net-(R1-Pad1)": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 2,
+            "is_power": false
+          },
+          "Net-(R2-Pad1)": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 2,
+            "is_power": false
+          },
+          "Net-(U2-ILIM)": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 3,
+            "is_power": false
+          },
+          "Net-(U2-ISET)": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 5,
+            "is_power": false
+          },
+          "Net-(U2-TMR)": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 6,
+            "is_power": false
+          },
+          "Net-(U4-FB)": {
+            "min_mm": 0.25,
+            "max_mm": 0.25,
+            "mean_mm": 0.25,
+            "count": 4,
+            "is_power": false
+          }
+        }
+      },
+      "summary": "0 power violations, 0 signal violations across 26 nets"
+    },
+    "drc_markers": {
+      "display_name": "DRC Violations",
+      "score": 13.9,
+      "weight": 0.35,
+      "weighted_contribution": 4.87,
+      "issue_count": {
+        "error": 20,
+        "warning": 0,
+        "info": 0
+      },
+      "issues": [
+        {
+          "severity": "error",
+          "message": "[shorting_items] Items shorting two nets (nets /VBAT and /NTC_SENSE)",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[tracks_crossing] Tracks crossing",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[shorting_items] Items shorting two nets (nets /VBAT and /NTC_SENSE)",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[tracks_crossing] Tracks crossing",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[tracks_crossing] Tracks crossing",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[shorting_items] Items shorting two nets (nets /VBAT and /NTC_SENSE)",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[shorting_items] Items shorting two nets (nets /VBAT and GND)",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[tracks_crossing] Tracks crossing",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[shorting_items] Items shorting two nets (nets GND and /CELL_NEG)",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[shorting_items] Items shorting two nets (nets /NTC_SENSE and /VBAT)",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[shorting_items] Items shorting two nets (nets /VBAT and /NTC_SENSE)",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[shorting_items] Items shorting two nets (nets /NTC_SENSE and /VBUS)",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[tracks_crossing] Tracks crossing",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[shorting_items] Items shorting two nets (nets /VSYS and Net-(U2-ILIM))",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[shorting_items] Items shorting two nets (nets GND and /5V)",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[shorting_items] Items shorting two nets (nets GND and /EN)",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[shorting_items] Items shorting two nets (nets /NTC_SENSE and /VBAT)",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[shorting_items] Items shorting two nets (nets /VBAT and /VBUS)",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[shorting_items] Items shorting two nets (nets /NTC_SENSE and /VBAT)",
+          "location": null
+        },
+        {
+          "severity": "error",
+          "message": "[shorting_items] Items shorting two nets (nets Net-(D2-K) and /VSYS)",
+          "location": null
+        }
+      ],
+      "metrics": {
+        "total_violations": 330,
+        "by_type": {
+          "solder_mask_bridge": 43,
+          "copper_edge_clearance": 2,
+          "courtyards_overlap": 1,
+          "clearance": 54,
+          "shorting_items": 47,
+          "hole_clearance": 15,
+          "tracks_crossing": 18,
+          "silk_overlap": 13,
+          "silk_over_copper": 4,
+          "lib_footprint_issues": 3,
+          "lib_footprint_mismatch": 5,
+          "hole_to_hole": 9,
+          "silk_edge_clearance": 2,
+          "track_dangling": 8,
+          "via_dangling": 29,
+          "unconnected_items": 77
+        },
+        "critical": 142,
+        "major": 80,
+        "minor": 108,
+        "shorts": 47,
+        "unconnected": 77,
+        "crossings": 18
+      },
+      "summary": "47 shorts, 77 unconnected, 18 crossings, 80 clearance, 108 cosmetic"
+    },
+    "connectivity": {
+      "display_name": "Net Connectivity",
+      "score": 100,
+      "weight": 0.15,
+      "weighted_contribution": 15.0,
+      "issue_count": {
+        "error": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "issues": [],
+      "metrics": {
+        "total_nets": 27,
+        "single_pad_nets": 0,
+        "unassigned_pads": 0
+      },
+      "summary": "27 nets, 0 single-pad, 0 unassigned pads"
+    },
+    "placement": {
+      "display_name": "Component Placement",
+      "score": 84.5,
+      "weight": 0.2,
+      "weighted_contribution": 16.9,
+      "issue_count": {
+        "error": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "issues": [],
+      "metrics": {
+        "board_area_mm2": 5234.8,
+        "footprint_area_mm2": 4274.4,
+        "utilization": 0.817,
+        "overlaps": 0,
+        "out_of_bounds": 0,
+        "footprint_count": 39
+      },
+      "summary": "39 components, 82% utilization, 0 overlaps"
+    },
+    "vias": {
+      "display_name": "Via Analysis",
+      "score": 92.4,
+      "weight": 0.1,
+      "weighted_contribution": 9.24,
+      "issue_count": {
+        "error": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "issues": [],
+      "metrics": {
+        "total_vias": 78,
+        "density_per_cm2": 1.49,
+        "via_nets": {
+          "/3V3": 2,
+          "/5V": 8,
+          "/CELL_NEG": 4,
+          "/CHG_N": 2,
+          "/EN": 2,
+          "/NTC_SENSE": 2,
+          "/VBAT": 4,
+          "/VBUS": 4,
+          "/VSYS": 2,
+          "GND": 38,
+          "Net-(F1-Pad2)": 2,
+          "Net-(R1-Pad1)": 2,
+          "Net-(R2-Pad1)": 2,
+          "Net-(U2-TMR)": 4
+        },
+        "thermal_vias": {
+          "U2": 10,
+          "U4": 9
+        }
+      },
+      "summary": "78 vias (1.5/cm2), thermal: {'U2': 10, 'U4': 9}"
+    },
+    "geometry": {
+      "display_name": "Routing Efficiency",
+      "score": 100,
+      "weight": 0.1,
+      "weighted_contribution": 10.0,
+      "issue_count": {
+        "error": 0,
+        "warning": 0,
+        "info": 2
+      },
+      "issues": [
+        {
+          "severity": "info",
+          "message": "Net 'Net-(Q1A-D)' routing 4.4x optimal (13.0mm vs 3.0mm est.)",
+          "location": {
+            "net": "Net-(Q1A-D)"
+          }
+        },
+        {
+          "severity": "info",
+          "message": "Net 'Net-(U2-TMR)' routing 3.5x optimal (24.1mm vs 6.9mm est.)",
+          "location": {
+            "net": "Net-(U2-TMR)"
+          }
+        }
+      ],
+      "metrics": {
+        "total_trace_length_mm": 834.3,
+        "total_segments": 164,
+        "avg_efficiency_ratio": 1.42,
+        "nets_analyzed": 26,
+        "nets": {
+          "/3V3": {
+            "actual_mm": 14.4,
+            "optimal_mm": 17.06,
+            "ratio": 0.84,
+            "segments": 5
+          },
+          "/5V": {
+            "actual_mm": 48.66,
+            "optimal_mm": 49.66,
+            "ratio": 0.98,
+            "segments": 11
+          },
+          "/CELL_NEG": {
+            "actual_mm": 77.93,
+            "optimal_mm": 69.02,
+            "ratio": 1.13,
+            "segments": 7
+          },
+          "/CHG_N": {
+            "actual_mm": 80.97,
+            "optimal_mm": 67.55,
+            "ratio": 1.2,
+            "segments": 8
+          },
+          "/EN": {
+            "actual_mm": 32.31,
+            "optimal_mm": 50.34,
+            "ratio": 0.64,
+            "segments": 11
+          },
+          "/NTC_SENSE": {
+            "actual_mm": 96.51,
+            "optimal_mm": 72.92,
+            "ratio": 1.32,
+            "segments": 10
+          },
+          "/VBAT": {
+            "actual_mm": 160.51,
+            "optimal_mm": 186.3,
+            "ratio": 0.86,
+            "segments": 19
+          },
+          "/VBUS": {
+            "actual_mm": 33.79,
+            "optimal_mm": 30.05,
+            "ratio": 1.12,
+            "segments": 10
+          },
+          "/VSYS": {
+            "actual_mm": 75.0,
+            "optimal_mm": 43.16,
+            "ratio": 1.74,
+            "segments": 17
+          },
+          "/VSYS_BOOST": {
+            "actual_mm": 15.18,
+            "optimal_mm": 14.66,
+            "ratio": 1.04,
+            "segments": 6
+          },
+          "Net-(D1-A)": {
+            "actual_mm": 1.7,
+            "optimal_mm": 1.7,
+            "ratio": 1.0,
+            "segments": 1
+          },
+          "Net-(D2-A)": {
+            "actual_mm": 1.7,
+            "optimal_mm": 1.7,
+            "ratio": 1.0,
+            "segments": 1
+          },
+          "Net-(D2-K)": {
+            "actual_mm": 7.26,
+            "optimal_mm": 6.97,
+            "ratio": 1.04,
+            "segments": 3
+          },
+          "Net-(D3-A)": {
+            "actual_mm": 25.73,
+            "optimal_mm": 14.6,
+            "ratio": 1.76,
+            "segments": 6
+          },
+          "Net-(F1-Pad2)": {
+            "actual_mm": 28.24,
+            "optimal_mm": 20.77,
+            "ratio": 1.36,
+            "segments": 8
+          },
+          "Net-(J1-CC1)": {
+            "actual_mm": 8.51,
+            "optimal_mm": 10.86,
+            "ratio": 0.78,
+            "segments": 3
+          },
+          "Net-(J1-CC2)": {
+            "actual_mm": 10.51,
+            "optimal_mm": 12.24,
+            "ratio": 0.86,
+            "segments": 3
+          },
+          "Net-(Q1A-D)": {
+            "actual_mm": 13.0,
+            "optimal_mm": 2.96,
+            "ratio": 4.39,
+            "segments": 4
+          },
+          "Net-(Q1A-G)": {
+            "actual_mm": 9.05,
+            "optimal_mm": 7.06,
+            "ratio": 1.28,
+            "segments": 4
+          },
+          "Net-(Q1B-G)": {
+            "actual_mm": 24.77,
+            "optimal_mm": 9.32,
+            "ratio": 2.66,
+            "segments": 5
+          },
+          "Net-(R1-Pad1)": {
+            "actual_mm": 9.58,
+            "optimal_mm": 7.93,
+            "ratio": 1.21,
+            "segments": 2
+          },
+          "Net-(R2-Pad1)": {
+            "actual_mm": 5.68,
+            "optimal_mm": 5.37,
+            "ratio": 1.06,
+            "segments": 2
+          },
+          "Net-(U2-ILIM)": {
+            "actual_mm": 9.54,
+            "optimal_mm": 5.87,
+            "ratio": 1.62,
+            "segments": 3
+          },
+          "Net-(U2-ISET)": {
+            "actual_mm": 10.04,
+            "optimal_mm": 7.24,
+            "ratio": 1.39,
+            "segments": 5
+          },
+          "Net-(U2-TMR)": {
+            "actual_mm": 24.06,
+            "optimal_mm": 6.92,
+            "ratio": 3.48,
+            "segments": 6
+          },
+          "Net-(U4-FB)": {
+            "actual_mm": 9.68,
+            "optimal_mm": 8.28,
+            "ratio": 1.17,
+            "segments": 4
+          }
+        }
+      },
+      "summary": "164 segments, avg efficiency ratio 1.42x"
+    },
+    "compactness": {
+      "display_name": "Board Compactness",
+      "score": 100,
+      "weight": 0.0,
+      "weighted_contribution": 0,
+      "issue_count": {
+        "error": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "issues": [],
+      "metrics": {
+        "board_mm": "90.1x58.1",
+        "board_area_mm2": 5234.8,
+        "component_bbox_mm": "94.0x59.0",
+        "component_bbox_area_mm2": 5546.0,
+        "fill_ratio": 1.059,
+        "grid_fill": 1.0,
+        "grid_cells": "198/198"
+      },
+      "summary": "Board 90x58mm, components fill 106%, grid 100% occupied"
+    },
+    "orientation": {
+      "display_name": "Footprint Orientation",
+      "score": 100.0,
+      "weight": 0.0,
+      "weighted_contribution": 0,
+      "issue_count": {
+        "error": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "issues": [],
+      "metrics": {
+        "checked": 3,
+        "passed": 3,
+        "failed": 0
+      },
+      "summary": "3/3 access-critical components correctly oriented"
+    },
+    "visual": {
+      "display_name": "Visual Analysis",
+      "score": 0,
+      "weight": 0.0,
+      "weighted_contribution": 0,
+      "issue_count": {
+        "error": 0,
+        "warning": 0,
+        "info": 1
+      },
+      "issues": [
+        {
+          "severity": "info",
+          "message": "Visual check skipped \u2014 no PCB path or render dir in config",
+          "location": null
+        }
+      ],
+      "metrics": {},
+      "summary": "Skipped"
+    }
+  },
+  "token_usage": {
+    "text_tokens": 4096,
+    "image_tokens": 0,
+    "total_tokens": 4096,
+    "image_bytes": 0,
+    "render_count": 0
+  },
+  "config_used": {
+    "power_nets": [
+      "VBUS",
+      "VBAT",
+      "5V",
+      "3V3",
+      "3.3V",
+      "+5V",
+      "+3V3",
+      "GND"
+    ],
+    "power_trace_min_mm": 1.0,
+    "signal_trace_min_mm": 0.2,
+    "thermal_via_refs": [
+      "U2",
+      "U4"
+    ],
+    "thermal_via_radius_mm": 3.0,
+    "min_thermal_vias": 4,
+    "target_utilization_range": [
+      0.3,
+      0.7
+    ]
+  }
+}

@@ -1,7 +1,7 @@
 """A* pathfinding router with layer biasing and priority net ordering.
 
 Pure Python. Uses heapq for O(log N) priority queue.
-Grid resolution matches minimum trace width (0.25mm default).
+Grid resolution matches minimum trace width (0.5mm default).
 """
 from __future__ import annotations
 import heapq
@@ -18,94 +18,7 @@ from .types import (
     Point, Layer, BoardState, Net, TraceSegment, Via, GridCell, RoutingResult
 )
 from .graph import minimum_spanning_tree
-
-
-class RoutingGrid:
-    """Discretized 2-layer grid for A* pathfinding.
-
-    For a 90x58mm board at 0.25mm: 360x232x2 = ~167K cells.
-    Cost values: 0=free, >0=penalty, inf=hard block.
-    """
-
-    def __init__(self, bounds: tuple[Point, Point],
-                 resolution_mm: float = 0.25, layers: int = 2):
-        self.resolution = resolution_mm
-        self.origin = bounds[0]
-        self.cols = int(math.ceil(
-            (bounds[1].x - bounds[0].x) / resolution_mm)) + 1
-        self.rows = int(math.ceil(
-            (bounds[1].y - bounds[0].y) / resolution_mm)) + 1
-        self.layers = layers
-        # Flat arrays for speed: cost[layer][row * cols + col]
-        # numpy float32 arrays when available — 3-4x faster for mark_rect slices
-        size = self.rows * self.cols
-        if _HAS_NUMPY:
-            self.cost = [np.zeros(size, dtype=np.float32) for _ in range(layers)]
-        else:
-            self.cost = [[0.0] * size for _ in range(layers)]
-
-    def _idx(self, row: int, col: int) -> int:
-        return row * self.cols + col
-
-    def in_bounds(self, cell: GridCell) -> bool:
-        return (0 <= cell.x < self.cols and
-                0 <= cell.y < self.rows and
-                0 <= cell.layer < self.layers)
-
-    def get_cost(self, cell: GridCell) -> float:
-        if not self.in_bounds(cell):
-            return float("inf")
-        return self.cost[cell.layer][self._idx(cell.y, cell.x)]
-
-    def set_cost(self, col: int, row: int, layer: int, cost: float):
-        if 0 <= col < self.cols and 0 <= row < self.rows:
-            idx = self._idx(row, col)
-            self.cost[layer][idx] = max(self.cost[layer][idx], cost)
-
-    def to_cell(self, point: Point, layer: Layer) -> GridCell:
-        col = int(round((point.x - self.origin.x) / self.resolution))
-        row = int(round((point.y - self.origin.y) / self.resolution))
-        col = max(0, min(self.cols - 1, col))
-        row = max(0, min(self.rows - 1, row))
-        return GridCell(col, row, layer)
-
-    def to_point(self, cell: GridCell) -> Point:
-        return Point(
-            self.origin.x + cell.x * self.resolution,
-            self.origin.y + cell.y * self.resolution,
-        )
-
-    def mark_rect(self, tl: Point, br: Point, layer: int, cost: float):
-        """Mark a rectangular region on the grid."""
-        c1 = max(0, int((tl.x - self.origin.x) / self.resolution) - 1)
-        r1 = max(0, int((tl.y - self.origin.y) / self.resolution) - 1)
-        c2 = min(self.cols - 1, int((br.x - self.origin.x) / self.resolution) + 1)
-        r2 = min(self.rows - 1, int((br.y - self.origin.y) / self.resolution) + 1)
-        if _HAS_NUMPY:
-            arr2d = self.cost[layer].reshape(self.rows, self.cols)
-            np.maximum(arr2d[r1:r2 + 1, c1:c2 + 1], cost,
-                       out=arr2d[r1:r2 + 1, c1:c2 + 1])
-        else:
-            for r in range(r1, r2 + 1):
-                for c in range(c1, c2 + 1):
-                    self.set_cost(c, r, layer, cost)
-
-    def mark_segment(self, start: Point, end: Point, layer: int,
-                     width_mm: float, cost: float):
-        """Mark a trace segment with given width on the grid."""
-        hw = width_mm / 2 + self.resolution  # extra cell margin
-        min_x = min(start.x, end.x) - hw
-        max_x = max(start.x, end.x) + hw
-        min_y = min(start.y, end.y) - hw
-        max_y = max(start.y, end.y) + hw
-        self.mark_rect(Point(min_x, min_y), Point(max_x, max_y), layer, cost)
-
-    def clear_net(self, net_name: str, segments: list[TraceSegment],
-                  vias_list: list[Via]):
-        """Remove costs associated with a specific net (for rip-up)."""
-        # We can't selectively clear, so we rebuild. This method is a placeholder.
-        # The conflict resolver rebuilds the grid from scratch.
-        pass
+from .grid_builder import RoutingGrid, build_grid, path_to_traces
 
 
 class AStarRouter:
@@ -118,8 +31,6 @@ class AStarRouter:
         Layer.BACK:  {"h": 1.3, "v": 1.0},
     }
     VIA_COST = 8.0
-    # 8-connected: cardinals + diagonals. Diagonals are sqrt(2) longer
-    # and require both cardinal neighbors to be free (no corner cutting).
     NEIGHBOR_OFFSETS = [(1, 0), (-1, 0), (0, 1), (0, -1),
                         (1, 1), (1, -1), (-1, 1), (-1, -1)]
     DIAG_COST = 1.41421356  # sqrt(2)
@@ -130,13 +41,7 @@ class AStarRouter:
     def find_path(self, start: GridCell, end: GridCell,
                   width_cells: int = 1,
                   max_search: int = 100000) -> Optional[list[GridCell]]:
-        """A* with Manhattan heuristic. Uses tuples internally for speed.
-
-        When numpy is available, g_score is stored in a flat float64 array
-        (indexed by layer*n_cells + row*cols + col) and the heuristic is
-        precomputed as a vectorized distance table — eliminating ~32s of
-        dict.get and abs() calls per 100-round experiment batch.
-        """
+        """A* with octile heuristic (numpy-optimized)."""
         if start == end:
             return [start]
 
@@ -146,30 +51,33 @@ class AStarRouter:
         cols, rows = grid.cols, grid.rows
         n_cells = rows * cols
         via_cost = self.VIA_COST
+        width_radius = max(0, width_cells - 1)
+        width_offsets = (
+            [(0, 0)] if width_radius == 0 else
+            [(ox, oy)
+             for oy in range(-width_radius, width_radius + 1)
+             for ox in range(-width_radius, width_radius + 1)]
+        )
 
         end_t = (ex, ey, el)
 
-        # Pre-compute layer biases
         bias_h = [self.LAYER_BIAS[Layer.FRONT]["h"], self.LAYER_BIAS[Layer.BACK]["h"]]
         bias_v = [self.LAYER_BIAS[Layer.FRONT]["v"], self.LAYER_BIAS[Layer.BACK]["v"]]
-
-        cost_arrays = grid.cost  # direct reference
+        cost_arrays = grid.cost
 
         if _HAS_NUMPY:
-            # g_score as flat numpy array: shape (2, n_cells), init to +inf
             INF = 1e18
             g_arr = np.full((2, n_cells), INF, dtype=np.float64)
             g_arr[sl, sy * cols + sx] = 0.0
 
-            # Octile distance heuristic — admissible for 8-connected grid
-            # with unit cardinal cost and sqrt(2) diagonal cost.
+            # Octile distance
             col_idx = np.arange(cols, dtype=np.float64)
             row_idx = np.arange(rows, dtype=np.float64)
-            dx_arr = np.abs(col_idx - ex)[np.newaxis, :]  # (1, cols)
-            dy_arr = np.abs(row_idx - ey)[:, np.newaxis]  # (rows, 1)
-            # octile = max(dx,dy) + (sqrt2-1)*min(dx,dy)
-            h_2d = np.maximum(dx_arr, dy_arr) + (self.DIAG_COST - 1.0) * np.minimum(dx_arr, dy_arr)
-            h_flat = h_2d.flatten()  # (n_cells,)
+            dx_arr = np.abs(col_idx - ex)[np.newaxis, :]
+            dy_arr = np.abs(row_idx - ey)[:, np.newaxis]
+            h_2d = (np.maximum(dx_arr, dy_arr) +
+                    (self.DIAG_COST - 1.0) * np.minimum(dx_arr, dy_arr))
+            h_flat = h_2d.flatten()
             h_arr = np.empty((2, n_cells), dtype=np.float64)
             h_arr[0] = h_flat + (via_cost if 0 != el else 0.0)
             h_arr[1] = h_flat + (via_cost if 1 != el else 0.0)
@@ -195,7 +103,6 @@ class AStarRouter:
 
                 cur_idx = cy * cols + cx
                 cur_g = g_arr[cl, cur_idx]
-                # Stale-entry check using precomputed heuristic
                 if f > cur_g + h_arr[cl, cur_idx] + 50:
                     continue
 
@@ -204,16 +111,34 @@ class AStarRouter:
                 bv = bias_v[cl]
                 diag_bias = (bh + bv) * 0.5 * self.DIAG_COST
 
-                # Cardinals first — used for corner-cut check on diagonals
-                card_free = [False, False, False, False]  # E, W, S, N
+                def footprint_cost_or_blocked(x: int, y: int, layer: int) -> float:
+                    if width_radius == 0:
+                        if not (0 <= x < cols and 0 <= y < rows):
+                            return 1e6
+                        return cost_arrays[layer][y * cols + x]
+                    max_cost = 0.0
+                    layer_arr = cost_arrays[layer]
+                    for ox, oy in width_offsets:
+                        tx, ty = x + ox, y + oy
+                        if not (0 <= tx < cols and 0 <= ty < rows):
+                            return 1e6
+                        c = layer_arr[ty * cols + tx]
+                        if c >= 1e6:
+                            return c
+                        if c > max_cost:
+                            max_cost = c
+                    return max_cost
+
+                # Cardinals
+                card_free = [False, False, False, False]
                 for i, (dx, dy) in enumerate(((1, 0), (-1, 0), (0, 1), (0, -1))):
                     nx, ny = cx + dx, cy + dy
                     if not (0 <= nx < cols and 0 <= ny < rows):
                         continue
-                    nidx = ny * cols + nx
-                    cell_cost = layer_costs[nidx]
+                    cell_cost = footprint_cost_or_blocked(nx, ny, cl)
                     if cell_cost >= 1e6:
                         continue
+                    nidx = ny * cols + nx
                     card_free[i] = True
                     bias = bh if dx != 0 else bv
                     tent_g = cur_g + bias + cell_cost * 0.5
@@ -225,9 +150,7 @@ class AStarRouter:
                         heapq.heappush(open_set,
                                        (tent_g + h_arr[cl, nidx], counter, nbr))
 
-                # Diagonals — only if both cardinal neighbors are free
-                # (prevents slipping diagonally between two obstacles).
-                # (dx,dy): need card_free indices mapping E=0,W=1,S=2,N=3
+                # Diagonals
                 diag_dirs = ((1, 1, 0, 2), (1, -1, 0, 3),
                              (-1, 1, 1, 2), (-1, -1, 1, 3))
                 for dx, dy, ci1, ci2 in diag_dirs:
@@ -236,10 +159,10 @@ class AStarRouter:
                     nx, ny = cx + dx, cy + dy
                     if not (0 <= nx < cols and 0 <= ny < rows):
                         continue
-                    nidx = ny * cols + nx
-                    cell_cost = layer_costs[nidx]
+                    cell_cost = footprint_cost_or_blocked(nx, ny, cl)
                     if cell_cost >= 1e6:
                         continue
+                    nidx = ny * cols + nx
                     tent_g = cur_g + diag_bias + cell_cost * 0.5 * self.DIAG_COST
                     if tent_g < g_arr[cl, nidx]:
                         g_arr[cl, nidx] = tent_g
@@ -251,7 +174,7 @@ class AStarRouter:
 
                 # Via transition
                 ol = 1 - cl
-                other_cost = cost_arrays[ol][cur_idx]
+                other_cost = footprint_cost_or_blocked(cx, cy, ol)
                 if other_cost < 1e6:
                     via_g = cur_g + via_cost + other_cost * 0.5
                     if via_g < g_arr[ol, cur_idx]:
@@ -292,11 +215,29 @@ class AStarRouter:
                 continue
 
             layer_costs = cost_arrays[cl]
+            def footprint_cost_or_blocked(x: int, y: int, layer: int) -> float:
+                if width_radius == 0:
+                    if not (0 <= x < cols and 0 <= y < rows):
+                        return 1e6
+                    return cost_arrays[layer][y * cols + x]
+                max_cost = 0.0
+                layer_arr = cost_arrays[layer]
+                for ox, oy in width_offsets:
+                    tx, ty = x + ox, y + oy
+                    if not (0 <= tx < cols and 0 <= ty < rows):
+                        return 1e6
+                    c = layer_arr[ty * cols + tx]
+                    if c >= 1e6:
+                        return c
+                    if c > max_cost:
+                        max_cost = c
+                return max_cost
+
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                 nx, ny = cx + dx, cy + dy
                 if not (0 <= nx < cols and 0 <= ny < rows):
                     continue
-                cell_cost = layer_costs[ny * cols + nx]
+                cell_cost = footprint_cost_or_blocked(nx, ny, cl)
                 if cell_cost >= 1e6:
                     continue
                 bias = bias_h[cl] if dx != 0 else bias_v[cl]
@@ -310,7 +251,7 @@ class AStarRouter:
                     heapq.heappush(open_set, (tent_g + h, counter, nbr))
 
             ol = 1 - cl
-            other_cost = cost_arrays[ol][cy * cols + cx]
+            other_cost = footprint_cost_or_blocked(cx, cy, ol)
             if other_cost < 1e6:
                 via_g = cur_g + via_cost + other_cost * 0.5
                 nbr_v = (cx, cy, ol)
@@ -321,22 +262,7 @@ class AStarRouter:
                     counter += 1
                     heapq.heappush(open_set, (via_g + h, counter, nbr_v))
 
-        return None  # no path found
-
-    def _corridor_cost(self, col: int, row: int, layer: int,
-                       width_cells: int) -> float:
-        """Check all cells within trace width corridor. Return max cost."""
-        if width_cells <= 1:
-            return self.grid.get_cost(GridCell(col, row, Layer(layer)))
-        half = width_cells // 2
-        max_cost = 0.0
-        for dc in range(-half, half + 1):
-            for dr in range(-half, half + 1):
-                c = self.grid.get_cost(GridCell(col + dc, row + dr, Layer(layer)))
-                if c >= float("inf"):
-                    return float("inf")
-                max_cost = max(max_cost, c)
-        return max_cost
+        return None
 
     def _heuristic(self, a: GridCell, b: GridCell) -> float:
         """Manhattan distance + via cost if layers differ."""
@@ -345,14 +271,6 @@ class AStarRouter:
             h += self.VIA_COST
         return float(h)
 
-    def _reconstruct(self, came_from: dict, current: GridCell) -> list[GridCell]:
-        path = [current]
-        while current in came_from:
-            current = came_from[current]
-            path.append(current)
-        path.reverse()
-        return path
-
 
 class RoutingSolver:
     """Routes all nets with priority ordering using A* on a grid."""
@@ -360,18 +278,19 @@ class RoutingSolver:
     def __init__(self, state: BoardState, config: dict = None):
         self.state = state
         self.cfg = config or {}
-        self.resolution = self.cfg.get("grid_resolution_mm", 0.25)
+        self.resolution = self.cfg.get("grid_resolution_mm", 0.5)
         self.clearance = self.cfg.get("clearance_mm", 0.2)
-        self.signal_width = self.cfg.get("signal_width_mm", 0.25)
-        self.power_width = self.cfg.get("power_width_mm", 1.0)
+        self.signal_width = self.cfg.get("signal_width_mm", 0.15)
+        self.power_width = self.cfg.get("power_width_mm", 0.5)
         self.skip_gnd = self.cfg.get("skip_gnd_routing", True)
         self.via_drill = self.cfg.get("via_drill_mm", 0.3)
         self.via_size = self.cfg.get("via_size_mm", 0.6)
-        self.trace_cost = self.cfg.get("existing_trace_cost", 10.0)
+        self.trace_cost = self.cfg.get("existing_trace_cost", 100.0)
+        self.mst_retry_limit = self.cfg.get("mst_retry_limit", 3)
 
     def solve(self) -> tuple[list[TraceSegment], list[Via], list[str]]:
         """Route all nets. Returns (traces, vias, failed_net_names)."""
-        grid = self._build_grid()
+        grid = build_grid(self.state, self.resolution, self.clearance)
         router = AStarRouter(grid)
         ordered = self._prioritize_nets()
 
@@ -390,13 +309,14 @@ class RoutingSolver:
                                       seg.width_mm + self.clearance,
                                       self.trace_cost)
                 for v in result.vias:
+                    half = v.size_mm / 2
                     grid.mark_rect(
-                        Point(v.pos.x - v.size_mm / 2, v.pos.y - v.size_mm / 2),
-                        Point(v.pos.x + v.size_mm / 2, v.pos.y + v.size_mm / 2),
+                        Point(v.pos.x - half, v.pos.y - half),
+                        Point(v.pos.x + half, v.pos.y + half),
                         Layer.FRONT, self.trace_cost)
                     grid.mark_rect(
-                        Point(v.pos.x - v.size_mm / 2, v.pos.y - v.size_mm / 2),
-                        Point(v.pos.x + v.size_mm / 2, v.pos.y + v.size_mm / 2),
+                        Point(v.pos.x - half, v.pos.y - half),
+                        Point(v.pos.x + half, v.pos.y + half),
                         Layer.BACK, self.trace_cost)
             else:
                 failed.append(net.name)
@@ -407,89 +327,6 @@ class RoutingSolver:
             print(f"  Failed: {failed}")
 
         return all_traces, all_vias, failed
-
-    def _build_grid(self) -> RoutingGrid:
-        """Create grid and mark component obstacles with pad escape corridors."""
-        grid = RoutingGrid(self.state.board_outline, self.resolution)
-
-        # Collect all pad cells first so we can exclude them from obstacles
-        pad_cells: set[tuple[int, int, int]] = set()  # (col, row, layer)
-        escape_cells: set[tuple[int, int, int]] = set()
-
-        for comp in self.state.components.values():
-            comp_tl, comp_br = comp.bbox()
-            for pad in comp.pads:
-                pc = grid.to_cell(pad.pos, pad.layer)
-                # Mark pad area (3x3)
-                for dc in range(-1, 2):
-                    for dr in range(-1, 2):
-                        pad_cells.add((pc.x + dc, pc.y + dr, pad.layer))
-
-                # Create escape corridor from pad to nearest component edge
-                # Find which edge is closest
-                dx_left = pad.pos.x - comp_tl.x
-                dx_right = comp_br.x - pad.pos.x
-                dy_top = pad.pos.y - comp_tl.y
-                dy_bottom = comp_br.y - pad.pos.y
-                min_dist = min(dx_left, dx_right, dy_top, dy_bottom)
-
-                if min_dist == dx_left:
-                    # Escape left
-                    c_edge = grid.to_cell(Point(comp_tl.x - self.clearance * 2, pad.pos.y), pad.layer)
-                    for c in range(c_edge.x, pc.x + 1):
-                        for dr in range(-1, 2):
-                            escape_cells.add((c, pc.y + dr, pad.layer))
-                elif min_dist == dx_right:
-                    # Escape right
-                    c_edge = grid.to_cell(Point(comp_br.x + self.clearance * 2, pad.pos.y), pad.layer)
-                    for c in range(pc.x, c_edge.x + 1):
-                        for dr in range(-1, 2):
-                            escape_cells.add((c, pc.y + dr, pad.layer))
-                elif min_dist == dy_top:
-                    # Escape up
-                    c_edge = grid.to_cell(Point(pad.pos.x, comp_tl.y - self.clearance * 2), pad.layer)
-                    for r in range(c_edge.y, pc.y + 1):
-                        for dc in range(-1, 2):
-                            escape_cells.add((pc.x + dc, r, pad.layer))
-                else:
-                    # Escape down
-                    c_edge = grid.to_cell(Point(pad.pos.x, comp_br.y + self.clearance * 2), pad.layer)
-                    for r in range(pc.y, c_edge.y + 1):
-                        for dc in range(-1, 2):
-                            escape_cells.add((pc.x + dc, r, pad.layer))
-
-        # Mark component bodies as obstacles, but skip pad/escape cells.
-        # Strategy: fill entire bbox with COMPONENT_COST, then reset pad/escape
-        # cells back to 0. Equivalent to the per-cell skip, but numpy-vectorized.
-        COMPONENT_COST = 100.0  # High but not infinite — last resort path
-        for comp in self.state.components.values():
-            tl, br = comp.bbox(self.clearance)
-            c1 = max(0, int((tl.x - grid.origin.x) / grid.resolution) - 1)
-            r1 = max(0, int((tl.y - grid.origin.y) / grid.resolution) - 1)
-            c2 = min(grid.cols - 1, int((br.x - grid.origin.x) / grid.resolution) + 1)
-            r2 = min(grid.rows - 1, int((br.y - grid.origin.y) / grid.resolution) + 1)
-            if _HAS_NUMPY:
-                for layer in range(2):
-                    arr2d = grid.cost[layer].reshape(grid.rows, grid.cols)
-                    np.maximum(arr2d[r1:r2 + 1, c1:c2 + 1], COMPONENT_COST,
-                               out=arr2d[r1:r2 + 1, c1:c2 + 1])
-            else:
-                for layer in range(2):
-                    for r in range(r1, r2 + 1):
-                        for c in range(c1, c2 + 1):
-                            if (c, r, layer) in pad_cells or (c, r, layer) in escape_cells:
-                                continue
-                            idx = grid._idx(r, c)
-                            grid.cost[layer][idx] = max(grid.cost[layer][idx],
-                                                        COMPONENT_COST)
-
-        # Reset pad and escape cells so traces can reach pads
-        if _HAS_NUMPY:
-            for (c, r, layer) in pad_cells | escape_cells:
-                if 0 <= c < grid.cols and 0 <= r < grid.rows:
-                    grid.cost[layer][grid._idx(r, c)] = 0.0
-
-        return grid
 
     def _prioritize_nets(self) -> list[Net]:
         """Order nets for routing."""
@@ -502,16 +339,18 @@ class RoutingSolver:
             nets.append(net)
 
         def sort_key(n: Net) -> tuple:
-            if n.is_power:
-                return (2, -len(n.pad_refs), n.name)
-            return (1, len(n.pad_refs), n.name)
+            return (
+                0 if n.is_power else 1,   # power nets first
+                -n.priority,              # higher priority first
+                len(n.pad_refs),          # then simpler nets first
+                n.name,                   # stable deterministic order
+            )
 
         return sorted(nets, key=sort_key)
 
     def _route_net(self, router: AStarRouter, grid: RoutingGrid,
                    net: Net) -> RoutingResult:
-        """Route a single net via MST of its pads."""
-        # Gather pad positions
+        """Route a single net via MST of its pads, retrying with different roots on failure."""
         pad_points: list[tuple[Point, Layer]] = []
         for ref, pad_id in net.pad_refs:
             comp = self.state.components.get(ref)
@@ -525,102 +364,86 @@ class RoutingSolver:
         if len(pad_points) < 2:
             return RoutingResult(success=len(pad_points) <= 1)
 
-        # Build MST
+        width = net.width_mm
+        width_cells = max(1, int(width / self.resolution))
+
         names = [str(i) for i in range(len(pad_points))]
         pos_map = {names[i]: pad_points[i][0] for i in range(len(pad_points))}
         mst_edges = minimum_spanning_tree(
             names, lambda a, b: pos_map[a].dist(pos_map[b])
         )
 
-        width = net.width_mm
-        width_cells = max(1, int(width / self.resolution))
-        segments: list[TraceSegment] = []
-        vias: list[Via] = []
-        all_ok = True
+        # Retry only for multi-pad nets where edge ordering matters.
+        # 2-pad nets have one edge — retry is useless.
+        try_limit = max(1, self.mst_retry_limit) if len(pad_points) > 2 else 1
+        best_result = None
+        best_edges = -1
 
-        for a_name, b_name, _ in mst_edges:
-            a_idx, b_idx = int(a_name), int(b_name)
-            a_pos, a_layer = pad_points[a_idx]
-            b_pos, b_layer = pad_points[b_idx]
+        for attempt in range(try_limit):
+            edges = mst_edges if attempt == 0 else self._mst_from_root(
+                attempt - 1, names, pos_map)
 
-            start = grid.to_cell(a_pos, a_layer)
-            end = grid.to_cell(b_pos, b_layer)
+            segments: list[TraceSegment] = []
+            vias: list[Via] = []
+            edges_routed = 0
 
-            path = router.find_path(start, end, width_cells)
-            if path is None:
-                # Try from both layers
-                for try_layer in [Layer.FRONT, Layer.BACK]:
-                    alt_start = GridCell(start.x, start.y, try_layer)
-                    alt_end = GridCell(end.x, end.y, try_layer)
-                    path = router.find_path(alt_start, alt_end, width_cells)
-                    if path:
-                        # Add vias at endpoints if layer changed
-                        if try_layer != a_layer:
-                            vias.append(Via(a_pos, net.name,
-                                            self.via_drill, self.via_size))
-                        if try_layer != b_layer:
-                            vias.append(Via(b_pos, net.name,
-                                            self.via_drill, self.via_size))
-                        break
+            for a_name, b_name, _ in edges:
+                a_idx, b_idx = int(a_name), int(b_name)
+                a_pos, a_layer = pad_points[a_idx]
+                b_pos, b_layer = pad_points[b_idx]
 
-            if path is None:
-                all_ok = False
-                continue
+                start = grid.to_cell(a_pos, a_layer)
+                end = grid.to_cell(b_pos, b_layer)
 
-            # Convert path to trace segments + vias
-            segs, path_vias = self._path_to_traces(path, grid, net.name, width)
-            segments.extend(segs)
-            vias.extend(path_vias)
+                path = router.find_path(start, end, width_cells)
+                if path is None:
+                    for try_layer in [Layer.FRONT, Layer.BACK]:
+                        alt_start = GridCell(start.x, start.y, try_layer)
+                        alt_end = GridCell(end.x, end.y, try_layer)
+                        path = router.find_path(alt_start, alt_end, width_cells)
+                        if path:
+                            if try_layer != a_layer:
+                                vias.append(Via(a_pos, net.name,
+                                                self.via_drill, self.via_size))
+                            if try_layer != b_layer:
+                                vias.append(Via(b_pos, net.name,
+                                                self.via_drill, self.via_size))
+                            break
 
-        return RoutingResult(segments=segments, vias=vias,
-                             cost=sum(s.length for s in segments),
-                             success=all_ok)
+                if path is None:
+                    continue
 
-    def _path_to_traces(self, path: list[GridCell], grid: RoutingGrid,
-                        net_name: str,
-                        width: float) -> tuple[list[TraceSegment], list[Via]]:
-        """Convert grid path to trace segments, merging collinear cells."""
-        if len(path) < 2:
-            return [], []
+                edges_routed += 1
+                segs, path_vias = path_to_traces(
+                    path, grid, net.name, width,
+                    self.via_drill, self.via_size)
+                segments.extend(segs)
+                vias.extend(path_vias)
 
-        segments: list[TraceSegment] = []
-        vias: list[Via] = []
+            all_ok = edges_routed == len(edges)
+            if edges_routed > best_edges:
+                best_edges = edges_routed
+                best_result = RoutingResult(
+                    segments=segments, vias=vias,
+                    cost=sum(s.length for s in segments),
+                    success=all_ok)
+            if all_ok:
+                break
 
-        seg_start = path[0]
-        prev = path[0]
+        return best_result
 
-        for i in range(1, len(path)):
-            curr = path[i]
+    def _mst_from_root(self, root: int, names: list[str],
+                       pos_map: dict[str, Point]) -> list[tuple[str, str, float]]:
+        """Build MST with different root, producing varied edge ordering."""
+        n = len(names)
+        from .graph import minimum_spanning_tree
 
-            # Layer change -> via
-            if curr.layer != prev.layer:
-                # End current segment
-                if seg_start != prev:
-                    segments.append(TraceSegment(
-                        grid.to_point(seg_start), grid.to_point(prev),
-                        Layer(prev.layer), net_name, width))
-                vias.append(Via(grid.to_point(prev), net_name,
-                                self.via_drill, self.via_size))
-                seg_start = curr
+        reordered = [names[root]] + [nm for i, nm in enumerate(names) if i != root]
+        reordered_map = {reordered[i]: i for i in range(n)}
+        remapped_pos = {str(reordered_map[nm]): pos_map[nm] for nm in names}
+        remapped_names = [str(i) for i in range(n)]
 
-            # Direction change -> new segment
-            elif i >= 2:
-                pp = path[i - 2]
-                if pp.layer == prev.layer == curr.layer:
-                    dx1, dy1 = prev.x - pp.x, prev.y - pp.y
-                    dx2, dy2 = curr.x - prev.x, curr.y - prev.y
-                    if (dx1, dy1) != (dx2, dy2):
-                        segments.append(TraceSegment(
-                            grid.to_point(seg_start), grid.to_point(prev),
-                            Layer(prev.layer), net_name, width))
-                        seg_start = prev
-
-            prev = curr
-
-        # Final segment
-        if seg_start != prev:
-            segments.append(TraceSegment(
-                grid.to_point(seg_start), grid.to_point(prev),
-                Layer(prev.layer), net_name, width))
-
-        return segments, vias
+        edges = minimum_spanning_tree(
+            remapped_names, lambda a, b: remapped_pos[a].dist(remapped_pos[b])
+        )
+        return [(names[int(a)], names[int(b)], d) for a, b, d in edges]
