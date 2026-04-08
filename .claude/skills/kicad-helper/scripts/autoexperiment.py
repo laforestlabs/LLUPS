@@ -828,7 +828,7 @@ def main():
                     latest_marker=marker,
                 )
 
-                if not args.no_render and kept:
+                if not args.no_render:
                     frame_png = str(frames_dir / f"frame_{round_num:04d}.png")
                     snapshot_pcb(str(best_dir / "best.kicad_pcb"), frame_png,
                                  board_mm=board_mm)
