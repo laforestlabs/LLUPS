@@ -1,24 +1,24 @@
 {
   "phase": "running",
   "round": 0,
-  "total_rounds": 3,
+  "total_rounds": 1,
   "progress_percent": 0.0,
   "workers": {
     "total": 10,
-    "in_flight": 3,
-    "idle": 7
+    "in_flight": 1,
+    "idle": 9
   },
   "kept_count": 0,
-  "best_score": 20.759,
+  "best_score": 21.532,
   "latest_score": null,
-  "latest_marker": "submitted batch of 3 workers",
+  "latest_marker": "submitted batch of 1 workers",
   "minor_stagnant": 0,
   "elapsed_s": 0.0,
-  "eta_s": 263.4,
-  "avg_round_s": 877.88,
+  "eta_s": 43.2,
+  "avg_round_s": 431.98,
   "throughput_rounds_per_min": 0.0,
   "time_since_last_completion_s": 0.0,
-  "idle_threshold_s": 2633.6,
+  "idle_threshold_s": 1295.9,
   "maybe_stuck": false,
-  "timestamp_epoch_s": 1775624948.3160913
+  "timestamp_epoch_s": 1775625877.0542438
 }
