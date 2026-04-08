@@ -16,9 +16,8 @@ DEFAULT_CONFIG = {
     "clearance_mm": 0.2,
 
     # Placement clearance — minimum gap between component bounding boxes.
-    # Kept separate from routing clearance so the router isn't over-constrained.
-    # 2.5mm gives breathing room for traces between pads of adjacent parts.
-    "placement_clearance_mm": 2.5,
+    # 1.5mm balances routing room vs keeping connected components close.
+    "placement_clearance_mm": 1.5,
 
     # Power nets
     "power_nets": {
@@ -31,7 +30,7 @@ DEFAULT_CONFIG = {
     "placement_grid_mm": 1.0,
     "edge_margin_mm": 6.0,
     "force_attract_k": 0.02,
-    "force_repel_k": 400.0,   # stronger repulsion to keep parts separated
+    "force_repel_k": 200.0,   # moderate repulsion — experiments converge here
     "cooling_factor": 0.97,
 
     # Routing — cost applied per cell when crossing an existing trace.

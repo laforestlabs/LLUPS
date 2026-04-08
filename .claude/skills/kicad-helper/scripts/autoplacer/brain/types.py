@@ -172,13 +172,13 @@ class PlacementScore:
 
     def compute_total(self, weights: Optional[dict] = None) -> float:
         w = weights or {
-            "net_distance": 0.20,
-            "crossover_score": 0.20,
+            "net_distance": 0.25,        # connected parts close together
+            "crossover_score": 0.30,     # fewer crossings = easier routing
             "compactness": 0.02,
-            "edge_compliance": 0.08,
-            "rotation_score": 0.05,
-            "board_containment": 0.25,
-            "courtyard_overlap": 0.20,
+            "edge_compliance": 0.05,
+            "rotation_score": 0.03,
+            "board_containment": 0.20,
+            "courtyard_overlap": 0.15,
         }
         self.total = sum(
             getattr(self, k) * v for k, v in w.items()
@@ -200,28 +200,13 @@ class ExperimentScore:
     total: float = 0.0
 
     def compute(self, weights: Optional[dict] = None) -> float:
-        """Compute unified score. Routing completion dominates."""
-        w = weights or {
-            "placement": 0.20,       # placement quality (0-100)
-            "route_completion": 0.50, # % nets routed (0-100)
-            "trace_efficiency": 0.20, # shorter traces = better (0-100)
-            "via_penalty": 0.10,      # fewer vias = better (0-100)
-        }
-        # Route completion: most important metric
+        """Compute unified score. Route completion dominates, then placement."""
+        # Route completion: most important — must get all nets routed
         if self.total_nets > 0:
             route_pct = ((self.total_nets - self.failed_nets)
                          / self.total_nets) * 100
         else:
             route_pct = 100.0
-
-        # Trace efficiency: normalize against board diagonal * net count
-        # Lower total length is better; use a soft cap
-        if self.total_trace_length_mm > 0 and self.total_nets > 0:
-            avg_per_net = self.total_trace_length_mm / max(1, self.routed_nets)
-            # ~50mm avg per net = score 50, lower = better
-            trace_eff = max(0, min(100, 100 - avg_per_net))
-        else:
-            trace_eff = 50.0
 
         # Via penalty: fewer vias per routed net = better
         if self.routed_nets > 0:
@@ -231,13 +216,12 @@ class ExperimentScore:
             via_score = 50.0
 
         raw = (
-            w["placement"] * self.placement.total +
-            w["route_completion"] * route_pct +
-            w["trace_efficiency"] * trace_eff +
-            w["via_penalty"] * via_score
+            0.15 * self.placement.total +   # placement quality
+            0.65 * route_pct +              # routing completion (dominant)
+            0.10 * via_score +              # fewer vias
+            0.10 * 50.0                     # reserved / neutral
         )
-        # Hard penalty: pads outside board makes layout unmanufacturable
-        # Scale total by containment fraction so escapes tank the score
+        # Hard penalty: pads outside board
         containment_frac = self.placement.board_containment / 100.0
         self.total = raw * containment_frac
         return self.total
