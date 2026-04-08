@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from typing import Any
 
 from .brain.types import BoardState, PlacementScore, ExperimentScore
 from .brain.placement import PlacementSolver, PlacementScorer
@@ -13,6 +14,17 @@ from .brain.router import RoutingSolver
 from .brain.conflict import RipUpRerouter
 from .hardware.adapter import KiCadAdapter
 from .config import DEFAULT_CONFIG
+
+# Optional debug logging
+def _get_log() -> Any:
+    """Get debug logger if available."""
+    try:
+        import logging_config
+        return logging_config.get_logger("pipeline")
+    except ImportError:
+        return None
+
+_pipeline_log = None  # Lazy init
 
 
 class PlacementEngine:

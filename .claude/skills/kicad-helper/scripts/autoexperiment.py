@@ -41,6 +41,33 @@ from autoplacer.config import DEFAULT_CONFIG
 from autoplacer.pipeline import FullPipeline
 from autoplacer.brain.types import ExperimentScore
 
+# Optional logging support
+try:
+    import logging_config
+    LOGGING_AVAILABLE = True
+except ImportError:
+    LOGGING_AVAILABLE = False
+
+log = None  # Will be initialized in main if logging available
+
+def _check_stop_request(work_dir: Path) -> bool:
+    """Check if stop has been requested via signal file."""
+    stop_file = work_dir / "stop.now"
+    return stop_file.exists()
+
+
+def _request_stop(work_dir: Path) -> None:
+    """Request graceful stop by creating signal file."""
+    stop_file = work_dir / "stop.now"
+    stop_file.touch()
+
+
+def _log_event(event: str, **kwargs) -> None:
+    """Log event if logging is available."""
+    global log
+    if log is not None:
+        log.info(event, **kwargs)
+
 
 @dataclass
 class Experiment:
@@ -402,18 +429,30 @@ def _worker_run(args: tuple) -> tuple[ExperimentScore, float, str]:
     shutil.copy2(pcb_src, work_pcb)
     saved = _suppress_output()
     t0 = time.monotonic()
+    worker_log = None
     try:
         from autoplacer.pipeline import FullPipeline
         from autoplacer.brain.types import ExperimentScore as ES
+        
+        # Try to get logger in worker (may not have logging_config in worker process)
+        try:
+            import logging_config as lc
+            lc.configure_logging("INFO", str(Path(pcb_src).parent / ".experiments"))
+            worker_log = lc.get_logger("worker")
+        except ImportError:
+            pass
+        
         pipeline = FullPipeline()
         result = pipeline.run(work_pcb, work_pcb, config=cfg, seed=seed)
         exp_score = result["experiment_score"]
         if score_weights:
             exp_score.compute(score_weights)
-    except Exception:
+    except Exception as e:
         from autoplacer.brain.types import ExperimentScore as ES
         exp_score = ES()
         exp_score.total = -1.0
+        if worker_log:
+            worker_log.error("worker_failed", error=str(e), error_type=type(e).__name__)
     finally:
         duration = time.monotonic() - t0
         _restore_output(*saved)
@@ -504,10 +543,24 @@ def main():
                         help="Skip PCB snapshot rendering (saves time)")
     parser.add_argument("--status-file", default="run_status.json",
                         help="Live run status JSON filename inside .experiments/")
+    parser.add_argument("--log-level", default="INFO", choices=["INFO", "DEBUG"],
+                        help="Logging level (default: INFO)")
     args = parser.parse_args()
 
     if args.verbose:
         args.quiet = False
+
+    # Initialize logging if available
+    global log
+    if LOGGING_AVAILABLE:
+        logging_config.configure_logging(args.log_level, str(work_dir))
+        log = logging_config.get_logger("autoexperiment")
+        log.info("experiment_started",
+               pcb=args.pcb,
+               rounds=args.rounds,
+               workers=n_workers,
+               seed=master_seed,
+               log_level=args.log_level)
 
     # Worker count: auto = half the logical cores, capped at 10
     n_workers = args.workers or max(1, min(mp.cpu_count() // 2, 10))
@@ -603,6 +656,12 @@ def main():
     shutil.copy2(baseline_pcb, str(best_dir / "best.kicad_pcb"))
     best_total = best_score.total
 
+    _log_event("baseline_complete",
+               score=best_score.total,
+               shorts=base_drc["shorts"],
+               drc=base_drc["total"],
+               duration_s=base_dur)
+
     # Capture baseline frame for GIF
     if not args.no_render:
         snapshot_pcb(baseline_pcb, str(frames_dir / "frame_0000.png"),
@@ -640,6 +699,14 @@ def main():
 
     with ProcessPoolExecutor(max_workers=n_workers, mp_context=ctx) as pool:
         while round_num < args.rounds:
+            # Check for graceful stop request
+            if _check_stop_request(work_dir):
+                _log_event("stop_requested", round_num=round_num)
+                stop_file = work_dir / "stop.now"
+                if stop_file.exists():
+                    stop_file.unlink()
+                break
+            
             batch_size = min(n_workers, args.rounds - round_num)
 
             # Generate batch of candidates
@@ -768,9 +835,18 @@ def main():
                     kept_count += 1
                     shutil.copy2(work_pcb, str(best_dir / "best.kicad_pcb"))
                     marker = f"NEW BEST +{improvement:.2f}"
+                    _log_event("new_best",
+                               round_num=round_num,
+                               score=score.total,
+                               improvement=improvement,
+                               shorts=drc["shorts"])
                 else:
                     minor_stagnant += 1
                     marker = f"discard (stagnant={minor_stagnant})"
+                    _log_event("round_discarded",
+                               round_num=round_num,
+                               score=score.total,
+                               stagnant_rounds=minor_stagnant)
 
                 elapsed = time.monotonic() - loop_t0
                 avg_round = elapsed / max(round_num, 1)
@@ -882,6 +958,12 @@ def main():
         latest_score=best_total,
         latest_marker="run complete",
     )
+
+    _log_event("experiment_completed",
+               total_rounds=len(experiments),
+               best_score=best_total,
+               kept_count=kept_count,
+               total_elapsed_s=time.monotonic() - loop_t0)
 
 
 if __name__ == "__main__":
