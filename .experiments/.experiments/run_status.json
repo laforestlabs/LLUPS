@@ -1,0 +1,24 @@
+{
+  "phase": "done",
+  "round": 3,
+  "total_rounds": 3,
+  "progress_percent": 100.0,
+  "workers": {
+    "total": 10,
+    "in_flight": 0,
+    "idle": 10
+  },
+  "kept_count": 2,
+  "best_score": 20.653,
+  "latest_score": 20.653,
+  "latest_marker": "run complete",
+  "minor_stagnant": 1,
+  "elapsed_s": 256.2,
+  "eta_s": 0.0,
+  "avg_round_s": 229.59,
+  "throughput_rounds_per_min": 0.7,
+  "time_since_last_completion_s": 1.6,
+  "idle_threshold_s": 688.8,
+  "maybe_stuck": false,
+  "timestamp_epoch_s": 1775621551.4934454
+}

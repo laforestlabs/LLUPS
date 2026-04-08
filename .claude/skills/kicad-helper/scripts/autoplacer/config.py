@@ -4,9 +4,9 @@ DEFAULT_CONFIG = {
     # Grid (0.5mm = good speed/quality tradeoff for 2-layer board)
     "grid_resolution_mm": 0.5,
 
-    # Trace widths (thin to start — give router headroom)
-    "signal_width_mm": 0.15,
-    "power_width_mm": 0.5,
+    # Trace widths (6 mil = 0.1524mm — uniform width to reduce accidental shorts)
+    "signal_width_mm": 0.1524,
+    "power_width_mm": 0.1524,
 
     # Via
     "via_drill_mm": 0.3,
