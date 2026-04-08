@@ -1,16 +1,16 @@
 === Autoexperiment Live Status ===
-phase: done
-progress: 1/1 (100.0%)
-workers: total=10 in_flight=0 idle=10
-best_score: 20.87
-latest_score: 20.87
-latest_event: run complete
+phase: running
+progress: 0/3 (0.0%)
+workers: total=10 in_flight=3 idle=7
+best_score: 20.76
+latest_score: n/a
+latest_event: submitted batch of 3 workers
 kept_count: 0
-minor_stagnant: 1
-elapsed: 4m13s
-eta: 0m00s
-avg_round: 246.4s
-throughput: 0.24 rounds/min
-time_since_last_completion: 0m01s
-idle_alert_threshold: 12m19s
+minor_stagnant: 0
+elapsed: 0m00s
+eta: 4m23s
+avg_round: 877.9s
+throughput: 0.00 rounds/min
+time_since_last_completion: 0m00s
+idle_alert_threshold: 43m53s
 health: active

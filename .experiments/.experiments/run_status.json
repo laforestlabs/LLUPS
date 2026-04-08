@@ -1,24 +1,24 @@
 {
-  "phase": "done",
-  "round": 1,
-  "total_rounds": 1,
-  "progress_percent": 100.0,
+  "phase": "running",
+  "round": 0,
+  "total_rounds": 3,
+  "progress_percent": 0.0,
   "workers": {
     "total": 10,
-    "in_flight": 0,
-    "idle": 10
+    "in_flight": 3,
+    "idle": 7
   },
   "kept_count": 0,
-  "best_score": 20.871,
-  "latest_score": 20.871,
-  "latest_marker": "run complete",
-  "minor_stagnant": 1,
-  "elapsed_s": 253.0,
-  "eta_s": 0.0,
-  "avg_round_s": 246.39,
-  "throughput_rounds_per_min": 0.24,
-  "time_since_last_completion_s": 1.8,
-  "idle_threshold_s": 739.2,
+  "best_score": 20.759,
+  "latest_score": null,
+  "latest_marker": "submitted batch of 3 workers",
+  "minor_stagnant": 0,
+  "elapsed_s": 0.0,
+  "eta_s": 263.4,
+  "avg_round_s": 877.88,
+  "throughput_rounds_per_min": 0.0,
+  "time_since_last_completion_s": 0.0,
+  "idle_threshold_s": 2633.6,
   "maybe_stuck": false,
-  "timestamp_epoch_s": 1775622463.5047383
+  "timestamp_epoch_s": 1775624948.3160913
 }
