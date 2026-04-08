@@ -134,6 +134,27 @@ class RouterGridBehaviorTests(unittest.TestCase):
         self.assertIsNotNone(path)
         self.assertGreater(len(path), 5)
 
+    def test_hard_block_prevents_cross_net_routing(self):
+        """Hard-blocked cells (>=1e6) should be uncrossable — detour required."""
+        grid = RoutingGrid((Point(0.0, 0.0), Point(20.0, 10.0)), resolution_mm=1.0)
+        router = AStarRouter(grid)
+
+        # Mark row 5 as hard block (>=1e6)
+        for x in range(0, grid.cols):
+            grid.set_cost(x, 5, Layer.FRONT, 1e6)
+
+        # Path on the blocked row should fail
+        start = GridCell(2, 5, Layer.FRONT)
+        end = GridCell(18, 5, Layer.FRONT)
+        path_blocked = router.find_path(start, end, width_cells=1, max_search=5000)
+        self.assertIsNone(path_blocked)
+
+        # Path on adjacent row should succeed (detour around)
+        start2 = GridCell(2, 4, Layer.FRONT)
+        end2 = GridCell(18, 6, Layer.FRONT)
+        path_detour = router.find_path(start2, end2, width_cells=1, max_search=5000)
+        self.assertIsNotNone(path_detour)
+
     def test_intermediate_mst_marking_prevents_overlap(self):
         """After routing one MST edge, subsequent edges should see it as an obstacle."""
         grid = RoutingGrid((Point(0.0, 0.0), Point(20.0, 10.0)), resolution_mm=1.0)

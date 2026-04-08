@@ -35,11 +35,12 @@ DEFAULT_CONFIG = {
     "cooling_factor": 0.97,
 
     # Routing — cost applied per cell when crossing an existing trace.
-    # With the 0.5 multiplier in A*, crossing costs 500 — the router will
-    # take a ~1000-cell detour before shorting through. This makes shorts
-    # extremely rare: unconnected is better than connected-but-shorted.
-    "existing_trace_cost": 1000.0,
+    # Intra-net soft obstacles only (100.0). Cross-net traces are hard-blocked (1e6).
+    "existing_trace_cost": 100.0,
     "skip_gnd_routing": True,
+
+    # Max A* search nodes per path (raised due to hard-block detours)
+    "max_search": 2_000_000,
 
     # RRR
     "max_rips_per_net": 5,

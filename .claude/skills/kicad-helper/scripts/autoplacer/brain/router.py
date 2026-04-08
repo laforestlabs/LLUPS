@@ -286,6 +286,7 @@ class RoutingSolver:
         self.via_drill = self.cfg.get("via_drill_mm", 0.3)
         self.via_size = self.cfg.get("via_size_mm", 0.6)
         self.trace_cost = self.cfg.get("existing_trace_cost", 100.0)
+        self.max_search = self.cfg.get("max_search", 500_000)
         self.mst_retry_limit = self.cfg.get("mst_retry_limit", 3)
         self.allow_width_relaxation = self.cfg.get("allow_width_relaxation", True)
 
@@ -304,21 +305,22 @@ class RoutingSolver:
             if result.success:
                 all_traces.extend(result.segments)
                 all_vias.extend(result.vias)
-                # Mark routed traces as soft obstacles
+                # Mark routed traces as hard blocks to prevent cross-net shorts
+                HARD_BLOCK = 1e6
                 for seg in result.segments:
                     grid.mark_segment(seg.start, seg.end, seg.layer,
                                       seg.width_mm + self.clearance,
-                                      self.trace_cost)
+                                      HARD_BLOCK)
                 for v in result.vias:
-                    half = v.size_mm / 2
+                    half = v.size_mm / 2 + self.clearance
                     grid.mark_rect(
                         Point(v.pos.x - half, v.pos.y - half),
                         Point(v.pos.x + half, v.pos.y + half),
-                        Layer.FRONT, self.trace_cost)
+                        Layer.FRONT, HARD_BLOCK)
                     grid.mark_rect(
                         Point(v.pos.x - half, v.pos.y - half),
                         Point(v.pos.x + half, v.pos.y + half),
-                        Layer.BACK, self.trace_cost)
+                        Layer.BACK, HARD_BLOCK)
             else:
                 failed.append(net.name)
 
@@ -400,16 +402,17 @@ class RoutingSolver:
                 path = None
                 for width_cells in self._edge_width_candidates(
                         strict_width_cells, relaxed_width_cells):
-                    path = router.find_path(start, end, width_cells)
+                    path = router.find_path(start, end, width_cells, self.max_search)
                     if path is not None:
                         break
                 if path is None:
+                    vias_before = len(vias)
                     for width_cells in self._edge_width_candidates(
                             strict_width_cells, relaxed_width_cells):
                         for try_layer in [Layer.FRONT, Layer.BACK]:
                             alt_start = GridCell(start.x, start.y, try_layer)
                             alt_end = GridCell(end.x, end.y, try_layer)
-                            path = router.find_path(alt_start, alt_end, width_cells)
+                            path = router.find_path(alt_start, alt_end, width_cells, self.max_search)
                             if path:
                                 if try_layer != a_layer:
                                     vias.append(Via(a_pos, net.name,
@@ -420,6 +423,18 @@ class RoutingSolver:
                                 break
                         if path is not None:
                             break
+                    # Mark newly-added escape vias as hard blocks
+                    HARD_BLOCK = 1e6
+                    for ev in vias[vias_before:]:
+                        half = ev.size_mm / 2 + self.clearance
+                        grid.mark_rect(
+                            Point(ev.pos.x - half, ev.pos.y - half),
+                            Point(ev.pos.x + half, ev.pos.y + half),
+                            Layer.FRONT, HARD_BLOCK)
+                        grid.mark_rect(
+                            Point(ev.pos.x - half, ev.pos.y - half),
+                            Point(ev.pos.x + half, ev.pos.y + half),
+                            Layer.BACK, HARD_BLOCK)
 
                 if path is None:
                     continue
