@@ -447,6 +447,18 @@ def main():
     output_path = args.output or str(Path(args.pcb).with_suffix('')) + "_best.kicad_pcb"
     log_path = work_dir / args.log
 
+    # Purge old log file so each run starts fresh
+    if log_path.exists():
+        log_path.unlink()
+
+    # Also purge old dashboard and GIF from previous runs
+    dashboard_path = work_dir / "experiments_dashboard.png"
+    if dashboard_path.exists():
+        dashboard_path.unlink()
+    gif_path = work_dir / "progress.gif"
+    if gif_path.exists():
+        gif_path.unlink()
+
     # Sniff board outline once so all GIF frames render at the same scale.
     board_mm = (140.0, 90.0)
     try:

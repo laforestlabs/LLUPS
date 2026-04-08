@@ -40,7 +40,7 @@ class AStarRouter:
 
     def find_path(self, start: GridCell, end: GridCell,
                   width_cells: int = 1,
-                  max_search: int = 100000) -> Optional[list[GridCell]]:
+                  max_search: int = 500000) -> Optional[list[GridCell]]:
         """A* with octile heuristic (numpy-optimized)."""
         if start == end:
             return [start]
