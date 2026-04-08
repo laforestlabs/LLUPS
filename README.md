@@ -166,6 +166,109 @@ python3 plot_experiments.py ../../../../.experiments/experiments.jsonl
 
 ![Layout Progress GIF](.experiments/progress.gif)
 
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          CLI Entry Points                              │
+│  autoplace.py    autoroute.py    autopipeline.py    autoexperiment.py  │
+│  score_layout.py                 cleanup_routing.py                    │
+└────────┬──────────────┬─────────────────┬──────────────────┬───────────┘
+         │              │                 │                  │
+         ▼              ▼                 ▼                  ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                     autoplacer/pipeline.py                             │
+│                                                                        │
+│  PlacementEngine ──▶ RoutingEngine ──▶ FullPipeline                   │
+│  .run()              .run()            .run() (chains both)            │
+└────────┬──────────────┬────────────────────────────────────────────────┘
+         │              │
+         ▼              ▼
+┌─────────────────────────────────────────────────────┐  ┌──────────────┐
+│              autoplacer/brain/  (pure Python)        │  │   scoring/   │
+│                                                      │  │              │
+│  ┌─────────────────────────────────────────────┐     │  │  base.py     │
+│  │           PLACEMENT                          │     │  │  LayoutCheck │
+│  │                                              │     │  │      ▲       │
+│  │  placement.py                                │     │  │      │       │
+│  │  ├── PlacementSolver                         │     │  │  ┌───┴────┐  │
+│  │  │   ├── solve()          main loop          │     │  │  │ Checks │  │
+│  │  │   ├── _pin_edge_components()              │     │  │  ├────────┤  │
+│  │  │   ├── _place_clusters()                   │     │  │  │trace   │  │
+│  │  │   ├── _force_step()    force-directed     │     │  │  │drc     │  │
+│  │  │   ├── _optimize_rotations()               │     │  │  │connect.│  │
+│  │  │   ├── _resolve_overlaps()                 │     │  │  │place.  │  │
+│  │  │   └── _clamp_to_board()                   │     │  │  │via     │  │
+│  │  └── PlacementScorer                         │     │  │  │routing │  │
+│  │      ├── score() ──▶ PlacementScore          │     │  │  │compact.│  │
+│  │      ├── _score_net_distance()               │     │  │  │orient. │  │
+│  │      ├── _score_courtyard_overlap()          │     │  │  │visual  │  │
+│  │      └── _score_board_containment()          │     │  │  └────────┘  │
+│  └──────────────────────────────────────────────┘     │  │              │
+│                                                       │  │  __init__.py │
+│  ┌──────────────────────────────────────────────┐     │  │  ALL_CHECKS  │
+│  │           ROUTING                             │     │  └──────────────┘
+│  │                                               │     │
+│  │  router.py                                    │     │
+│  │  ├── AStarRouter                              │     │
+│  │  │   └── find_path()      A* + octile heur.  │     │
+│  │  └── RoutingSolver                            │     │
+│  │      ├── solve()           route all nets     │     │
+│  │      ├── _prioritize_nets() power→signal      │     │
+│  │      └── _route_net()      MST per net        │     │
+│  │                                               │     │
+│  │  grid_builder.py                              │     │
+│  │  ├── RoutingGrid           2-layer cost grid  │     │
+│  │  │   ├── mark_segment()   point-to-seg dist   │     │
+│  │  │   ├── mark_rect()                          │     │
+│  │  │   └── to_cell() / to_point()               │     │
+│  │  ├── build_grid()         obstacles + pads    │     │
+│  │  └── path_to_traces()     grid→TraceSegments  │     │
+│  │                                               │     │
+│  │  conflict.py                                  │     │
+│  │  └── RipUpRerouter                            │     │
+│  │      ├── solve()          iterative RRR       │     │
+│  │      ├── _try_route()     re-route one net    │     │
+│  │      └── _find_victims()  pick nets to rip    │     │
+│  │                                               │     │
+│  │  drc_sweep.py             post-route cleanup  │     │
+│  │  ├── find_clearance_violations()              │     │
+│  │  └── nudge_traces_apart()                     │     │
+│  └──────────────────────────────────────────────┘     │
+│                                                       │
+│  ┌──────────────────────────────────────────────┐     │
+│  │           SHARED                              │     │
+│  │                                               │     │
+│  │  types.py         Point, Pad, Component, Net, │     │
+│  │                   TraceSegment, Via, BoardState│     │
+│  │                   GridCell, RoutingResult,     │     │
+│  │                   PlacementScore, ExperimentSc.│     │
+│  │                                               │     │
+│  │  graph.py         AdjacencyGraph, MST,        │     │
+│  │                   community detection,         │     │
+│  │                   crossing count               │     │
+│  └──────────────────────────────────────────────┘     │
+└───────────────────────────┬───────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                  autoplacer/hardware/adapter.py                         │
+│                                                                         │
+│  KiCadAdapter  (sole pcbnew interface)                                  │
+│  ├── load()              .kicad_pcb ──▶ BoardState                     │
+│  ├── apply_placement()   BoardState ──▶ .kicad_pcb                     │
+│  └── apply_routing()     traces/vias ──▶ .kicad_pcb                    │
+└─────────────────────────────────┬───────────────────────────────────────┘
+                                  │
+                                  ▼
+                          ┌───────────────┐
+                          │ .kicad_pcb    │
+                          │ (KiCad 9)     │
+                          └───────────────┘
+```
+
+**Data flow:** CLI scripts call pipeline engines, which use `KiCadAdapter.load()` to read the PCB into a `BoardState`. Brain-layer algorithms (placement, routing) operate on pure Python dataclasses. Results are written back via `KiCadAdapter.apply_*()`. Scoring checks run independently against the PCB file via `kicad-cli`.
+
 ## KiCad Helper Scripts
 
 Automation scripts using the KiCad 9 `pcbnew` Python API:

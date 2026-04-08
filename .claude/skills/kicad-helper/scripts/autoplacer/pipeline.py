@@ -11,6 +11,7 @@ from .brain.types import BoardState, PlacementScore, ExperimentScore
 from .brain.placement import PlacementSolver, PlacementScorer
 from .brain.router import RoutingSolver
 from .brain.conflict import RipUpRerouter
+from .brain.drc_sweep import find_clearance_violations, nudge_traces_apart
 from .hardware.adapter import KiCadAdapter
 from .config import DEFAULT_CONFIG
 
@@ -69,6 +70,14 @@ class RoutingEngine:
             print(f"Running RRR for {len(failed)} failed nets...")
             rrr = RipUpRerouter(state, cfg)
             traces, vias, failed = rrr.solve(traces, vias, failed)
+
+        # Post-route geometric DRC sweep: nudge traces apart where clearance violated
+        clearance = cfg.get("clearance_mm", 0.2)
+        violations = find_clearance_violations(traces, vias, clearance)
+        if violations:
+            print(f"  DRC sweep: {len(violations)} clearance violations, nudging...")
+            traces, n_nudged = nudge_traces_apart(traces, vias, clearance)
+            print(f"  DRC sweep: nudged {n_nudged} segments")
 
         out = output_path or pcb_path
         adapter.apply_routing(

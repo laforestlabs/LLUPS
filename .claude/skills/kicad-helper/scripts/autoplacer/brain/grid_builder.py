@@ -105,30 +105,68 @@ class RoutingGrid:
                 for c in range(c1, c2 + 1):
                     self.cost[layer][base + c] = 0.0
 
+    def _segment_cells(self, start: Point, end: Point, width_mm: float):
+        """Yield (col, row) for cells within width_mm/2 of the line segment."""
+        hw = width_mm / 2
+        margin = hw + self.resolution
+        min_x = min(start.x, end.x) - margin
+        max_x = max(start.x, end.x) + margin
+        min_y = min(start.y, end.y) - margin
+        max_y = max(start.y, end.y) + margin
+
+        c1 = max(0, int((min_x - self.origin.x) / self.resolution))
+        r1 = max(0, int((min_y - self.origin.y) / self.resolution))
+        c2 = min(self.cols - 1, int((max_x - self.origin.x) / self.resolution) + 1)
+        r2 = min(self.rows - 1, int((max_y - self.origin.y) / self.resolution) + 1)
+
+        sx, sy = start.x, start.y
+        dx, dy = end.x - start.x, end.y - start.y
+        seg_len_sq = dx * dx + dy * dy
+
+        if _HAS_NUMPY and (r2 - r1) > 2 and (c2 - c1) > 2:
+            cols_arr = self.origin.x + np.arange(c1, c2 + 1) * self.resolution
+            rows_arr = self.origin.y + np.arange(r1, r2 + 1) * self.resolution
+            px = cols_arr[np.newaxis, :]  # (1, nc)
+            py = rows_arr[:, np.newaxis]  # (nr, 1)
+            if seg_len_sq < 1e-12:
+                dist = np.sqrt((px - sx) ** 2 + (py - sy) ** 2)
+            else:
+                t = np.clip(((px - sx) * dx + (py - sy) * dy) / seg_len_sq, 0, 1)
+                cx_arr = sx + t * dx
+                cy_arr = sy + t * dy
+                dist = np.sqrt((px - cx_arr) ** 2 + (py - cy_arr) ** 2)
+            mask = dist <= hw
+            ry, cx_idx = np.where(mask)
+            for k in range(len(ry)):
+                yield c1 + int(cx_idx[k]), r1 + int(ry[k])
+        else:
+            for r in range(r1, r2 + 1):
+                py = self.origin.y + r * self.resolution
+                for c in range(c1, c2 + 1):
+                    px = self.origin.x + c * self.resolution
+                    if seg_len_sq < 1e-12:
+                        d = math.hypot(px - sx, py - sy)
+                    else:
+                        t = max(0.0, min(1.0, ((px - sx) * dx + (py - sy) * dy) / seg_len_sq))
+                        d = math.hypot(px - (sx + t * dx), py - (sy + t * dy))
+                    if d <= hw:
+                        yield c, r
+
     def mark_segment(self, start: Point, end: Point, layer: int,
                      width_mm: float, cost: float):
-        """Mark a trace segment with given width on the grid."""
-        hw = width_mm / 2 + self.resolution
-        min_x = min(start.x, end.x) - hw
-        max_x = max(start.x, end.x) + hw
-        min_y = min(start.y, end.y) - hw
-        max_y = max(start.y, end.y) + hw
-        self.mark_rect(Point(min_x, min_y), Point(max_x, max_y), layer, cost)
+        """Mark cells within width_mm/2 of the line segment."""
+        for c, r in self._segment_cells(start, end, width_mm):
+            self.set_cost(c, r, layer, cost)
 
     def unmark_segment(self, seg: TraceSegment, width_mm: float):
-        """Clear soft-obstacle cost for a trace segment (used by incremental RRR).
+        """Clear soft-obstacle cost for cells near a trace segment.
 
         This is only safe for soft overlays (existing traces/vias), not hard
         component obstacle regions.
         """
-        hw = width_mm / 2 + self.resolution
-        min_x = min(seg.start.x, seg.end.x) - hw
-        max_x = max(seg.start.x, seg.end.x) + hw
-        min_y = min(seg.start.y, seg.end.y) - hw
-        max_y = max(seg.start.y, seg.end.y) + hw
-        self.clear_rect(
-            Point(min_x, min_y), Point(max_x, max_y),
-            seg.layer)
+        for c, r in self._segment_cells(seg.start, seg.end, width_mm):
+            if 0 <= c < self.cols and 0 <= r < self.rows:
+                self.cost[seg.layer][self._idx(r, c)] = 0.0
 
     def copy(self) -> "RoutingGrid":
         """Return a copy with independent cost arrays."""

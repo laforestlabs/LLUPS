@@ -19,13 +19,15 @@ from .graph import minimum_spanning_tree
 class RipUpRerouter:
     """Iterative rip-up and re-route engine."""
 
+    HARD_BLOCK = 1e6  # Cross-net traces must be impassable
+
     def __init__(self, state: BoardState, config: dict = None,
                  max_iterations: int = 50):
         self.state = state
         self.cfg = config or {}
         self.max_iterations = max_iterations
-        self.max_rips_per_net = self.cfg.get("max_rips_per_net", 5)
-        self.stagnation_limit = self.cfg.get("rip_stagnation_limit", 5)
+        self.max_rips_per_net = self.cfg.get("max_rips_per_net", 8)
+        self.stagnation_limit = self.cfg.get("rip_stagnation_limit", 8)
         self.timeout_s = self.cfg.get("rrr_timeout_s", 60)
         self.resolution = self.cfg.get("grid_resolution_mm", 0.5)
         self.clearance = self.cfg.get("clearance_mm", 0.2)
@@ -79,18 +81,18 @@ class RipUpRerouter:
                 if seg.net != net_name:
                     grid.mark_segment(seg.start, seg.end, seg.layer,
                                       seg.width_mm + self.clearance,
-                                      self.trace_cost)
+                                      self.HARD_BLOCK)
             for v in all_vias:
                 if v.net != net_name:
                     half = v.size_mm / 2 + self.clearance
                     grid.mark_rect(
                         Point(v.pos.x - half, v.pos.y - half),
                         Point(v.pos.x + half, v.pos.y + half),
-                        Layer.FRONT, self.trace_cost)
+                        Layer.FRONT, self.HARD_BLOCK)
                     grid.mark_rect(
                         Point(v.pos.x - half, v.pos.y - half),
                         Point(v.pos.x + half, v.pos.y + half),
-                        Layer.BACK, self.trace_cost)
+                        Layer.BACK, self.HARD_BLOCK)
             router = AStarRouter(grid)
             result = self._try_route(router, grid, net)
 
@@ -121,18 +123,18 @@ class RipUpRerouter:
                     if seg.net != net_name:
                         grid.mark_segment(seg.start, seg.end, seg.layer,
                                           seg.width_mm + self.clearance,
-                                          self.trace_cost)
+                                          self.HARD_BLOCK)
                 for v in all_vias:
                     if v.net != net_name:
                         half = v.size_mm / 2 + self.clearance
                         grid.mark_rect(
                             Point(v.pos.x - half, v.pos.y - half),
                             Point(v.pos.x + half, v.pos.y + half),
-                            Layer.FRONT, self.trace_cost)
+                            Layer.FRONT, self.HARD_BLOCK)
                         grid.mark_rect(
                             Point(v.pos.x - half, v.pos.y - half),
                             Point(v.pos.x + half, v.pos.y + half),
-                            Layer.BACK, self.trace_cost)
+                            Layer.BACK, self.HARD_BLOCK)
                 router = AStarRouter(grid)
                 result = self._try_route(router, grid, net)
                 if result.success:
