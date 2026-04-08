@@ -149,10 +149,12 @@ def api_start():
         stop_file.unlink()
     
     # Build command - run from project root
-    script_dir = Path(__file__).parent
+    script_dir = Path(__file__).parent.resolve()
+    script_path = script_dir / "autoexperiment.py"
+    
     cmd = [
         sys.executable,
-        str(script_dir / "autoexperiment.py"),
+        str(script_path),
         str(pcb_path),
         "--rounds", str(rounds),
         "--program", str(script_dir / program),
@@ -415,11 +417,12 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     
     <div class="main">
         <div class="controls">
-            <input type="number" id="rounds" value="50" min="1" max="1000" placeholder="Rounds">
-            <input type="number" id="workers" value="0" min="0" max="16" placeholder="Workers (0=auto)">
-            <label><input type="checkbox" id="no_render"> No render</label>
+            <label>Rounds: <input type="number" id="rounds" value="50" min="1" max="1000" style="width:60px"></label>
+            <label>Workers: <input type="number" id="workers" value="0" min="0" max="16" style="width:60px"></label>
+            <label><input type="checkbox" id="no_render"> Skip render</label>
             <button id="start-btn" onclick="startExperiment()">Start</button>
             <button id="stop-btn" class="stop" onclick="stopExperiment()" disabled>Stop</button>
+            <span id="error-msg" style="color:#f56565;margin-left:1rem"></span>
         </div>
         
         <div class="grid">
@@ -484,10 +487,12 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             const workers = $('workers').value;
             const noRender = $('no_render').checked;
             
+            $('error-msg').textContent = '';
             $('start-btn').disabled = true;
             $('stop-btn').disabled = false;
             
             try {
+                console.log('Starting experiment:', {rounds, workers, noRender});
                 const res = await fetch('/api/start', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -498,13 +503,15 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                     })
                 });
                 const data = await res.json();
+                console.log('Response:', data);
                 if (data.error) {
-                    alert('Error: ' + data.error);
+                    $('error-msg').textContent = data.error;
                     $('start-btn').disabled = false;
                     $('stop-btn').disabled = true;
                 }
             } catch (e) {
-                alert('Error: ' + e);
+                $('error-msg').textContent = 'Error: ' + e;
+                console.error('Start error:', e);
                 $('start-btn').disabled = false;
                 $('stop-btn').disabled = true;
             }

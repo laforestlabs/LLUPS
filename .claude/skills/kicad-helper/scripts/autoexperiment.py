@@ -550,18 +550,6 @@ def main():
     if args.verbose:
         args.quiet = False
 
-    # Initialize logging if available
-    global log
-    if LOGGING_AVAILABLE:
-        logging_config.configure_logging(args.log_level, str(work_dir))
-        log = logging_config.get_logger("autoexperiment")
-        log.info("experiment_started",
-               pcb=args.pcb,
-               rounds=args.rounds,
-               workers=n_workers,
-               seed=master_seed,
-               log_level=args.log_level)
-
     # Worker count: auto = half the logical cores, capped at 10
     n_workers = args.workers or max(1, min(mp.cpu_count() // 2, 10))
 
@@ -574,6 +562,19 @@ def main():
 
     work_dir = Path(args.pcb).parent / ".experiments"
     work_dir.mkdir(exist_ok=True)
+    
+    # Initialize logging after work_dir is set
+    global log
+    if LOGGING_AVAILABLE:
+        logging_config.configure_logging(args.log_level, str(work_dir))
+        log = logging_config.get_logger("autoexperiment")
+        log.info("experiment_started",
+               pcb=args.pcb,
+               rounds=args.rounds,
+               workers=n_workers,
+               seed=master_seed,
+               log_level=args.log_level)
+    
     best_dir = work_dir / "best"
     best_dir.mkdir(exist_ok=True)
     frames_dir = work_dir / "frames"
