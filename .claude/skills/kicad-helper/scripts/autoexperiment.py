@@ -68,6 +68,100 @@ class Experiment:
     drc_total: int = 0
 
 
+def _format_mmss(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    return f"{seconds // 60}m{seconds % 60:02d}s"
+
+
+def _safe_mean(values: list[float], default: float = 0.0) -> float:
+    return sum(values) / len(values) if values else default
+
+
+def _write_live_status(
+    status_json_path: Path,
+    status_txt_path: Path,
+    *,
+    phase: str,
+    args,
+    start_ts: float,
+    round_num: int,
+    best_total: float,
+    kept_count: int,
+    minor_stagnant: int,
+    n_workers: int,
+    in_flight: int,
+    completed_durations: list[float],
+    last_completion_ts: float | None,
+    latest_score: float | None,
+    latest_marker: str | None,
+) -> None:
+    """Write machine+human readable live run status files."""
+    now = time.monotonic()
+    elapsed_s = now - start_ts
+    avg_round_s = _safe_mean(completed_durations, default=0.0)
+    remaining = max(0, args.rounds - round_num)
+    eta_s = (avg_round_s * remaining / max(1, n_workers)) if avg_round_s > 0 else 0.0
+    if last_completion_ts is None:
+        idle_s = elapsed_s
+    else:
+        idle_s = now - last_completion_ts
+
+    # Conservative stall heuristic: no completion for >3x avg worker time or 120s.
+    idle_threshold_s = max(120.0, avg_round_s * 3.0)
+    maybe_stuck = in_flight > 0 and idle_s > idle_threshold_s and round_num > 0
+    progress_pct = (round_num / args.rounds * 100.0) if args.rounds > 0 else 100.0
+    throughput = (round_num / elapsed_s * 60.0) if elapsed_s > 0 else 0.0
+
+    payload = {
+        "phase": phase,
+        "round": round_num,
+        "total_rounds": args.rounds,
+        "progress_percent": round(progress_pct, 2),
+        "workers": {
+            "total": n_workers,
+            "in_flight": in_flight,
+            "idle": max(0, n_workers - in_flight),
+        },
+        "kept_count": kept_count,
+        "best_score": round(best_total, 3),
+        "latest_score": None if latest_score is None else round(latest_score, 3),
+        "latest_marker": latest_marker,
+        "minor_stagnant": minor_stagnant,
+        "elapsed_s": round(elapsed_s, 1),
+        "eta_s": round(eta_s, 1),
+        "avg_round_s": round(avg_round_s, 2),
+        "throughput_rounds_per_min": round(throughput, 2),
+        "time_since_last_completion_s": round(idle_s, 1),
+        "idle_threshold_s": round(idle_threshold_s, 1),
+        "maybe_stuck": maybe_stuck,
+        "timestamp_epoch_s": time.time(),
+    }
+    with open(status_json_path, "w") as f:
+        json.dump(payload, f, indent=2)
+        f.write("\n")
+
+    status_lines = [
+        "=== Autoexperiment Live Status ===",
+        f"phase: {phase}",
+        f"progress: {round_num}/{args.rounds} ({progress_pct:.1f}%)",
+        f"workers: total={n_workers} in_flight={in_flight} idle={max(0, n_workers - in_flight)}",
+        f"best_score: {best_total:.2f}",
+        f"latest_score: {'n/a' if latest_score is None else f'{latest_score:.2f}'}",
+        f"latest_event: {latest_marker or 'n/a'}",
+        f"kept_count: {kept_count}",
+        f"minor_stagnant: {minor_stagnant}",
+        f"elapsed: {_format_mmss(elapsed_s)}",
+        f"eta: {_format_mmss(eta_s)}",
+        f"avg_round: {avg_round_s:.1f}s",
+        f"throughput: {throughput:.2f} rounds/min",
+        f"time_since_last_completion: {_format_mmss(idle_s)}",
+        f"idle_alert_threshold: {_format_mmss(idle_threshold_s)}",
+        f"health: {'MAYBE STUCK (no completions recently)' if maybe_stuck else 'active'}",
+    ]
+    with open(status_txt_path, "w") as f:
+        f.write("\n".join(status_lines) + "\n")
+
+
 def load_program(path: str) -> dict:
     """Load program.md — the human-editable search space definition.
     Returns parsed config with parameter ranges and strategy."""
@@ -408,6 +502,8 @@ def main():
                         help="Show pipeline output")
     parser.add_argument("--no-render", action="store_true",
                         help="Skip PCB snapshot rendering (saves time)")
+    parser.add_argument("--status-file", default="run_status.json",
+                        help="Live run status JSON filename inside .experiments/")
     args = parser.parse_args()
 
     if args.verbose:
@@ -446,6 +542,8 @@ def main():
 
     output_path = args.output or str(Path(args.pcb).with_suffix('')) + "_best.kicad_pcb"
     log_path = work_dir / args.log
+    status_json_path = work_dir / args.status_file
+    status_txt_path = work_dir / "run_status.txt"
 
     # Purge old log file so each run starts fresh
     if log_path.exists():
@@ -458,6 +556,10 @@ def main():
     gif_path = work_dir / "progress.gif"
     if gif_path.exists():
         gif_path.unlink()
+    if status_json_path.exists():
+        status_json_path.unlink()
+    if status_txt_path.exists():
+        status_txt_path.unlink()
 
     # Sniff board outline once so all GIF frames render at the same scale.
     board_mm = (140.0, 90.0)
@@ -511,6 +613,26 @@ def main():
     kept_count = 0
     round_num = 0
     loop_t0 = time.monotonic()
+    completed_durations: list[float] = [base_dur]
+    last_completion_ts: float | None = time.monotonic()
+
+    _write_live_status(
+        status_json_path,
+        status_txt_path,
+        phase="running",
+        args=args,
+        start_ts=loop_t0,
+        round_num=0,
+        best_total=best_total,
+        kept_count=kept_count,
+        minor_stagnant=minor_stagnant,
+        n_workers=n_workers,
+        in_flight=0,
+        completed_durations=completed_durations,
+        last_completion_ts=last_completion_ts,
+        latest_score=best_total,
+        latest_marker="baseline complete",
+    )
 
     # Use spawn context: each worker starts a clean Python process.
     # fork deadlocks because wx holds mutexes at fork time that children can't release.
@@ -546,6 +668,23 @@ def main():
                 round_num += 1
                 t_label = f"Round {round_num:3d}/{args.rounds} [{mode[:5].upper():5s}]"
                 print(f"{t_label} running... {delta_str[:80]}", flush=True)
+                _write_live_status(
+                    status_json_path,
+                    status_txt_path,
+                    phase="running",
+                    args=args,
+                    start_ts=loop_t0,
+                    round_num=round_num,
+                    best_total=best_total,
+                    kept_count=kept_count,
+                    minor_stagnant=minor_stagnant,
+                    n_workers=n_workers,
+                    in_flight=1,
+                    completed_durations=completed_durations,
+                    last_completion_ts=last_completion_ts,
+                    latest_score=None,
+                    latest_marker=f"round {round_num} started ({mode})",
+                )
                 score, duration = run_experiment(
                     args.pcb, work_pcb, candidate_cfg, candidate_seed,
                     quiet=args.quiet)
@@ -575,6 +714,23 @@ def main():
                     pool.submit(_worker_run, wa): i
                     for i, wa in enumerate(worker_args)
                 }
+                _write_live_status(
+                    status_json_path,
+                    status_txt_path,
+                    phase="running",
+                    args=args,
+                    start_ts=loop_t0,
+                    round_num=round_num,
+                    best_total=best_total,
+                    kept_count=kept_count,
+                    minor_stagnant=minor_stagnant,
+                    n_workers=n_workers,
+                    in_flight=len(futures),
+                    completed_durations=completed_durations,
+                    last_completion_ts=last_completion_ts,
+                    latest_score=None,
+                    latest_marker=f"submitted batch of {len(futures)} workers",
+                )
 
                 results = []
                 for future in as_completed(futures):
@@ -594,6 +750,7 @@ def main():
                                     candidate_cfg, candidate_seed, delta))
 
             # Process all results from this batch
+            remaining_in_batch = len(results)
             for (score, duration, work_pcb, drc, mode,
                  candidate_cfg, candidate_seed, delta) in results:
                 round_num_local = round_num if n_workers == 1 else (round_num + 1)
@@ -649,6 +806,27 @@ def main():
                     drc_total=drc["total"],
                 )
                 _log_and_record(exp, experiments, log_path)
+                completed_durations.append(duration)
+                last_completion_ts = time.monotonic()
+                remaining_in_batch = max(0, remaining_in_batch - 1)
+                in_flight = 0 if n_workers == 1 else remaining_in_batch
+                _write_live_status(
+                    status_json_path,
+                    status_txt_path,
+                    phase="running",
+                    args=args,
+                    start_ts=loop_t0,
+                    round_num=round_num,
+                    best_total=best_total,
+                    kept_count=kept_count,
+                    minor_stagnant=minor_stagnant,
+                    n_workers=n_workers,
+                    in_flight=in_flight,
+                    completed_durations=completed_durations,
+                    last_completion_ts=last_completion_ts,
+                    latest_score=score.total,
+                    latest_marker=marker,
+                )
 
                 if not args.no_render and kept:
                     frame_png = str(frames_dir / f"frame_{round_num:04d}.png")
@@ -687,6 +865,23 @@ def main():
     print(f"Best seed: {best_seed}")
     print(f"Output: {output_path}")
     print(f"Log:    {log_path}")
+    _write_live_status(
+        status_json_path,
+        status_txt_path,
+        phase="done",
+        args=args,
+        start_ts=loop_t0,
+        round_num=round_num,
+        best_total=best_total,
+        kept_count=kept_count,
+        minor_stagnant=minor_stagnant,
+        n_workers=n_workers,
+        in_flight=0,
+        completed_durations=completed_durations,
+        last_completion_ts=last_completion_ts,
+        latest_score=best_total,
+        latest_marker="run complete",
+    )
 
 
 if __name__ == "__main__":

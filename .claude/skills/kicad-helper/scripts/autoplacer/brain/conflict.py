@@ -157,7 +157,7 @@ class RipUpRerouter:
         )
 
         width = net.width_mm
-        width_cells = max(1, int(width / self.resolution))
+        width_cells = max(1, math.ceil(width / self.resolution))
         segments, vias = [], []
         all_ok = True
 
@@ -192,6 +192,12 @@ class RipUpRerouter:
                 path, grid, net.name, width, self.via_drill, self.via_size)
             segments.extend(segs)
             vias.extend(pvias)
+
+            # Mark this edge so subsequent MST edges see it
+            for seg in segs:
+                grid.mark_segment(seg.start, seg.end, seg.layer,
+                                  seg.width_mm + self.clearance,
+                                  self.trace_cost)
 
         return RoutingResult(segments=segments, vias=vias,
                              cost=sum(s.length for s in segments),

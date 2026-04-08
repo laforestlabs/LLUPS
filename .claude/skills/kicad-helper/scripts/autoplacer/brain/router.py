@@ -103,7 +103,7 @@ class AStarRouter:
 
                 cur_idx = cy * cols + cx
                 cur_g = g_arr[cl, cur_idx]
-                if f > cur_g + h_arr[cl, cur_idx] + 50:
+                if f > cur_g + h_arr[cl, cur_idx] + 1e-6:
                     continue
 
                 layer_costs = cost_arrays[cl]
@@ -211,7 +211,7 @@ class AStarRouter:
                 return path
 
             cur_g = g_score.get(cur, 1e18)
-            if f > cur_g + abs(cx - ex) + abs(cy - ey) + 50:
+            if f > cur_g + abs(cx - ex) + abs(cy - ey) + 1e-6:
                 continue
 
             layer_costs = cost_arrays[cl]
@@ -287,6 +287,7 @@ class RoutingSolver:
         self.via_size = self.cfg.get("via_size_mm", 0.6)
         self.trace_cost = self.cfg.get("existing_trace_cost", 100.0)
         self.mst_retry_limit = self.cfg.get("mst_retry_limit", 3)
+        self.allow_width_relaxation = self.cfg.get("allow_width_relaxation", True)
 
     def solve(self) -> tuple[list[TraceSegment], list[Via], list[str]]:
         """Route all nets. Returns (traces, vias, failed_net_names)."""
@@ -365,7 +366,8 @@ class RoutingSolver:
             return RoutingResult(success=len(pad_points) <= 1)
 
         width = net.width_mm
-        width_cells = max(1, int(width / self.resolution))
+        strict_width_cells = self._width_to_cells(width + self.clearance)
+        relaxed_width_cells = self._width_to_cells(width)
 
         names = [str(i) for i in range(len(pad_points))]
         pos_map = {names[i]: pad_points[i][0] for i in range(len(pad_points))}
@@ -375,7 +377,7 @@ class RoutingSolver:
 
         # Retry only for multi-pad nets where edge ordering matters.
         # 2-pad nets have one edge — retry is useless.
-        try_limit = max(1, self.mst_retry_limit) if len(pad_points) > 2 else 1
+        try_limit = self._mst_try_limit(len(pad_points))
         best_result = None
         best_edges = -1
 
@@ -395,19 +397,28 @@ class RoutingSolver:
                 start = grid.to_cell(a_pos, a_layer)
                 end = grid.to_cell(b_pos, b_layer)
 
-                path = router.find_path(start, end, width_cells)
+                path = None
+                for width_cells in self._edge_width_candidates(
+                        strict_width_cells, relaxed_width_cells):
+                    path = router.find_path(start, end, width_cells)
+                    if path is not None:
+                        break
                 if path is None:
-                    for try_layer in [Layer.FRONT, Layer.BACK]:
-                        alt_start = GridCell(start.x, start.y, try_layer)
-                        alt_end = GridCell(end.x, end.y, try_layer)
-                        path = router.find_path(alt_start, alt_end, width_cells)
-                        if path:
-                            if try_layer != a_layer:
-                                vias.append(Via(a_pos, net.name,
-                                                self.via_drill, self.via_size))
-                            if try_layer != b_layer:
-                                vias.append(Via(b_pos, net.name,
-                                                self.via_drill, self.via_size))
+                    for width_cells in self._edge_width_candidates(
+                            strict_width_cells, relaxed_width_cells):
+                        for try_layer in [Layer.FRONT, Layer.BACK]:
+                            alt_start = GridCell(start.x, start.y, try_layer)
+                            alt_end = GridCell(end.x, end.y, try_layer)
+                            path = router.find_path(alt_start, alt_end, width_cells)
+                            if path:
+                                if try_layer != a_layer:
+                                    vias.append(Via(a_pos, net.name,
+                                                    self.via_drill, self.via_size))
+                                if try_layer != b_layer:
+                                    vias.append(Via(b_pos, net.name,
+                                                    self.via_drill, self.via_size))
+                                break
+                        if path is not None:
                             break
 
                 if path is None:
@@ -420,6 +431,13 @@ class RoutingSolver:
                 segments.extend(segs)
                 vias.extend(path_vias)
 
+                # Mark this edge on the grid so subsequent MST edges
+                # see where we already routed (avoids overlap / wasted space)
+                for seg in segs:
+                    grid.mark_segment(seg.start, seg.end, seg.layer,
+                                      seg.width_mm + self.clearance,
+                                      self.trace_cost)
+
             all_ok = edges_routed == len(edges)
             if edges_routed > best_edges:
                 best_edges = edges_routed
@@ -431,6 +449,24 @@ class RoutingSolver:
                 break
 
         return best_result
+
+    def _width_to_cells(self, width_mm: float) -> int:
+        """Convert geometric width to conservative grid occupancy."""
+        return max(1, math.ceil(width_mm / self.resolution))
+
+    def _edge_width_candidates(self, strict_cells: int, relaxed_cells: int) -> list[int]:
+        """Try strict width first, then optional relaxed fallback."""
+        if self.allow_width_relaxation and relaxed_cells < strict_cells:
+            return [strict_cells, relaxed_cells]
+        return [strict_cells]
+
+    def _mst_try_limit(self, n_pads: int) -> int:
+        """Adaptive retry budget for multi-pad nets."""
+        if n_pads <= 2:
+            return 1
+        if self.mst_retry_limit > 0:
+            return self.mst_retry_limit
+        return min(4, n_pads - 1)
 
     def _mst_from_root(self, root: int, names: list[str],
                        pos_map: dict[str, Point]) -> list[tuple[str, str, float]]:
