@@ -284,8 +284,8 @@ class RoutingSolver:
         self.cfg = config or {}
         self.resolution = self.cfg.get("grid_resolution_mm", 0.5)
         self.clearance = self.cfg.get("clearance_mm", 0.2)
-        self.signal_width = self.cfg.get("signal_width_mm", 0.15)
-        self.power_width = self.cfg.get("power_width_mm", 0.5)
+        self.signal_width = self.cfg.get("signal_width_mm", 0.127)
+        self.power_width = self.cfg.get("power_width_mm", 0.127)
         self.skip_gnd = self.cfg.get("skip_gnd_routing", True)
         self.via_drill = self.cfg.get("via_drill_mm", 0.3)
         self.via_size = self.cfg.get("via_size_mm", 0.6)

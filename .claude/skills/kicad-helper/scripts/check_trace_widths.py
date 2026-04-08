@@ -7,7 +7,7 @@ import pcbnew
 def main():
     parser = argparse.ArgumentParser(description="Check trace widths against minimum")
     parser.add_argument("pcb", help="Path to .kicad_pcb file")
-    parser.add_argument("--min-mm", type=float, default=0.2, help="Minimum trace width in mm (default: 0.2)")
+    parser.add_argument("--min-mm", type=float, default=0.127, help="Minimum trace width in mm (default: 0.127)")
     args = parser.parse_args()
 
     board = pcbnew.LoadBoard(args.pcb)

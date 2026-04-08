@@ -13,7 +13,7 @@ def reroute_net(pcb_path, net_name, target_layer_name="B.Cu", in_place=False):
     board = pcbnew.LoadBoard(pcb_path)
 
     target_layer = board.GetLayerID(target_layer_name)
-    signal_width = pcbnew.FromMM(0.25)
+    signal_width = pcbnew.FromMM(0.127)
 
     # Find and remove existing tracks for this net
     to_remove = []

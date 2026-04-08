@@ -10,8 +10,8 @@ class TraceWidthCheck(LayoutCheck):
 
     def run(self, board, config: dict) -> CheckResult:
         power_nets = config.get("power_nets", [])
-        power_min = config.get("power_trace_min_mm", 1.0)
-        signal_min = config.get("signal_trace_min_mm", 0.2)
+        power_min = config.get("power_trace_min_mm", 0.127)
+        signal_min = config.get("signal_trace_min_mm", 0.127)
 
         nets = {}  # net_name -> {"widths": [], "is_power": bool}
         for track in board.GetTracks():

@@ -14,8 +14,8 @@ import pcbnew
 
 
 # Routing parameters
-SIGNAL_WIDTH = pcbnew.FromMM(0.25)
-POWER_WIDTH = pcbnew.FromMM(1.0)
+SIGNAL_WIDTH = pcbnew.FromMM(0.127)
+POWER_WIDTH = pcbnew.FromMM(0.127)
 VIA_DRILL = pcbnew.FromMM(0.3)
 VIA_SIZE = pcbnew.FromMM(0.6)
 CLEARANCE = pcbnew.FromMM(0.25)  # keep margin above 0.2mm DRC rule

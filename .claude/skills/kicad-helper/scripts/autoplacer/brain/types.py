@@ -81,7 +81,7 @@ class Net:
     name: str
     pad_refs: list[tuple[str, str]] = field(default_factory=list)  # [(ref, pad_id)]
     priority: int = 0          # higher = route first
-    width_mm: float = 0.25     # trace width
+    width_mm: float = 0.127    # trace width
     is_power: bool = False
 
     @property

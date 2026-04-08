@@ -1220,7 +1220,7 @@ def generate_project():
                     "min_text_height": 0.8,
                     "min_text_thickness": 0.08,
                     "min_through_hole_diameter": 0.3,
-                    "min_track_width": 0.2,
+                    "min_track_width": 0.127,
                     "min_via_annular_width": 0.1,
                     "min_via_diameter": 0.5,
                     "solder_mask_to_copper_clearance": 0.0,
@@ -1282,7 +1282,7 @@ def generate_project():
                     "name": "Default",
                     "pcb_color": "rgba(0, 0, 0, 0.000)",
                     "schematic_color": "rgba(0, 0, 0, 0.000)",
-                    "track_width": 0.2,
+                    "track_width": 0.127,
                     "via_diameter": 0.6,
                     "via_drill": 0.3,
                     "wire_width": 6
@@ -1300,7 +1300,7 @@ def generate_project():
                     "nets": [],
                     "pcb_color": "rgba(0, 0, 0, 0.000)",
                     "schematic_color": "rgba(0, 0, 0, 0.000)",
-                    "track_width": 0.5,
+                    "track_width": 0.127,
                     "via_diameter": 0.8,
                     "via_drill": 0.4,
                     "wire_width": 6
@@ -1732,9 +1732,9 @@ def generate_pcb_traces(pad_positions, pad_net_map, net_codes):
     def V(x, y, net, sz=0.6, dr=0.3):
         vias.append(pcb_via(x, y, net, sz, dr))
 
-    PW  = 1.0    # power trace width (spec: >=1mm for 2A on 1oz Cu)
-    PW2 = 1.2    # heavy power trace width (battery/VBAT runs)
-    SW  = 0.25   # signal trace width
+    PW  = 0.127    # power trace width
+    PW2 = 0.127    # heavy power trace width (battery/VBAT runs)
+    SW  = 0.127    # signal trace width
 
     # ── GND stitching vias — battery area + board edges ──
     nc_gnd = nc("GND")
