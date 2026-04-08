@@ -54,6 +54,9 @@ class RipUpRerouter:
 
         t_start = time.monotonic()
 
+        # Build base grid once (components only, no traces)
+        base_grid = build_grid(self.state, self.resolution, self.clearance)
+
         for iteration in range(self.max_iterations):
             if not queue:
                 break
@@ -68,13 +71,26 @@ class RipUpRerouter:
             if not net:
                 continue
 
-            # Build grid excluding this net's traces
-            grid = build_grid(
-                self.state, self.resolution, self.clearance,
-                traces=[t for segs in net_traces.values() for t in segs],
-                vias=[v for vs in net_vias.values() for v in vs],
-                exclude_net=net_name,
-                trace_cost=self.trace_cost)
+            # Copy base grid and overlay current traces
+            grid = base_grid.copy()
+            all_traces = [t for segs in net_traces.values() for t in segs]
+            all_vias = [v for vs in net_vias.values() for v in vs]
+            for seg in all_traces:
+                if seg.net != net_name:
+                    grid.mark_segment(seg.start, seg.end, seg.layer,
+                                      seg.width_mm + self.clearance,
+                                      self.trace_cost)
+            for v in all_vias:
+                if v.net != net_name:
+                    half = v.size_mm / 2 + self.clearance
+                    grid.mark_rect(
+                        Point(v.pos.x - half, v.pos.y - half),
+                        Point(v.pos.x + half, v.pos.y + half),
+                        Layer.FRONT, self.trace_cost)
+                    grid.mark_rect(
+                        Point(v.pos.x - half, v.pos.y - half),
+                        Point(v.pos.x + half, v.pos.y + half),
+                        Layer.BACK, self.trace_cost)
             router = AStarRouter(grid)
             result = self._try_route(router, grid, net)
 
@@ -98,12 +114,25 @@ class RipUpRerouter:
 
             if ripped_any:
                 # Retry blocked net with victims removed
-                grid = build_grid(
-                    self.state, self.resolution, self.clearance,
-                    traces=[t for segs in net_traces.values() for t in segs],
-                    vias=[v for vs in net_vias.values() for v in vs],
-                    exclude_net=net_name,
-                    trace_cost=self.trace_cost)
+                grid = base_grid.copy()
+                all_traces = [t for segs in net_traces.values() for t in segs]
+                all_vias = [v for vs in net_vias.values() for v in vs]
+                for seg in all_traces:
+                    if seg.net != net_name:
+                        grid.mark_segment(seg.start, seg.end, seg.layer,
+                                          seg.width_mm + self.clearance,
+                                          self.trace_cost)
+                for v in all_vias:
+                    if v.net != net_name:
+                        half = v.size_mm / 2 + self.clearance
+                        grid.mark_rect(
+                            Point(v.pos.x - half, v.pos.y - half),
+                            Point(v.pos.x + half, v.pos.y + half),
+                            Layer.FRONT, self.trace_cost)
+                        grid.mark_rect(
+                            Point(v.pos.x - half, v.pos.y - half),
+                            Point(v.pos.x + half, v.pos.y + half),
+                            Layer.BACK, self.trace_cost)
                 router = AStarRouter(grid)
                 result = self._try_route(router, grid, net)
                 if result.success:

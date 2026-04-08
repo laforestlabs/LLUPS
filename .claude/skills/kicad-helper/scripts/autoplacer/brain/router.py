@@ -82,7 +82,7 @@ class AStarRouter:
             h_arr[0] = h_flat + (via_cost if 0 != el else 0.0)
             h_arr[1] = h_flat + (via_cost if 1 != el else 0.0)
 
-            came_from: dict[tuple, tuple] = {}
+            came_from = np.full((2, n_cells), -1, dtype=np.int32)
             counter = 0
             open_set = []
             start_h = float(h_arr[sl, sy * cols + sx])
@@ -94,10 +94,16 @@ class AStarRouter:
 
                 if cur == end_t:
                     path = [GridCell(ex, ey, Layer(el))]
-                    t = cur
-                    while t in came_from:
-                        t = came_from[t]
-                        path.append(GridCell(t[0], t[1], Layer(t[2])))
+                    x, y, layer = ex, ey, el
+                    while True:
+                        parent_idx = came_from[layer, y * cols + x]
+                        if parent_idx == -1:
+                            break
+                        px = parent_idx % cols
+                        py = (parent_idx // cols) % rows
+                        pl = parent_idx // n_cells
+                        path.append(GridCell(px, py, Layer(pl)))
+                        x, y, layer = px, py, pl
                     path.reverse()
                     return path
 
@@ -116,18 +122,16 @@ class AStarRouter:
                         if not (0 <= x < cols and 0 <= y < rows):
                             return 1e6
                         return cost_arrays[layer][y * cols + x]
-                    max_cost = 0.0
-                    layer_arr = cost_arrays[layer]
-                    for ox, oy in width_offsets:
-                        tx, ty = x + ox, y + oy
-                        if not (0 <= tx < cols and 0 <= ty < rows):
-                            return 1e6
-                        c = layer_arr[ty * cols + tx]
-                        if c >= 1e6:
-                            return c
-                        if c > max_cost:
-                            max_cost = c
-                    return max_cost
+                    y1 = max(0, y - width_radius)
+                    y2 = min(rows, y + width_radius + 1)
+                    x1 = max(0, x - width_radius)
+                    x2 = min(cols, x + width_radius + 1)
+                    if y1 >= y2 or x1 >= x2:
+                        return 1e6
+                    arr_2d = cost_arrays[layer].reshape(rows, cols)
+                    region = arr_2d[y1:y2, x1:x2]
+                    max_c = float(region.max())
+                    return 1e6 if max_c >= 1e6 else max_c
 
                 # Cardinals
                 card_free = [False, False, False, False]
@@ -144,8 +148,8 @@ class AStarRouter:
                     tent_g = cur_g + bias + cell_cost * 0.5
                     if tent_g < g_arr[cl, nidx]:
                         g_arr[cl, nidx] = tent_g
+                        came_from[cl, nidx] = cl * n_cells + cy * cols + cx
                         nbr = (nx, ny, cl)
-                        came_from[nbr] = cur
                         counter += 1
                         heapq.heappush(open_set,
                                        (tent_g + h_arr[cl, nidx], counter, nbr))
@@ -166,8 +170,8 @@ class AStarRouter:
                     tent_g = cur_g + diag_bias + cell_cost * 0.5 * self.DIAG_COST
                     if tent_g < g_arr[cl, nidx]:
                         g_arr[cl, nidx] = tent_g
+                        came_from[cl, nidx] = cl * n_cells + cy * cols + cx
                         nbr = (nx, ny, cl)
-                        came_from[nbr] = cur
                         counter += 1
                         heapq.heappush(open_set,
                                        (tent_g + h_arr[cl, nidx], counter, nbr))
@@ -179,8 +183,8 @@ class AStarRouter:
                     via_g = cur_g + via_cost + other_cost * 0.5
                     if via_g < g_arr[ol, cur_idx]:
                         g_arr[ol, cur_idx] = via_g
+                        came_from[ol, cur_idx] = cl * n_cells + cy * cols + cx
                         nbr_v = (cx, cy, ol)
-                        came_from[nbr_v] = cur
                         counter += 1
                         heapq.heappush(open_set,
                                        (via_g + h_arr[ol, cur_idx], counter, nbr_v))
