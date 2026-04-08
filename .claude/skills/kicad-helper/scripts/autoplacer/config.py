@@ -1,8 +1,8 @@
 """Default configuration for the LLUPS board."""
 
 DEFAULT_CONFIG = {
-    # Grid (0.5mm = good speed/quality tradeoff for 2-layer board)
-    "grid_resolution_mm": 0.5,
+    # Grid (0.25mm = finer clearance modeling, 4x cells vs 0.5mm)
+    "grid_resolution_mm": 0.25,
 
     # Trace widths (5 mil = 0.127mm)
     "signal_width_mm": 0.127,
