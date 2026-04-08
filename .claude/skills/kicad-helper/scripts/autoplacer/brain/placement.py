@@ -9,6 +9,12 @@ import math
 import random
 from collections import defaultdict
 
+try:
+    import numpy as np
+    _HAS_NUMPY = True
+except ImportError:
+    _HAS_NUMPY = False
+
 from .types import (
     Point, Component, Net, BoardState, Layer, Pad, PlacementScore
 )
@@ -305,7 +311,10 @@ class PlacementSolver:
               f"xovers={best_score.crossover_count})")
 
         for iteration in range(max_iterations):
-            max_disp = self._force_step(comps, conn_graph, damping)
+            if _HAS_NUMPY:
+                max_disp = self._force_step_numpy(comps, conn_graph, damping)
+            else:
+                max_disp = self._force_step(comps, conn_graph, damping)
             self._resolve_overlaps(comps)
             damping *= self.cooling
 
@@ -693,6 +702,118 @@ class PlacementSolver:
             comps[ref].pos.y += dy
 
             # Hard clamp: component bounding box must stay inside board
+            c = comps[ref]
+            hw, hh = c.width_mm / 2, c.height_mm / 2
+            c.pos.x = max(tl.x + hw + 1.0, min(br.x - hw - 1.0, c.pos.x))
+            c.pos.y = max(tl.y + hh + 1.0, min(br.y - hh - 1.0, c.pos.y))
+
+            _update_pad_positions(comps[ref], old_pos, old_rot)
+
+            max_disp = max(max_disp, mag)
+
+        return max_disp
+
+    def _force_step_numpy(self, comps: dict[str, Component],
+                          conn_graph: AdjacencyGraph,
+                          damping: float) -> float:
+        """One iteration of force-directed simulation with numpy vectorization.
+        Returns max displacement."""
+        if not _HAS_NUMPY:
+            return self._force_step(comps, conn_graph, damping)
+
+        tl, br = self.state.board_outline
+        forces: dict[str, Point] = {ref: Point(0, 0) for ref in comps}
+        refs = [r for r in comps if not comps[r].locked]
+
+        for ref in refs:
+            for nbr, weight in conn_graph.neighbors(ref).items():
+                if nbr not in comps:
+                    continue
+                a = comps[ref]
+                b = comps[nbr]
+                d = a.pos.dist(b.pos)
+                if d < 0.1:
+                    continue
+                target = (a.width_mm + b.width_mm) / 2 + self.clearance
+                f_mag = self.k_attract * weight * (d - target)
+                angle = math.atan2(b.pos.y - a.pos.y, b.pos.x - a.pos.x)
+                forces[ref].x += f_mag * math.cos(angle)
+                forces[ref].y += f_mag * math.sin(angle)
+
+        ref_list = list(comps.keys())
+        n = len(ref_list)
+
+        pos_x = np.array([comps[r].pos.x for r in ref_list], dtype=np.float64)
+        pos_y = np.array([comps[r].pos.y for r in ref_list], dtype=np.float64)
+        areas = np.array([comps[r].area for r in ref_list], dtype=np.float64)
+        widths = np.array([comps[r].width_mm for r in ref_list], dtype=np.float64)
+        heights = np.array([comps[r].height_mm for r in ref_list], dtype=np.float64)
+        locked = np.array([comps[r].locked for r in ref_list], dtype=bool)
+
+        max_dims = np.maximum(widths, heights)
+        min_dists = (max_dims[:, np.newaxis] + max_dims[np.newaxis, :]) / 2 + self.clearance
+
+        dx = pos_x[:, np.newaxis] - pos_x[np.newaxis, :]
+        dy = pos_y[:, np.newaxis] - pos_y[np.newaxis, :]
+        dists = np.sqrt(dx * dx + dy * dy)
+
+        skip_mask = (dists > min_dists * 2) | (dists < 0.001)
+
+        force_mags = self.k_repel * (areas[:, np.newaxis] * areas[np.newaxis, :]) / (dists * dists + 0.01)
+        np.fill_diagonal(force_mags, 0)
+        force_mags = np.where(skip_mask, 0, force_mags)
+
+        safe_dists = np.where(dists > 0.1, dists, 0.1)
+        norm_dx = dx / safe_dists
+        norm_dy = dy / safe_dists
+
+        fx_matrix = force_mags * norm_dx
+        fy_matrix = force_mags * norm_dy
+
+        both_locked = locked[:, np.newaxis] & locked[np.newaxis, :]
+        np.fill_diagonal(both_locked, False)
+
+        fx_matrix = np.where(both_locked, 0, fx_matrix)
+        fy_matrix = np.where(both_locked, 0, fy_matrix)
+
+        fx_totals = fx_matrix.sum(axis=1)
+        fy_totals = fy_matrix.sum(axis=1)
+
+        for i, ref in enumerate(ref_list):
+            if not comps[ref].locked:
+                forces[ref].x += float(fx_totals[i])
+                forces[ref].y += float(fy_totals[i])
+
+        margin = self.edge_margin + 2.0
+        k_boundary = 10.0
+        for ref in refs:
+            c = comps[ref]
+            hw, hh = c.width_mm / 2, c.height_mm / 2
+            if c.pos.x - hw < tl.x + margin:
+                forces[ref].x += k_boundary * (tl.x + margin - (c.pos.x - hw))
+            if c.pos.x + hw > br.x - margin:
+                forces[ref].x -= k_boundary * ((c.pos.x + hw) - (br.x - margin))
+            if c.pos.y - hh < tl.y + margin:
+                forces[ref].y += k_boundary * (tl.y + margin - (c.pos.y - hh))
+            if c.pos.y + hh > br.y - margin:
+                forces[ref].y -= k_boundary * ((c.pos.y + hh) - (br.y - margin))
+
+        max_disp = 0.0
+        for ref in refs:
+            dx = forces[ref].x * damping
+            dy = forces[ref].y * damping
+            mag = math.hypot(dx, dy)
+            max_step = 2.0 * damping
+            if mag > max_step:
+                dx *= max_step / mag
+                dy *= max_step / mag
+                mag = max_step
+
+            old_pos = Point(comps[ref].pos.x, comps[ref].pos.y)
+            old_rot = comps[ref].rotation
+            comps[ref].pos.x += dx
+            comps[ref].pos.y += dy
+
             c = comps[ref]
             hw, hh = c.width_mm / 2, c.height_mm / 2
             c.pos.x = max(tl.x + hw + 1.0, min(br.x - hw - 1.0, c.pos.x))

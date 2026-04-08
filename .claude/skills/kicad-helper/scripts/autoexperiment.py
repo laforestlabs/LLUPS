@@ -524,7 +524,9 @@ def main():
     parser.add_argument("--rounds", "-n", type=int, default=50,
                         help="Max experiment rounds (default: 50)")
     parser.add_argument("--workers", "-w", type=int, default=0,
-                        help="Parallel workers (0=auto: cpu_count//2, capped at 10)")
+                        help="Parallel workers (0=auto: cpu_count//2)")
+    parser.add_argument("--batch-seeds", "-b", type=int, default=1,
+                        help="Parallel seeds per round for exploration (default: 1)")
     parser.add_argument("--program", "-p", default="program.md",
                         help="Path to program.md search space definition")
     parser.add_argument("--output", "-o",
@@ -550,8 +552,8 @@ def main():
     if args.verbose:
         args.quiet = False
 
-    # Worker count: auto = half the logical cores, capped at 10
-    n_workers = args.workers or max(1, min(mp.cpu_count() // 2, 10))
+    # Worker count: auto = all logical cores (no cap), user can override with --workers
+    n_workers = args.workers or mp.cpu_count()
 
     # Setup
     master_seed = args.seed if args.seed is not None else random.randint(0, 2**31)
@@ -709,10 +711,37 @@ def main():
                 break
             
             batch_size = min(n_workers, args.rounds - round_num)
+            batch_seeds = args.batch_seeds
 
             # Generate batch of candidates
+            # batch_seeds > 1: 1 from best_cfg (exploit), rest from baseline (explore)
             batch: list[tuple[str, dict, int, dict]] = []  # (mode, cfg, seed, delta)
-            for _ in range(batch_size):
+            
+            # First candidate: exploit (mutate from best)
+            if minor_stagnant >= args.plateau:
+                mode = "major"
+                minor_stagnant = 0
+            else:
+                mode = "minor"
+            exp_seed = rng.randint(0, 2**31)
+            if mode == "minor":
+                candidate_cfg = mutate_config_minor(best_cfg, rng, param_ranges)
+                candidate_seed = best_seed
+            else:
+                candidate_cfg = mutate_config_major(best_cfg, rng, param_ranges)
+                candidate_seed = exp_seed
+            delta = config_delta(DEFAULT_CONFIG, candidate_cfg)
+            batch.append((mode, candidate_cfg, candidate_seed, delta))
+            
+            # Additional seeds: explore from baseline
+            for _ in range(1, min(batch_seeds, batch_size)):
+                explore_seed = rng.randint(0, 2**31)
+                explore_cfg = mutate_config_major(dict(DEFAULT_CONFIG), rng, param_ranges)
+                explore_delta = config_delta(DEFAULT_CONFIG, explore_cfg)
+                batch.append(("explore", explore_cfg, explore_seed, explore_delta))
+
+            # Fill remaining slots if batch_seeds < batch_size
+            while len(batch) < batch_size:
                 if minor_stagnant >= args.plateau:
                     mode = "major"
                     minor_stagnant = 0
