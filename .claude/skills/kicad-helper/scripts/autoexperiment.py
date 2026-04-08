@@ -197,7 +197,7 @@ def mutate_config_minor(base: dict, rng: random.Random,
         "force_repel_k":   (150.0, 400.0, 0.15),
         "cooling_factor":  (0.90, 0.995, 0.05),
         "edge_margin_mm":  (4.0, 10.0, 0.1),
-        "clearance_mm":    (0.15, 0.4, 0.1),
+        "clearance_mm":    (0.2, 0.4, 0.1),  # floor at 0.2 = DRC minimum
         "existing_trace_cost": (200.0, 5000.0, 0.2),
         "max_rips_per_net": (2, 15, 0.2),
     }

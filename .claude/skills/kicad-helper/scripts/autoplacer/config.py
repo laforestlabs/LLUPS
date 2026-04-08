@@ -12,7 +12,7 @@ DEFAULT_CONFIG = {
     "via_drill_mm": 0.3,
     "via_size_mm": 0.6,
 
-    # Routing clearance (trace-to-trace / trace-to-pad)
+    # Routing clearance (trace-to-trace / trace-to-pad). 0.2mm is the DRC minimum.
     "clearance_mm": 0.2,
 
     # Placement clearance — minimum gap between component bounding boxes.
