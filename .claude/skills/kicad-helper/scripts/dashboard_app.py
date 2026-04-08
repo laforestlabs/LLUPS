@@ -33,18 +33,28 @@ app = Flask(__name__)
 
 # Configuration
 EXPERIMENTS_DIR = Path(".experiments")
-DEFAULT_PCB = "../../../../LLUPS.kicad_pcb"
+DEFAULT_PCB = "LLUPS.kicad_pcb"
 POLL_INTERVAL = 2  # seconds
+
+
+def _find_llups_root() -> Path:
+    """Find LLUPS project root directory."""
+    # Path structure: .../LLUPS/.claude/skills/kicad-helper/scripts/dashboard_app.py
+    script_dir = Path(__file__).resolve().parent
+    # Up 4 levels: scripts -> kicad-helper -> .claude -> skills -> LLUPS
+    project_root = script_dir.parent.parent.parent.parent
+    if (project_root / "LLUPS.kicad_pcb").exists():
+        return project_root
+    # Fallback: try cwd if running from project root
+    cwd = Path.cwd()
+    if (cwd / "LLUPS.kicad_pcb").exists():
+        return cwd
+    return project_root  # Last resort
 
 
 def _find_experiments_dir() -> Path:
     """Find .experiments directory."""
-    cwd = Path.cwd()
-    for check in [cwd, cwd.parent, cwd.parent.parent]:
-        exp_dir = check / ".experiments"
-        if exp_dir.exists() or check.name == "LLUPS":
-            return exp_dir
-    return cwd / ".experiments"
+    return _find_llups_root() / ".experiments"
 
 
 # Global state
@@ -114,7 +124,8 @@ def api_start():
     """Start an experiment run."""
     global experiment_process, current_pcb
     
-    exp_dir = _find_experiments_dir()
+    root = _find_llups_root()
+    exp_dir = root / ".experiments"
     
     # Get parameters from request
     data = request.get_json() or {}
@@ -124,14 +135,11 @@ def api_start():
     program = data.get("program", "program.md")
     no_render = data.get("no_render", False)
     
-    # Resolve full path to PCB
-    pcb_path = Path(pcb)
-    if not pcb_path.is_absolute():
-        # Try relative to LLUPS root
-        pcb_path = Path(exp_dir).parent.parent.parent / pcb
+    # Resolve full path to PCB relative to project root
+    pcb_path = root / pcb if not Path(pcb).is_absolute() else Path(pcb)
     
     if not pcb_path.exists():
-        return jsonify({"error": f"PCB file not found: {pcb_path}"}), 400
+        return jsonify({"error": f"PCB file not found: {pcb}"}), 400
     
     current_pcb = str(pcb_path)
     
@@ -140,7 +148,7 @@ def api_start():
     if stop_file.exists():
         stop_file.unlink()
     
-    # Build command
+    # Build command - run from project root
     script_dir = Path(__file__).parent
     cmd = [
         sys.executable,
@@ -154,11 +162,11 @@ def api_start():
     if no_render:
         cmd.append("--no-render")
     
-    # Start subprocess
+    # Start subprocess from project root
     try:
         experiment_process = subprocess.Popen(
             cmd,
-            cwd=exp_dir.parent,
+            cwd=str(root),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -312,12 +320,22 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             flex-wrap: wrap;
             align-items: center;
         }
+        .controls label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #888;
+            font-size: 0.875rem;
+        }
         .controls input, .controls select {
             background: #0f3460;
             border: 1px solid #0f3460;
             color: #eee;
             padding: 0.5rem 1rem;
             border-radius: 0.25rem;
+        }
+        .controls input[type="number"] {
+            width: 80px;
         }
         .controls button {
             background: #00d9ff;
