@@ -53,8 +53,16 @@ def _find_llups_root() -> Path:
 
 
 def _find_experiments_dir() -> Path:
-    """Find .experiments directory."""
-    return _find_llups_root() / ".experiments"
+    """Find .experiments directory - check for nested duplicate too."""
+    root = _find_llups_root()
+    exp_dir = root / ".experiments"
+    # Check for nested .experiments/.experiments that may have newer data
+    nested = exp_dir / ".experiments"
+    if nested.exists() and (nested / "run_status.json").exists():
+        return nested
+    # Ensure the canonical one exists
+    exp_dir.mkdir(exist_ok=True)
+    return exp_dir
 
 
 # Global state
@@ -508,6 +516,14 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                     $('error-msg').textContent = data.error;
                     $('start-btn').disabled = false;
                     $('stop-btn').disabled = true;
+                } else {
+                    // Success - show feedback and start polling
+                    $('error-msg').textContent = 'Started! (PID: ' + data.pid + ')';
+                    $('error-msg').style.color = '#48bb78';
+                    // Trigger immediate status update
+                    updateStatus();
+                    // Re-enable stop button
+                    $('stop-btn').disabled = false;
                 }
             } catch (e) {
                 $('error-msg').textContent = 'Error: ' + e;
