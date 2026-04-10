@@ -36,186 +36,61 @@ python3 generate_project.py
 
 Requires KiCad 9 CLI tools (`kicad-cli`) for netlist export.
 
-## Experiment Dashboard (Current Run State)
-
-Run the autonomous optimizer:
+## Running the Optimizer
 
 ```bash
-cd .claude/skills/kicad-helper/scripts
-python3 autoexperiment.py ../../../../LLUPS.kicad_pcb --rounds 50
+python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --rounds 100
 ```
 
-This produces:
+The optimizer iterates placement and routing, keeping candidates that improve the overall score and discarding the rest. The best layout is saved to `LLUPS_best.kicad_pcb`.
 
-- `.experiments/experiments.jsonl` (round-by-round history)
-- `.experiments/experiments_dashboard.png` (score and metrics dashboard)
-- `.experiments/progress.gif` (layout evolution)
-- `.experiments/run_status.json` and `.experiments/run_status.txt` (live status)
-- `.experiments/best/best.kicad_pcb` (best candidate)
+## Monitoring Your Run
+
+> All monitoring is read-only — it reads output files and never interferes with the experiment. Zero performance impact.
+
+**During a run** — pick any of these (in a second terminal):
+
+```bash
+# Live web dashboard (recommended)
+python3 .claude/skills/kicad-helper/scripts/dashboard_app.py --port 5000
+# then open http://localhost:5000
+
+# Or: one-line terminal status
+watch -n2 cat .experiments/run_status.txt
+```
+
+**After a run:**
+
+```bash
+# Animated layout evolution
+xdg-open .experiments/progress.gif
+
+# Score dashboard (PNG)
+xdg-open .experiments/experiments_dashboard.png
+
+# Interactive HTML report (richest view)
+python3 .claude/skills/kicad-helper/scripts/generate_report.py .experiments/ -o report.html
+xdg-open report.html
+```
+
+Full details on every artifact, the web dashboard, the HTML report sections, DRC overlays, failure heatmaps, dependencies, and troubleshooting: [`docs/monitoring-guide.md`](docs/monitoring-guide.md)
 
 ![Experiment Results](.experiments/experiments_dashboard.png)
 ![Layout Progress GIF](.experiments/progress.gif)
 
-## Architecture (Code-Truth Overview)
+## Architecture & Scoring
 
-```mermaid
-flowchart TD
-  autoplaceCli[autoplace.py] --> placementEngine[PlacementEngine.run]
-  autorouteCli[autoroute.py] --> routingEngine[RoutingEngine.run]
-  autopipelineCli[autopipeline.py] --> fullPipeline[FullPipeline.run]
-  autoexperimentCli[autoexperiment.py] --> fullPipeline
-  fullPipeline --> placementEngine
-  fullPipeline --> routingEngine
-  placementEngine --> adapterLoadA[KiCadAdapter.load]
-  routingEngine --> adapterLoadB[KiCadAdapter.load]
-  adapterLoadA --> boardStateA[BoardState]
-  adapterLoadB --> boardStateB[BoardState]
-  boardStateA --> placementSolver[PlacementSolver.solve]
-  placementSolver --> placementScorer[PlacementScorer.score]
-  boardStateB --> routingSolver[RoutingSolver.solve]
-  routingSolver --> rrrSolver[RipUpRerouter.solve]
-  placementScorer --> experimentScore[ExperimentScore.compute]
-  routingSolver --> experimentScore
-  rrrSolver --> experimentScore
-```
+- [`docs/architecture.md`](docs/architecture.md) — system diagrams and layer responsibilities
+- [`docs/footprint-layout.md`](docs/footprint-layout.md) — placement engine details
+- [`docs/auto-trace.md`](docs/auto-trace.md) — routing engine details
+- [`docs/scoring.md`](docs/scoring.md) — scoring formulas and weight breakdowns
+- [`docs/monitoring-guide.md`](docs/monitoring-guide.md) — reports, dashboard, and monitoring
 
-### One Experiment Round (Sequence)
-
-```mermaid
-sequenceDiagram
-  participant exp as autoexperiment.py
-  participant pipe as FullPipeline.run
-  participant place as PlacementEngine.run
-  participant route as RoutingEngine.run
-  participant drc as quick_drc
-  participant log as experiments.jsonl
-  participant best as best.kicad_pcb
-
-  exp->>pipe: Run candidate config and seed
-  pipe->>place: Phase 0 placement
-  place-->>pipe: placement metrics
-  pipe->>route: Phase 1 and 2 routing
-  route-->>pipe: routing stats failed nets traces vias
-  pipe-->>exp: ExperimentScore.compute result
-  exp->>drc: Run DRC and count shorts
-  drc-->>exp: shorts and violation totals
-  exp->>exp: Apply shorts penalty if needed
-  exp->>exp: Compare score to best_total
-  alt candidate improves best
-    exp->>best: Copy candidate as new best
-  else candidate does not improve
-    exp->>exp: Discard candidate
-  end
-  exp->>log: Append round record
-```
-
-Detailed diagrams and subsystem explanations:
-
-- [`docs/architecture.md`](docs/architecture.md)
-- [`docs/footprint-layout.md`](docs/footprint-layout.md)
-- [`docs/auto-trace.md`](docs/auto-trace.md)
-- [`docs/scoring.md`](docs/scoring.md)
-- [`docs/dashboard-automation.md`](docs/dashboard-automation.md)
-
-## Scoring Framework
-
-There are two different scoring paths in this repo.
-
-### 1) Static QA scorer (`score_layout.py`)
-
-Run:
+Static QA score (independent of the optimizer):
 
 ```bash
 python3 .claude/skills/kicad-helper/scripts/score_layout.py LLUPS.kicad_pcb
 ```
-
-This computes weighted check categories (trace width, DRC, connectivity, placement, via analysis, routing efficiency, plus advisory checks).
-
-### 2) Experiment optimizer objective (`autoexperiment.py`)
-
-Used for keep/discard decisions in optimization loop (`ExperimentScore.compute()` + shorts penalty):
-
-```text
-route_pct = ((total_nets - failed_nets) / total_nets) * 100    # if total_nets > 0 else 100
-via_score = clamp(100 - (via_count / routed_nets)*20, 0..100)  # if routed_nets > 0 else 50
-
-raw =
-  0.15*placement_total +
-  0.65*route_pct +
-  0.10*via_score +
-  0.10*50
-
-final = raw * (board_containment / 100)
-
-if shorts > 0:
-  final *= 1 / (1 + log10(1 + shorts))
-```
-
-Placement sub-score weights (`PlacementScore.compute_total()`):
-
-- `net_distance`: 0.25
-- `crossover_score`: 0.30
-- `compactness`: 0.02
-- `edge_compliance`: 0.05
-- `rotation_score`: 0.03
-- `board_containment`: 0.20
-- `courtyard_overlap`: 0.15
-
-## Quick Commands
-
-```bash
-# Run experiment loop
-python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --rounds 50
-
-# Rebuild dashboard from JSONL
-python3 .claude/skills/kicad-helper/scripts/plot_experiments.py .experiments/experiments.jsonl .experiments/experiments_dashboard.png
-
-# Static QA score
-python3 .claude/skills/kicad-helper/scripts/score_layout.py LLUPS.kicad_pcb
-```
-
-## Logging and Monitoring
-
-### Structured Logging
-
-The experiment system includes structured logging for debugging and tracking progress:
-
-```bash
-# Enable logging (default is INFO level)
-python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --log-level DEBUG
-
-# Logs are written to .experiments/debug.log
-tail -f .experiments/debug.log
-```
-
-Log events (INFO level):
-- `experiment_started` - experiment configuration
-- `baseline_complete` - baseline run results
-- `new_best` - when best score improves
-- `round_discarded` - when round doesn't improve
-- `experiment_completed` - final results
-- `experiment_failed` - errors with traceback
-
-### Web Dashboard
-
-A Flask-based dashboard provides live monitoring and control:
-
-```bash
-# Start the dashboard daemon
-python3 .claude/skills/kicad-helper/scripts/dashboard_app.py --port 5000
-
-# Open in browser
-http://localhost:5000
-```
-
-Dashboard features:
-- Live status (round progress, best score, kept count)
-- Score history chart (auto-updating)
-- Round-by-round table
-- Log viewer
-- Start/Stop controls
-
-The dashboard runs as a separate daemon - it reads from experiment output files (read-only) and has zero performance impact on running experiments.
 
 ## KiCad Helper Scripts
 
