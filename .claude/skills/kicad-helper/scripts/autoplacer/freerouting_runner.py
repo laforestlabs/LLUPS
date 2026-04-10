@@ -12,8 +12,9 @@ import subprocess
 import tempfile
 
 def _make_settings(max_passes: int) -> dict:
-    """Build FreeRouting settings — GUI enabled, blocking dialogs suppressed."""
+    """Build FreeRouting settings — GUI disabled, blocking dialogs suppressed."""
     return {
+        "gui": {"enabled": False},
         "dialog_confirmation_timeout": 0,
         "router": {
             "max_passes": max_passes,
@@ -117,10 +118,12 @@ def run_freerouting(dsn_path: str, ses_path: str,
     cmd = [
         "java",
         "-jar", jar_path,
+        "--gui.enabled=false",
         "-de", dsn_path,
         "-do", ses_path,
         "-mp", str(max_passes),
         "-mt", "1",  # single-threaded optimization (multi is buggy)
+        "-dct", "0",  # auto-dismiss dialogs immediately
     ]
 
     # Write a freerouting.json with GUI disabled into the working directory

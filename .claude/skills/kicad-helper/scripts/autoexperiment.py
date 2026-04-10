@@ -628,6 +628,13 @@ def _apply_shorts_penalty(score: ExperimentScore, shorts: int) -> None:
         score.total = max(0.0, score.total - penalty)
 
 
+def _json_default(obj):
+    """JSON serializer for objects not serializable by default."""
+    if isinstance(obj, set):
+        return sorted(obj)
+    raise TypeError(f'Object of type {type(obj).__name__} is not JSON serializable')
+
+
 def save_elite_config(work_dir: Path, best_cfg: dict, best_seed: int,
                       best_score: float) -> None:
     """Persist best config to checkpoint file for cross-run learning."""
@@ -640,7 +647,7 @@ def save_elite_config(work_dir: Path, best_cfg: dict, best_seed: int,
     }
     checkpoint_path = work_dir / "best_config.json"
     with open(checkpoint_path, "w") as f:
-        json.dump(checkpoint, f, indent=2)
+        json.dump(checkpoint, f, indent=2, default=_json_default)
 
 
 def load_elite_config(work_dir: Path) -> tuple[dict, int, float] | None:
@@ -1239,6 +1246,25 @@ def main():
     # Assemble progress GIF from frames
     gif_path = str(work_dir / "progress.gif")
     assemble_gif(frames_dir, gif_path)
+
+    # Generate HTML report
+    report_script = Path(__file__).parent / "generate_report.py"
+    if report_script.exists():
+        report_path = str(work_dir / "report.html")
+        # Also place a copy next to the PCB for convenience
+        report_copy = str(Path(args.pcb).parent / "report.html")
+        try:
+            subprocess.run(
+                ["python3", str(report_script), str(work_dir),
+                 "--output", report_path],
+                check=True, capture_output=True,
+            )
+            shutil.copy2(report_path, report_copy)
+            print(f"  Report saved: {report_path}")
+            print(f"  Report copy:  {report_copy}")
+        except subprocess.CalledProcessError as e:
+            print(f"  Report generation failed: {e.stderr.decode()}",
+                  file=sys.stderr)
 
     # Regenerate dashboard PNG from the full experiments.jsonl history
     dashboard_path = work_dir / "experiments_dashboard.png"
