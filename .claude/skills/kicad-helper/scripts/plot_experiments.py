@@ -31,8 +31,9 @@ def plot_experiments(experiments, output_path):
     # Check if new fields are present
     has_breakdown = "placement_score" in experiments[0]
     has_drc = "drc_total" in experiments[0]
+    has_timing = "placement_ms" in experiments[0]
 
-    n_panels = 2 + int(has_breakdown) + int(has_drc)
+    n_panels = 2 + int(has_breakdown) + int(has_drc) + int(has_timing)
     fig, axes = plt.subplots(n_panels, 1, figsize=(14, 3.5 * n_panels),
                               gridspec_kw={"hspace": 0.35})
     if n_panels == 1:
@@ -126,6 +127,29 @@ def plot_experiments(experiments, output_path):
         ax3.set_title("DRC Violations per Experiment", fontsize=11)
         ax3.legend(loc="upper right", fontsize=7, ncol=4)
         ax3.grid(True, alpha=0.3, axis="y")
+
+    # --- Panel: Phase Timing Breakdown ---
+    if has_timing:
+        ax_t = axes[ax_idx]; ax_idx += 1
+
+        p_ms = [e.get("placement_ms", 0) for e in experiments]
+        r_ms = [e.get("routing_ms", 0) for e in experiments]
+        rrr_ms = [e.get("rrr_ms", 0) for e in experiments]
+
+        bar_w = 0.8
+        ax_t.bar(rounds, [v / 1000 for v in p_ms], bar_w,
+                 label="Placement", color="#3498db")
+        ax_t.bar(rounds, [v / 1000 for v in r_ms], bar_w,
+                 bottom=[v / 1000 for v in p_ms],
+                 label="Routing", color="#2ecc71")
+        bottoms_t = [(p + r) / 1000 for p, r in zip(p_ms, r_ms)]
+        ax_t.bar(rounds, [v / 1000 for v in rrr_ms], bar_w,
+                 bottom=bottoms_t, label="RRR", color="#e74c3c")
+
+        ax_t.set_ylabel("Time (seconds)", fontsize=10)
+        ax_t.set_title("Phase Timing per Round", fontsize=11)
+        ax_t.legend(loc="upper right", fontsize=7, ncol=3)
+        ax_t.grid(True, alpha=0.3, axis="y")
 
     # --- Last Panel: Config delta heatmap ---
     ax_last = axes[ax_idx]

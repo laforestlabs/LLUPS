@@ -283,6 +283,54 @@ def health():
     return jsonify({"status": "ok"})
 
 
+@app.route("/api/round/<int:round_num>")
+def api_round_detail(round_num):
+    """Get full round detail JSON."""
+    exp_dir = _find_experiments_dir()
+    rounds_dir = exp_dir / "rounds"
+    path = rounds_dir / f"round_{round_num:04d}.json"
+    if not path.exists():
+        return jsonify({"error": "Round not found"}), 404
+    try:
+        with open(path) as f:
+            return jsonify(json.load(f))
+    except (json.JSONDecodeError, OSError) as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/nets")
+def api_nets():
+    """Get per-net routing success rates across rounds."""
+    exp_dir = _find_experiments_dir()
+    rounds_dir = exp_dir / "rounds"
+    if not rounds_dir.exists():
+        return jsonify({})
+
+    net_stats = {}
+    for path in sorted(rounds_dir.glob("round_*.json")):
+        try:
+            with open(path) as f:
+                rd = json.load(f)
+            for nr in rd.get("per_net", []):
+                name = nr.get("net", "")
+                if not name:
+                    continue
+                if name not in net_stats:
+                    net_stats[name] = {"total": 0, "failures": 0}
+                net_stats[name]["total"] += 1
+                if not nr.get("success", True):
+                    net_stats[name]["failures"] += 1
+        except (json.JSONDecodeError, OSError):
+            continue
+
+    for s in net_stats.values():
+        s["success_rate"] = (
+            (s["total"] - s["failures"]) / s["total"]
+            if s["total"] > 0 else 1.0
+        )
+    return jsonify(net_stats)
+
+
 # Embedded dashboard HTML
 DASHBOARD_HTML = """<!DOCTYPE html>
 <html>
@@ -397,6 +445,16 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         }
         th { color: #888; font-weight: 500; font-size: 0.75rem; }
         .kept { color: #48bb78; }
+        .shorts { color: #f56565; font-weight: bold; }
+        .stagnation-warn {
+            background: #744210;
+            color: #fefcbf;
+            padding: 0.75rem 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        .stagnation-warn.visible { display: block; }
         
         .log-container {
             height: 300px;
@@ -424,6 +482,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     </div>
     
     <div class="main">
+        <div id="stagnation-warn" class="stagnation-warn">
+            ⚠ Possible stagnation detected — no recent completions
+        </div>
         <div class="controls">
             <label>Rounds: <input type="number" id="rounds" value="50" min="1" max="1000" style="width:60px"></label>
             <label>Workers: <input type="number" id="workers" value="0" min="0" max="16" style="width:60px"></label>
@@ -450,6 +511,20 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                         <div class="stat-label">Kept</div>
                     </div>
                 </div>
+                <div class="stats" style="margin-top: 1rem;">
+                    <div class="stat">
+                        <div class="stat-value" id="shorts-count" style="color:#f56565">0</div>
+                        <div class="stat-label">Latest Shorts</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="drc-count" style="color:#ecc94b">0</div>
+                        <div class="stat-label">Latest DRC</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="eta">-</div>
+                        <div class="stat-label">ETA</div>
+                    </div>
+                </div>
             </div>
             
             <div class="card">
@@ -469,6 +544,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                                 <th>Score</th>
                                 <th>Mode</th>
                                 <th>Duration</th>
+                                <th>Shorts</th>
+                                <th>DRC</th>
                                 <th>Kept?</th>
                             </tr>
                         </thead>
@@ -555,6 +632,21 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 $('best-score').textContent = status.best_score.toFixed(1);
                 $('kept-count').textContent = status.kept_count;
                 
+                // ETA
+                if (status.eta_s > 0) {
+                    const m = Math.floor(status.eta_s / 60);
+                    const s = Math.floor(status.eta_s % 60);
+                    $('eta').textContent = m + 'm' + String(s).padStart(2, '0') + 's';
+                }
+                
+                // Stagnation warning
+                const warn = $('stagnation-warn');
+                if (status.maybe_stuck) {
+                    warn.classList.add('visible');
+                } else {
+                    warn.classList.remove('visible');
+                }
+                
                 // Update buttons
                 if (status.phase === 'running') {
                     $('start-btn').disabled = true;
@@ -586,12 +678,22 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 const recent = history.slice(-20);
                 for (const exp of recent) {
                     const tr = document.createElement('tr');
+                    const shortsClass = exp.drc_shorts > 0 ? 'shorts' : '';
                     tr.innerHTML = '<td>' + exp.round_num + '</td>' +
                         '<td>' + exp.score.toFixed(1) + '</td>' +
                         '<td>' + exp.mode + '</td>' +
                         '<td>' + exp.duration_s + 's</td>' +
+                        '<td class="' + shortsClass + '">' + (exp.drc_shorts || 0) + '</td>' +
+                        '<td>' + (exp.drc_total || 0) + '</td>' +
                         '<td class="kept">' + (exp.kept ? '✓' : '-') + '</td>';
                     tbody.appendChild(tr);
+                }
+                
+                // Update latest shorts/DRC counts from most recent entry
+                if (history.length > 0) {
+                    const latest = history[history.length - 1];
+                    $('shorts-count').textContent = latest.drc_shorts || 0;
+                    $('drc-count').textContent = latest.drc_total || 0;
                 }
             } catch (e) {
                 console.error('History error:', e);

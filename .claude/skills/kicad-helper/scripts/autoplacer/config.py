@@ -1,9 +1,8 @@
 """Default configuration for the LLUPS board."""
 
-DEFAULT_CONFIG = {
-    # Grid (0.25mm = finer resolution for better routing capacity)
-    "grid_resolution_mm": 0.25,
+import os
 
+DEFAULT_CONFIG = {
     # Trace widths (5 mil = 0.127mm)
     "signal_width_mm": 0.127,
     "power_width_mm": 0.254,
@@ -11,9 +10,6 @@ DEFAULT_CONFIG = {
     # Via
     "via_drill_mm": 0.3,
     "via_size_mm": 0.6,
-
-    # Routing clearance (trace-to-trace / trace-to-pad). 0.2mm is the DRC minimum.
-    "clearance_mm": 0.2,
 
     # Placement clearance — minimum gap between component bounding boxes.
     # 2.0mm leaves room for vias/traces, still keeps groups tight.
@@ -39,22 +35,8 @@ DEFAULT_CONFIG = {
     "placement_score_every_n": 1,
     "intra_cluster_iters": 80,
 
-    # Routing — cost applied per cell when crossing an existing trace.
-    # Intra-net soft obstacles only (100.0). Cross-net traces are hard-blocked (1e6).
-    "existing_trace_cost": 100.0,
+    # Skip GND from net counting (routed as zones)
     "skip_gnd_routing": True,
-
-    # Max A* search nodes per path (raised for finer grid)
-    "max_search": 2_000_000,
-
-    # RRR
-    "max_rips_per_net": 4,
-    "rip_stagnation_limit": 4,
-    "rrr_timeout_s": 30,
-    "max_rrr_iterations": 25,
-
-    # Retry MST from different roots on failure (0=disabled, matches original behavior)
-    "mst_retry_limit": 0,
 
     # Net priority overrides (higher = routed earlier among same class)
     "net_priority": {},
@@ -62,6 +44,11 @@ DEFAULT_CONFIG = {
     # Thermal
     "thermal_refs": ["U2", "U4"],
     "thermal_radius_mm": 3.0,
+
+    # FreeRouting
+    "freerouting_jar": os.path.expanduser("~/.local/lib/freerouting-2.1.0.jar"),
+    "freerouting_timeout_s": 120,
+    "freerouting_max_passes": 40,
 
     # Explicit IC groups (IC + supporting components that should stay together)
     "ic_groups": {

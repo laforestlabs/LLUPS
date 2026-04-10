@@ -3,15 +3,13 @@
 Each engine: adapter.load() -> brain algorithm -> adapter.apply() -> score.
 """
 from __future__ import annotations
-import json
 import os
-import sys
+import time
 from typing import Any
 
 from .brain.types import BoardState, PlacementScore, ExperimentScore
 from .brain.placement import PlacementSolver, PlacementScorer
-from .brain.router import RoutingSolver
-from .brain.conflict import RipUpRerouter
+from .freerouting_runner import route_with_freerouting
 from .hardware.adapter import KiCadAdapter
 from .config import DEFAULT_CONFIG
 
@@ -31,8 +29,7 @@ class PlacementEngine:
     """Run placement optimization: edge-first + clustering + force-directed."""
 
     def run(self, pcb_path: str, output_path: str = None,
-            config: dict = None, max_iterations: int = 300,
-            seed: int = 0) -> dict:
+            config: dict = None, seed: int = 0) -> dict:
         cfg = {**DEFAULT_CONFIG, **(config or {})}
         adapter = KiCadAdapter(pcb_path)
         state = adapter.load()
@@ -40,7 +37,7 @@ class PlacementEngine:
         print(f"Loaded {len(state.components)} components, {len(state.nets)} nets")
 
         solver = PlacementSolver(state, cfg, seed=seed)
-        new_comps = solver.solve(max_iterations=max_iterations)
+        new_comps = solver.solve()
 
         out = output_path or pcb_path
         adapter.apply_placement(new_comps, out)
@@ -64,46 +61,45 @@ class PlacementEngine:
 
 
 class RoutingEngine:
-    """Run A* routing with optional rip-up and re-route."""
+    """Run FreeRouting autorouter via DSN/SES file exchange."""
 
     def run(self, pcb_path: str, output_path: str = None,
             config: dict = None, rip_up: bool = True) -> dict:
         cfg = {**DEFAULT_CONFIG, **(config or {})}
-        adapter = KiCadAdapter(pcb_path)
-        state = adapter.load()
-
-        print(f"Routing {len(state.nets)} nets on {len(state.components)} components")
-
-        solver = RoutingSolver(state, cfg)
-        traces, vias, failed = solver.solve()
-
-        if rip_up and failed:
-            print(f"Running RRR for {len(failed)} failed nets...")
-            rrr = RipUpRerouter(state, cfg)
-            traces, vias, failed = rrr.solve(traces, vias, failed)
-
         out = output_path or pcb_path
-        adapter.apply_routing(
-            traces, vias,
-            clear_existing=True,
-            preserve_thermal_vias=True,
-            thermal_refs=cfg.get("thermal_refs", []),
-            thermal_radius_mm=cfg.get("thermal_radius_mm", 3.0),
-            output_path=out,
-        )
 
-        # Count routable nets from the already-loaded state (avoids an extra board load)
+        jar_path = cfg.get("freerouting_jar",
+                           os.path.expanduser("~/.local/lib/freerouting-2.1.0.jar"))
+
+        t0 = time.monotonic()
+        stats = route_with_freerouting(pcb_path, out, jar_path, cfg)
+        routing_ms = (time.monotonic() - t0) * 1000.0
+
+        # Count nets from the board state
+        adapter = KiCadAdapter(out)
+        state = adapter.load()
         skip_gnd = cfg.get("skip_gnd_routing", True)
-        n_total = len([n for n in state.nets.values()
-                       if len(n.pad_refs) >= 2 and
-                       not (skip_gnd and n.name in ("GND", "/GND"))])
+        routable_nets = [n for n in state.nets.values()
+                         if len(n.pad_refs) >= 2 and
+                         not (skip_gnd and n.name in ("GND", "/GND"))]
+        n_total = len(routable_nets)
+
+        # FreeRouting reports unrouted count; derive failed nets
+        unrouted = stats.get("unrouted", 0)
+        # Clamp to total in case FreeRouting counts differently
+        unrouted = max(0, min(unrouted, n_total))
 
         return {
-            "traces": len(traces),
-            "vias": len(vias),
-            "failed_nets": failed,
+            "traces": 0,  # exact count not available from FreeRouting
+            "vias": 0,
+            "failed_nets": [f"unrouted_{i}" for i in range(unrouted)],
             "total_nets": n_total,
-            "total_length_mm": sum(s.length for s in traces),
+            "total_length_mm": 0.0,
+            "routing_ms": routing_ms,
+            "rrr_ms": 0.0,
+            "rrr_summary": None,
+            "per_net_results": [],
+            "freerouting_stats": stats,
         }
 
 
@@ -118,12 +114,14 @@ class FullPipeline:
         print("=" * 50)
         print("Phase 0: Placement Optimization")
         print("=" * 50)
+        placement_t0 = time.monotonic()
         pe = PlacementEngine()
         placement = pe.run(pcb_path, out, cfg, seed=seed)
+        placement_ms = (time.monotonic() - placement_t0) * 1000.0
 
         print()
         print("=" * 50)
-        print("Phase 1+2: A* Routing + RRR")
+        print("Phase 1+2: FreeRouting Autorouter")
         print("=" * 50)
         re = RoutingEngine()
         routing = re.run(out, out, cfg)
@@ -131,7 +129,7 @@ class FullPipeline:
         # Build unified experiment score
         failed = routing["failed_nets"]
         n_failed = len(failed) if isinstance(failed, list) else 0
-        n_total = routing["total_nets"]  # returned by RoutingEngine, no extra load
+        n_total = routing["total_nets"]
 
         exp_score = ExperimentScore(
             routed_nets=max(0, n_total - n_failed),
@@ -140,6 +138,13 @@ class FullPipeline:
             trace_count=routing["traces"],
             via_count=routing["vias"],
             total_trace_length_mm=routing["total_length_mm"],
+            placement_ms=placement_ms,
+            routing_ms=routing.get("routing_ms", 0.0),
+            rrr_ms=0.0,
+            per_net_results=[],
+            rrr_summary=None,
+            failed_net_names=list(failed) if isinstance(failed, list) else [],
+            total_a_star_expansions=0,
         )
         # Attach placement score
         exp_score.placement = PlacementScore(

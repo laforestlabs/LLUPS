@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""CLI: Run A* autorouter with rip-up/re-route on a KiCad PCB.
+"""CLI: Run FreeRouting autorouter on a KiCad PCB.
 
 Usage:
-    python3 autoroute.py <file.kicad_pcb> [--output <out.kicad_pcb>] [--no-rrr]
+    python3 autoroute.py <file.kicad_pcb> [--output <out.kicad_pcb>]
 """
 import argparse
 import json

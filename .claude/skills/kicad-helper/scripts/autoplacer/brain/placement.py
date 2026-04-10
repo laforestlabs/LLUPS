@@ -216,8 +216,11 @@ class PlacementScorer:
         if total_pads == 0 and total_bodies == 0:
             return 100.0
 
-        penalty = pads_outside * 10.0 + bodies_outside * 3.0
-        return max(0.0, min(100.0, 100.0 - penalty))
+        pad_frac = pads_outside / max(1, total_pads)
+        body_frac = bodies_outside / max(1, total_bodies)
+        # Weighted: 60% pad containment, 40% body containment
+        score = 100.0 * (1.0 - 0.6 * pad_frac - 0.4 * body_frac)
+        return max(0.0, min(100.0, score))
 
     def _score_courtyard_overlap(self) -> float:
         """Penalize overlapping component courtyards.
@@ -263,6 +266,10 @@ class PlacementSolver:
         self.cooling = self.cfg.get("cooling_factor", 0.97)
         self.edge_margin = self.cfg.get("edge_margin_mm", 2.0)
         self.grid_snap = self.cfg.get("placement_grid_mm", 0.5)
+        self.max_iterations = self.cfg.get("max_placement_iterations", 100)
+        self.convergence_threshold = self.cfg.get("placement_convergence_threshold", 1.5)
+        self.score_every_n = self.cfg.get("placement_score_every_n", 1)
+        self.intra_cluster_iters = self.cfg.get("intra_cluster_iters", 80)
         # placement_clearance_mm is the min gap between component bboxes.
         # Falls back to clearance_mm for backwards compatibility, then 2.5mm.
         self.clearance = self.cfg.get(
@@ -270,8 +277,8 @@ class PlacementSolver:
             self.cfg.get("clearance_mm", 2.5)
         )
 
-    def solve(self, max_iterations: int = 300,
-              convergence_threshold: float = 0.5) -> dict[str, Component]:
+    def solve(self, max_iterations: int = None,
+              convergence_threshold: float = None) -> dict[str, Component]:
         """Run full placement pipeline. Returns updated components dict."""
         # Deep copy so we don't mutate the original
         comps = {ref: copy.deepcopy(c) for ref, c in self.state.components.items()}
@@ -285,9 +292,20 @@ class PlacementSolver:
         # Step 1: Pin edge components (connectors, mounting holes)
         self._pin_edge_components(comps)
 
-        # Step 2: Cluster by connectivity (seeded for reproducible variation)
-        clusters = find_communities(conn_graph, seed=self.seed)
-        print(f"  Found {len(clusters)} component clusters")
+        # Step 1.5: Use explicit IC groups to boost connectivity weights
+        ic_groups = self.cfg.get("ic_groups", {})
+        if ic_groups:
+            # Add extra weight to connections within IC groups
+            for ic_ref, supporting in ic_groups.items():
+                for sup_ref in supporting:
+                    if sup_ref in comps and ic_ref in comps:
+                        conn_graph.add_edge(sup_ref, ic_ref, 2.0)  # Strong bond
+            clusters = find_communities(conn_graph, seed=self.seed)
+            print(f"  Found {len(clusters)} component clusters (with {len(ic_groups)} IC groups)")
+        else:
+            # Step 2: Cluster by connectivity (seeded for reproducible variation)
+            clusters = find_communities(conn_graph, seed=self.seed)
+            print(f"  Found {len(clusters)} component clusters")
 
         # Step 3: Initial cluster placement (with seeded jitter)
         self._place_clusters(comps, clusters, conn_graph)
@@ -310,7 +328,7 @@ class PlacementSolver:
               f"cross={best_score.crossover_score:.0f} "
               f"xovers={best_score.crossover_count})")
 
-        for iteration in range(max_iterations):
+        for iteration in range(self.max_iterations):
             if _HAS_NUMPY:
                 max_disp = self._force_step_numpy(comps, conn_graph, damping)
             else:
@@ -318,8 +336,8 @@ class PlacementSolver:
             self._resolve_overlaps(comps)
             damping *= self.cooling
 
-            # Score every 5 iterations — revert to best if worse
-            if iteration % 5 == 4:
+            # Score more frequently for faster convergence detection
+            if iteration % self.score_every_n == 0:
                 work_state.components = comps
                 s = scorer.score()
                 if s.total > best_score.total:
@@ -336,7 +354,7 @@ class PlacementSolver:
                     print(f"  Converged at iteration {iteration+1}")
                     break
 
-            if max_disp < convergence_threshold and iteration > 30:
+            if max_disp < self.convergence_threshold and iteration > 30:
                 print(f"  Displacement converged at iteration {iteration+1}")
                 break
 
@@ -395,8 +413,47 @@ class PlacementSolver:
 
         return best_comps
 
+    def _score_rotation_for_routing(self, work_state: BoardState, comp: Component) -> float:
+        """Score component rotation for routability.
+        
+        Considers: crossovers, pad accessibility (pads not blocked by component body),
+        and net distance.
+        """
+        cross = count_crossings(work_state)
+        cross_score = 100 / (1 + cross) if cross > 0 else 100
+        
+        # Prefer rotations where pads face outward (toward board edge or open space)
+        # Check if pads have clear path to edges
+        tl, br = work_state.board_outline
+        accessible = 0
+        for pad in comp.pads:
+            px, py = pad.pos.x, pad.pos.y
+            # Check each quadrant for openness
+            dirs = [(1,1), (1,-1), (-1,1), (-1,-1)]
+            for dx, dy in dirs:
+                dist = 0
+                ox, oy = px, py
+                while dist < 30:
+                    ox += dx * 2
+                    oy += dy * 2
+                    if tl.x < ox < br.x and tl.y < oy < br.y:
+                        dist += 2
+                    else:
+                        break
+            accessible += dist
+        
+        # Higher = more accessible area around pads
+        access_score = min(100, accessible / 10)
+        
+        # Net distance matters for routing
+        from .graph import total_ratsnest_length
+        net_dist = total_ratsnest_length(work_state)
+        dist_score = max(0, 100 - net_dist / 5)
+        
+        return cross_score * 0.5 + access_score * 0.3 + dist_score * 0.2
+
     def _pin_edge_components(self, comps: dict[str, Component]):
-        """Lock connectors to nearest board edge, mounting holes to corners."""
+        """Lock edge components first - connectors, mounting holes to corners."""
         tl, br = self.state.board_outline
         margin = self.edge_margin
 
@@ -503,7 +560,7 @@ class PlacementSolver:
 
             # Mini force-directed loop: attract connected, repel overlapping
             damping = 1.0
-            for _ in range(50):
+            for _ in range(self.intra_cluster_iters):
                 forces = {r: Point(0, 0) for r in unlocked}
 
                 # Attract connected pairs within cluster
@@ -564,7 +621,7 @@ class PlacementSolver:
 
     def _optimize_rotations(self, comps: dict[str, Component],
                             work_state: BoardState):
-        """Try 0/90/180/270 rotations for each unlocked component, keep best."""
+        """Try 0/90/180/270 rotations - optimize for routing (low crossovers + accessible pads)."""
         work_state.components = comps
 
         for ref, comp in comps.items():
@@ -580,7 +637,7 @@ class PlacementSolver:
 
             orig_rot = comp.rotation
             best_rot = orig_rot
-            best_cross = count_crossings(work_state)
+            best_score = self._score_rotation_for_routing(work_state, comp)
 
             for rot in [0, 90, 180, 270]:
                 if rot == orig_rot:
@@ -596,9 +653,9 @@ class PlacementSolver:
                     )
                 comp.rotation = rot
 
-                cross = count_crossings(work_state)
-                if cross < best_cross:
-                    best_cross = cross
+                rot_score = self._score_rotation_for_routing(work_state, comp)
+                if rot_score > best_score:
+                    best_score = rot_score
                     best_rot = rot
 
             # Apply best rotation

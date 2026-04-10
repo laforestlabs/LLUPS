@@ -36,6 +36,17 @@ All scripts are in this skill's `scripts/` directory. Run them with `python3`.
 | `render_pcb.py` | `python3 scripts/render_pcb.py <pcb> [--views front_all back_copper]` | Render PCB layers to PNG for visual review |
 | `layout_session.py` | `python3 scripts/layout_session.py summary` | Track layout progress, token usage, and change classification across iterations |
 
+### Observability & Analysis
+
+| Script | Usage | Description |
+|--------|-------|-------------|
+| `render_drc_overlay.py` | `python3 scripts/render_drc_overlay.py <pcb> <round.json> [-o overlay.png]` | Render PCB with DRC violations highlighted (red X for shorts, orange circles for unconnected, yellow for clearance) |
+| `render_failure_heatmap.py` | `python3 scripts/render_failure_heatmap.py <experiments_dir> <pcb> [-o heatmap.png]` | Board-space heatmap of routing failure hotspots across all rounds |
+| `diff_rounds.py` | `python3 scripts/diff_rounds.py <experiments_dir> <A> <B> [--format text\|json\|html]` | Side-by-side comparison of two experiment rounds (config, scores, nets, DRC) |
+| `generate_report.py` | `python3 scripts/generate_report.py <experiments_dir> [-o report.html]` | Self-contained interactive HTML report with score timeline, round browser, net failure analysis, shorts dashboard |
+| `plot_experiments.py` | `python3 scripts/plot_experiments.py [experiments.jsonl] [output.png]` | Static matplotlib dashboard: score trend, category breakdown, DRC bars, phase timing, config heatmap |
+| `dashboard_app.py` | `python3 scripts/dashboard_app.py [--port 5000]` | Live Flask dashboard for monitoring running experiments (auto-refreshing status, history, DRC counts) |
+
 The scoring framework automatically renders PCB images alongside JSON results.
 
 #### Visual Review Workflow
@@ -64,6 +75,22 @@ Each `score_layout.py` run automatically records a board state snapshot in `resu
 - **Stagnation detection**: If score spread is <1 point over 3 consecutive runs, a warning is printed suggesting a major redesign instead of continued tweaking.
 
 Use `python3 scripts/layout_session.py summary` to review the full session history. Use `--no-track` on `score_layout.py` to skip recording.
+
+#### Experiment Observability
+
+The autoexperiment system collects detailed per-round data for post-run analysis:
+
+- **Round detail JSONs**: `.experiments/rounds/round_NNNN.json` — full config, per-net routing results (A* expansions, timing, layer split, failure reasons), RRR convergence log, phase timings, DRC violations with (x,y) coordinates, placement scores
+- **Enriched JSONL**: `experiments.jsonl` includes `placement_ms`, `routing_ms`, `rrr_ms`, `failed_net_names`, `total_a_star_expansions`, `grid_occupancy_pct`
+- **GIF frames**: Short-circuit markers (red X) overlaid on PCB snapshots; border color indicates kept (green), shorts (red), or discarded (gray)
+
+**Post-run analysis workflow:**
+
+1. **Generate HTML report**: `python3 scripts/generate_report.py .experiments/` — interactive report with score timeline, round browser (click to expand per-net details), net failure analysis, shorts dashboard
+2. **Compare rounds**: `python3 scripts/diff_rounds.py .experiments/ 5 20` — shows config changes, score deltas, nets that changed routing status, DRC diff
+3. **DRC overlay**: `python3 scripts/render_drc_overlay.py board.kicad_pcb .experiments/rounds/round_0015.json` — highlights violations on board render
+4. **Failure heatmap**: `python3 scripts/render_failure_heatmap.py .experiments/ board.kicad_pcb` — shows where routing consistently fails
+5. **Live monitoring**: `python3 scripts/dashboard_app.py` — Flask dashboard with auto-refreshing status, history table (with shorts/DRC columns), stagnation warnings
 
 ## Important Rules
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import IntEnum
 from math import hypot, atan2, pi
-from typing import Optional
+from typing import Optional, NamedTuple
 
 
 class Layer(IntEnum):
@@ -148,12 +148,121 @@ class GridCell:
         return self.x == other.x and self.y == other.y and self.layer == other.layer
 
 
+class PathResult(NamedTuple):
+    """Result from A* find_path — path cells + search metrics."""
+    path: list[GridCell] | None
+    expansions: int = 0
+    cost: float = 0.0
+
+
 @dataclass
 class RoutingResult:
     segments: list[TraceSegment] = field(default_factory=list)
     vias: list[Via] = field(default_factory=list)
     cost: float = 0.0
     success: bool = False
+
+
+@dataclass
+class NetRoutingResult:
+    """Per-net routing metrics for observability."""
+    net_name: str = ""
+    success: bool = False
+    segment_count: int = 0
+    via_count: int = 0
+    total_length_mm: float = 0.0
+    a_star_expansions: int = 0
+    time_ms: float = 0.0
+    width_used_mm: float = 0.0
+    width_relaxed: bool = False
+    mst_retries: int = 0
+    front_length_mm: float = 0.0
+    back_length_mm: float = 0.0
+    failure_reason: str | None = None
+
+    def to_dict(self) -> dict:
+        return {
+            "net": self.net_name,
+            "success": self.success,
+            "segments": self.segment_count,
+            "vias": self.via_count,
+            "length_mm": round(self.total_length_mm, 2),
+            "a_star_expansions": self.a_star_expansions,
+            "time_ms": round(self.time_ms, 1),
+            "width_mm": round(self.width_used_mm, 3),
+            "width_relaxed": self.width_relaxed,
+            "mst_retries": self.mst_retries,
+            "front_mm": round(self.front_length_mm, 2),
+            "back_mm": round(self.back_length_mm, 2),
+            "failure_reason": self.failure_reason,
+        }
+
+
+@dataclass
+class RRRIteration:
+    """One iteration of the rip-up and re-route loop."""
+    iteration: int = 0
+    target_net: str = ""
+    success: bool = False
+    victims_ripped: list[str] = field(default_factory=list)
+    queue_size: int = 0
+    elapsed_ms: float = 0.0
+
+    def to_dict(self) -> dict:
+        return {
+            "iteration": self.iteration,
+            "target": self.target_net,
+            "success": self.success,
+            "victims": self.victims_ripped,
+            "queue": self.queue_size,
+            "elapsed_ms": round(self.elapsed_ms, 1),
+        }
+
+
+@dataclass
+class RRRSummary:
+    """Summary of a full RRR run for observability."""
+    iterations_used: int = 0
+    nets_recovered: int = 0
+    nets_still_failed: int = 0
+    total_rips: int = 0
+    timed_out: bool = False
+    stagnated: bool = False
+    elapsed_ms: float = 0.0
+    iteration_log: list[RRRIteration] = field(default_factory=list)
+    rip_counts: dict[str, int] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "iterations_used": self.iterations_used,
+            "nets_recovered": self.nets_recovered,
+            "nets_still_failed": self.nets_still_failed,
+            "total_rips": self.total_rips,
+            "timed_out": self.timed_out,
+            "stagnated": self.stagnated,
+            "elapsed_ms": round(self.elapsed_ms, 1),
+            "iterations": [it.to_dict() for it in self.iteration_log],
+            "rip_counts": dict(self.rip_counts),
+        }
+
+
+@dataclass
+class PlacementIterationSnapshot:
+    """Snapshot of placement state at one iteration."""
+    iteration: int = 0
+    score: float = 0.0
+    max_displacement: float = 0.0
+    stagnant_count: int = 0
+    overlap_count: int = 0
+
+    def to_dict(self) -> dict:
+        return {
+            "iteration": self.iteration,
+            "score": round(self.score, 2),
+            "max_displacement": round(self.max_displacement, 2),
+            "stagnant": self.stagnant_count,
+            "overlaps": self.overlap_count,
+        }
 
 
 @dataclass
@@ -198,9 +307,24 @@ class ExperimentScore:
     via_count: int = 0
     total_trace_length_mm: float = 0.0
     total: float = 0.0
+    # Phase timing (ms)
+    placement_ms: float = 0.0
+    routing_ms: float = 0.0
+    rrr_ms: float = 0.0
+    # Detailed results (not serialized in summary)
+    per_net_results: list[NetRoutingResult] = field(default_factory=list)
+    rrr_summary: RRRSummary | None = None
+    failed_net_names: list[str] = field(default_factory=list)
+    total_a_star_expansions: int = 0
 
     def compute(self, weights: Optional[dict] = None) -> float:
         """Compute unified score. Route completion dominates, then placement."""
+        w = weights or {}
+        w_placement = w.get("placement", 0.15)
+        w_route = w.get("route_completion", 0.65)
+        w_via = w.get("via_penalty", 0.10)
+        w_contain = w.get("containment", 0.10)
+
         # Route completion: most important — must get all nets routed
         if self.total_nets > 0:
             route_pct = ((self.total_nets - self.failed_nets)
@@ -215,15 +339,12 @@ class ExperimentScore:
         else:
             via_score = 50.0
 
-        raw = (
-            0.15 * self.placement.total +   # placement quality
-            0.65 * route_pct +              # routing completion (dominant)
-            0.10 * via_score +              # fewer vias
-            0.10 * 50.0                     # reserved / neutral
+        self.total = (
+            w_placement * self.placement.total +
+            w_route * route_pct +
+            w_via * via_score +
+            w_contain * self.placement.board_containment
         )
-        # Hard penalty: pads outside board
-        containment_frac = self.placement.board_containment / 100.0
-        self.total = raw * containment_frac
         return self.total
 
     def summary(self) -> str:

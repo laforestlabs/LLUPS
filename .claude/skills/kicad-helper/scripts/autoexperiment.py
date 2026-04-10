@@ -101,7 +101,6 @@ class Experiment:
     nets_routed: int = 0
     failed_net_names: list = field(default_factory=list)
     total_a_star_expansions: int = 0
-    grid_occupancy_pct: float = 0.0
 
 
 def _format_mmss(seconds: float) -> str:
@@ -229,14 +228,11 @@ def mutate_config_minor(base: dict, rng: random.Random,
 
     # Parameters eligible for minor mutation with (min, max, sigma_frac)
     tunable = {
-        "force_attract_k": (0.005, 0.1, 0.15),
-        "force_repel_k":   (150.0, 400.0, 0.15),
+        "force_attract_k": (0.005, 0.15, 0.15),
+        "force_repel_k":   (100.0, 500.0, 0.15),
         "cooling_factor":  (0.90, 0.995, 0.05),
         "edge_margin_mm":  (4.0, 10.0, 0.1),
-        "clearance_mm":    (0.2, 0.4, 0.1),  # floor at 0.2 = DRC minimum
-        "existing_trace_cost": (200.0, 5000.0, 0.2),
-        "max_rips_per_net": (2, 15, 0.2),
-        "grid_resolution_mm": (0.25, 0.5, 0.15),
+        "placement_clearance_mm": (1.0, 3.0, 0.15),
     }
     # Override with program.md ranges if provided
     for k, v in ranges.items():
@@ -255,7 +251,7 @@ def mutate_config_minor(base: dict, rng: random.Random,
         # Clamp
         new_val = max(lo, min(hi, new_val))
         # Integer params stay integer
-        if isinstance(cfg.get(key), int) or key in ("max_rips_per_net",):
+        if isinstance(cfg.get(key), int):
             new_val = int(round(new_val))
         cfg[key] = round(new_val, 4)
 
@@ -272,7 +268,7 @@ def mutate_config_major(base: dict, rng: random.Random,
         "force_attract_k": (0.005, 0.15, 0.4),
         "force_repel_k":   (100.0, 500.0, 0.4),
         "cooling_factor":  (0.90, 0.995, 0.15),
-        "grid_resolution_mm": (0.2, 0.5, 0.3),
+        "placement_clearance_mm": (0.5, 4.0, 0.3),
     }
     keys = rng.sample(list(aggressive_tunable.keys()),
                       rng.randint(1, len(aggressive_tunable)))
@@ -673,7 +669,6 @@ def _write_round_detail(
             "vias": score.via_count,
             "total_length_mm": round(score.total_trace_length_mm, 1),
             "total_a_star_expansions": score.total_a_star_expansions,
-            "grid_occupancy_pct": round(score.grid_occupancy_pct, 1),
         },
         "per_net": [nr.to_dict() for nr in score.per_net_results],
         "rrr": score.rrr_summary.to_dict() if score.rrr_summary else None,
@@ -1141,7 +1136,6 @@ def main():
                     nets_routed=score.routed_nets,
                     failed_net_names=score.failed_net_names,
                     total_a_star_expansions=score.total_a_star_expansions,
-                    grid_occupancy_pct=round(score.grid_occupancy_pct, 1),
                 )
                 # Track per-net failure rates
                 for net_name in score.failed_net_names:

@@ -163,7 +163,7 @@ Expose the following as labeled test pads:
 - **Assembly**: Designed for reflow soldering; all packages are reflow-compatible
 - **Packages**: BGA, QFN, DFN all acceptable; prefer smallest suitable package
 - **Layers**: 2-layer PCB (cost optimization; 4-layer if routing demands it)
-- **Dimensions**: Minimize footprint; target roughly 50 mm × 30 mm excluding cell holders (TBD after layout)
+- **Dimensions**: 90 mm × 58 mm (including cell holders)
 - **Copper weight**: 1 oz outer layers minimum; 2 oz preferred for power traces
 - **Power trace widths**: Sized for 2A+ continuous (≥1 mm for 1 oz Cu, calculator-verified)
 - **Passives**: 0402 preferred for density; 0201 acceptable where needed

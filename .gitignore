@@ -18,6 +18,7 @@ fabrication/
 
 # Lock files
 .~lock.*
+~*.lck
 
 # Python
 __pycache__/
@@ -28,6 +29,21 @@ __pycache__/
 # Scoring results and renders (regenerated per run)
 .claude/skills/kicad-helper/scripts/results/
 renders/
+
+# Experiment temp files (only keep JSONL, dashboard, best board, and progress GIF)
+.experiments/experiment.kicad_pcb
+.experiments/experiment.kicad_pro
+.experiments/experiment_best.kicad_pcb
+.experiments/.experiments/
+.experiments/experiment.pid
+.experiments/run.log
+.experiments/run_status.json
+.experiments/run_status.txt
+.experiments/frames/
+.experiments/rounds/
+.experiments/workers/
+.experiments/baseline.kicad_pcb
+.experiments/baseline.kicad_pro
 
 # Claude local settings
 .claude/settings.local.json
