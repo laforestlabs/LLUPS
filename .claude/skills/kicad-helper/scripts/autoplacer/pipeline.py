@@ -7,7 +7,7 @@ import os
 import time
 from typing import Any
 
-from .brain.types import BoardState, PlacementScore, ExperimentScore
+from .brain.types import BoardState, PlacementScore, ExperimentScore, DRCScore
 from .brain.placement import PlacementSolver, PlacementScorer
 from .freerouting_runner import route_with_freerouting
 from .hardware.adapter import KiCadAdapter
@@ -79,9 +79,11 @@ class RoutingEngine:
         adapter = KiCadAdapter(out)
         state = adapter.load()
         skip_gnd = cfg.get("skip_gnd_routing", True)
+        ignore_nets = set(cfg.get("freerouting_ignore_nets", []))
         routable_nets = [n for n in state.nets.values()
                          if len(n.pad_refs) >= 2 and
-                         not (skip_gnd and n.name in ("GND", "/GND"))]
+                         not (skip_gnd and n.name in ("GND", "/GND")) and
+                         n.name not in ignore_nets]
         n_total = len(routable_nets)
 
         # FreeRouting reports unrouted count; derive failed nets
@@ -126,6 +128,16 @@ class FullPipeline:
         re = RoutingEngine()
         routing = re.run(out, out, cfg)
 
+        # Phase 3: DRC analysis
+        print()
+        print("=" * 50)
+        print("Phase 3: DRC Analysis")
+        print("=" * 50)
+        drc = _run_kicad_cli_drc(out)
+        print(f"  DRC: {drc['total']} violations "
+              f"(shorts={drc['shorts']} unconnected={drc['unconnected']} "
+              f"clearance={drc['clearance']} courtyard={drc['courtyard']})")
+
         # Build unified experiment score
         failed = routing["failed_nets"]
         n_failed = len(failed) if isinstance(failed, list) else 0
@@ -157,10 +169,48 @@ class FullPipeline:
             board_containment=placement.get("board_containment", 0),
             courtyard_overlap=placement.get("courtyard_overlap", 0),
         )
-        exp_score.compute()
+        exp_score.compute(drc_dict=drc)
 
         return {
             "placement": placement,
             "routing": routing,
+            "drc": drc,
             "experiment_score": exp_score,
         }
+
+
+def _run_kicad_cli_drc(pcb_path: str) -> dict:
+    """Run kicad-cli DRC and parse violation counts."""
+    import re
+    import subprocess
+    import tempfile
+
+    counts = {"shorts": 0, "unconnected": 0, "clearance": 0, "courtyard": 0, "total": 0}
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+            report_path = f.name
+        subprocess.run(
+            ["kicad-cli", "pcb", "drc", "-o", report_path, pcb_path],
+            capture_output=True, text=True, timeout=60,
+        )
+        with open(report_path) as f:
+            report = f.read()
+        os.remove(report_path)
+
+        for line in report.splitlines():
+            m = re.match(r'^\[(\w+)\]:', line)
+            if not m:
+                continue
+            vtype = m.group(1)
+            counts["total"] += 1
+            if vtype == "shorting_items":
+                counts["shorts"] += 1
+            elif vtype == "unconnected_items":
+                counts["unconnected"] += 1
+            elif vtype in ("clearance", "hole_clearance", "copper_edge_clearance"):
+                counts["clearance"] += 1
+            elif vtype == "courtyards_overlap":
+                counts["courtyard"] += 1
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+    return counts

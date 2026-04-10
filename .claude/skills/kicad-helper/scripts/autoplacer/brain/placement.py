@@ -276,6 +276,7 @@ class PlacementSolver:
             "placement_clearance_mm",
             self.cfg.get("clearance_mm", 2.5)
         )
+        self._seen_force_states: set[int] = set()
 
     def solve(self, max_iterations: int = None,
               convergence_threshold: float = None) -> dict[str, Component]:
@@ -360,6 +361,7 @@ class PlacementSolver:
 
         # Step 7: Swap optimization — directly minimize crossovers
         comps = best_comps
+        self._seen_force_states.clear()
         work_state.components = comps
         best_cross = count_crossings(work_state)
         print(f"  Starting swap optimization ({best_cross} crossings)")
@@ -676,6 +678,15 @@ class PlacementSolver:
                     conn_graph: AdjacencyGraph,
                     damping: float) -> float:
         """One iteration of force-directed simulation. Returns max displacement."""
+        # State dedup: skip if we've seen this exact layout before
+        state_h = hash(tuple(
+            (r, round(comps[r].pos.x, 2), round(comps[r].pos.y, 2))
+            for r in sorted(comps.keys())
+        ))
+        if state_h in self._seen_force_states:
+            return 0.01  # signal convergence
+        self._seen_force_states.add(state_h)
+
         tl, br = self.state.board_outline
         forces: dict[str, Point] = {ref: Point(0, 0) for ref in comps}
         refs = [r for r in comps if not comps[r].locked]
@@ -777,6 +788,15 @@ class PlacementSolver:
         Returns max displacement."""
         if not _HAS_NUMPY:
             return self._force_step(comps, conn_graph, damping)
+
+        # State dedup: skip if we've seen this exact layout before
+        state_h = hash(tuple(
+            (r, round(comps[r].pos.x, 2), round(comps[r].pos.y, 2))
+            for r in sorted(comps.keys())
+        ))
+        if state_h in self._seen_force_states:
+            return 0.01
+        self._seen_force_states.add(state_h)
 
         tl, br = self.state.board_outline
         forces: dict[str, Point] = {ref: Point(0, 0) for ref in comps}

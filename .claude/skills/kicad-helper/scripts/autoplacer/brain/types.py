@@ -296,6 +296,34 @@ class PlacementScore:
 
 
 @dataclass
+class DRCScore:
+    """DRC violation penalties. Higher = fewer violations. 0-100 scale."""
+    total: float = 100.0
+    shorts: float = 100.0
+    unconnected: float = 100.0
+    clearance: float = 100.0
+    courtyard: float = 100.0
+
+    @staticmethod
+    def from_counts(drc_dict: dict) -> 'DRCScore':
+        """Convert quick_drc() output dict to DRCScore on 0-100 scale."""
+        import math
+
+        def _violation_score(count: int, weight: float) -> float:
+            if count == 0:
+                return weight
+            return max(0.0, weight * (1 - math.log10(1 + count) / math.log10(100)))
+
+        s = DRCScore()
+        s.shorts = _violation_score(drc_dict.get("shorts", 0), 40)
+        s.unconnected = _violation_score(drc_dict.get("unconnected", 0), 30)
+        s.clearance = _violation_score(drc_dict.get("clearance", 0), 20)
+        s.courtyard = _violation_score(drc_dict.get("courtyard", 0), 10)
+        s.total = s.shorts + s.unconnected + s.clearance + s.courtyard
+        return s
+
+
+@dataclass
 class ExperimentScore:
     """Unified score combining placement + routing quality.
     Single metric for the outer optimization loop. Higher = better."""
@@ -316,14 +344,17 @@ class ExperimentScore:
     rrr_summary: RRRSummary | None = None
     failed_net_names: list[str] = field(default_factory=list)
     total_a_star_expansions: int = 0
+    drc_score: DRCScore = field(default_factory=DRCScore)
 
-    def compute(self, weights: Optional[dict] = None) -> float:
-        """Compute unified score. Route completion dominates, then placement."""
+    def compute(self, weights: Optional[dict] = None,
+                drc_dict: Optional[dict] = None) -> float:
+        """Compute unified score. Route completion dominates, then placement + DRC."""
         w = weights or {}
         w_placement = w.get("placement", 0.15)
-        w_route = w.get("route_completion", 0.65)
+        w_route = w.get("route_completion", 0.55)
         w_via = w.get("via_penalty", 0.10)
         w_contain = w.get("containment", 0.10)
+        w_drc = w.get("drc", 0.10)
 
         # Route completion: most important — must get all nets routed
         if self.total_nets > 0:
@@ -339,11 +370,17 @@ class ExperimentScore:
         else:
             via_score = 50.0
 
+        # DRC score
+        if drc_dict:
+            self.drc_score = DRCScore.from_counts(drc_dict)
+        drc_val = self.drc_score.total
+
         self.total = (
             w_placement * self.placement.total +
             w_route * route_pct +
             w_via * via_score +
-            w_contain * self.placement.board_containment
+            w_contain * self.placement.board_containment +
+            w_drc * drc_val
         )
         return self.total
 

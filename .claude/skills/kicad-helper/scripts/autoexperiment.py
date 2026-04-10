@@ -628,6 +628,35 @@ def _apply_shorts_penalty(score: ExperimentScore, shorts: int) -> None:
         score.total = max(0.0, score.total - penalty)
 
 
+def save_elite_config(work_dir: Path, best_cfg: dict, best_seed: int,
+                      best_score: float) -> None:
+    """Persist best config to checkpoint file for cross-run learning."""
+    checkpoint = {
+        "version": 1,
+        "timestamp": time.time(),
+        "best_cfg": best_cfg,
+        "best_seed": best_seed,
+        "best_score": best_score,
+    }
+    checkpoint_path = work_dir / "best_config.json"
+    with open(checkpoint_path, "w") as f:
+        json.dump(checkpoint, f, indent=2)
+
+
+def load_elite_config(work_dir: Path) -> tuple[dict, int, float] | None:
+    """Load best config from checkpoint file if it exists."""
+    checkpoint_path = work_dir / "best_config.json"
+    if not checkpoint_path.exists():
+        return None
+    try:
+        with open(checkpoint_path) as f:
+            checkpoint = json.load(f)
+        return (checkpoint["best_cfg"], checkpoint["best_seed"],
+                checkpoint["best_score"])
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+
 def _log_and_record(exp: Experiment, experiments: list, log_path: Path) -> None:
     experiments.append(exp)
     with open(log_path, 'a') as f:
@@ -745,6 +774,8 @@ def main():
                         help="Live run status JSON filename inside .experiments/")
     parser.add_argument("--log-level", default="INFO", choices=["INFO", "DEBUG"],
                         help="Logging level (default: INFO)")
+    parser.add_argument("--resume", action="store_true",
+                        help="Resume from best config checkpoint if available")
     args = parser.parse_args()
 
     if args.verbose:
@@ -844,25 +875,42 @@ def main():
     print(f"Output:      {output_path}")
     print()
 
-    # Run baseline (serial, in-process)
-    print("Round   0/-- [BASE ] running baseline...", flush=True)
+    # Run baseline or resume from checkpoint
     best_cfg = dict(DEFAULT_CONFIG)
     if net_priority:
         best_cfg["net_priority"] = net_priority
     best_seed = 0
-    best_score, base_dur = run_experiment(
-        args.pcb, baseline_pcb, best_cfg, best_seed, quiet=args.quiet)
-    if score_weights:
-        best_score.compute(score_weights)
+    best_total = None
 
-    base_drc = quick_drc(baseline_pcb)
-    _apply_shorts_penalty(best_score, base_drc["shorts"])
+    if args.resume:
+        loaded = load_elite_config(work_dir)
+        if loaded:
+            best_cfg, best_seed, loaded_score = loaded
+            if net_priority:
+                best_cfg["net_priority"] = net_priority
+            best_total = loaded_score
+            print(f"Resumed from checkpoint: score={loaded_score:.2f}, seed={best_seed}")
 
-    print(f"  -> baseline score={best_score.total:6.2f} shorts={base_drc['shorts']} "
-          f"drc={base_drc['total']} ({base_dur:.1f}s)", flush=True)
+    if best_total is None:
+        print("Round   0/-- [BASE ] running baseline...", flush=True)
+        best_score, base_dur = run_experiment(
+            args.pcb, baseline_pcb, best_cfg, best_seed, quiet=args.quiet)
+        base_drc = quick_drc(baseline_pcb)
+        if score_weights:
+            best_score.compute(score_weights, drc_dict=base_drc)
+        else:
+            best_score.compute(drc_dict=base_drc)
 
-    shutil.copy2(baseline_pcb, str(best_dir / "best.kicad_pcb"))
-    best_total = best_score.total
+        print(f"  -> baseline score={best_score.total:6.2f} shorts={base_drc['shorts']} "
+              f"drc={base_drc['total']} ({base_dur:.1f}s)", flush=True)
+
+        shutil.copy2(baseline_pcb, str(best_dir / "best.kicad_pcb"))
+        best_total = best_score.total
+    else:
+        base_drc = {"shorts": 0, "unconnected": 0, "clearance": 0, "courtyard": 0, "total": 0}
+        base_dur = 0.0
+        best_score = ExperimentScore()
+        best_score.total = best_total
 
     _log_event("baseline_complete",
                score=best_score.total,
@@ -1005,10 +1053,11 @@ def main():
                 score, duration = run_experiment(
                     args.pcb, work_pcb, candidate_cfg, candidate_seed,
                     quiet=args.quiet)
-                if score_weights:
-                    score.compute(score_weights)
                 drc = quick_drc(work_pcb)
-                _apply_shorts_penalty(score, drc["shorts"])
+                if score_weights:
+                    score.compute(score_weights, drc_dict=drc)
+                else:
+                    score.compute(drc_dict=drc)
                 results = [(score, duration, work_pcb, drc, mode, candidate_cfg,
                             candidate_seed, delta)]
             else:
@@ -1062,7 +1111,10 @@ def main():
                         score.total = -1.0
                         duration = 0.0
                     drc = quick_drc(work_pcb)
-                    _apply_shorts_penalty(score, drc["shorts"])
+                    if score_weights:
+                        score.compute(score_weights, drc_dict=drc)
+                    else:
+                        score.compute(drc_dict=drc)
                     results.append((score, duration, work_pcb, drc, mode,
                                     candidate_cfg, candidate_seed, delta))
 
@@ -1084,6 +1136,7 @@ def main():
                     minor_stagnant = 0
                     kept_count += 1
                     shutil.copy2(work_pcb, str(best_dir / "best.kicad_pcb"))
+                    save_elite_config(work_dir, best_cfg, best_seed, best_total)
                     marker = f"NEW BEST +{improvement:.2f}"
                     _log_event("new_best",
                                round_num=round_num,

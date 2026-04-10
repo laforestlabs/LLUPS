@@ -49,6 +49,7 @@ DEFAULT_CONFIG = {
     "freerouting_jar": os.path.expanduser("~/.local/lib/freerouting-2.1.0.jar"),
     "freerouting_timeout_s": 120,
     "freerouting_max_passes": 40,
+    "freerouting_ignore_nets": [],  # nets excluded from routing (use zones instead)
 
     # Explicit IC groups (IC + supporting components that should stay together)
     "ic_groups": {

@@ -22,7 +22,10 @@ Only override parameters you want to constrain — unlisted params use defaults.
   "net_priority": {
     "/CHG_N": 5,
     "/NTC_SENSE": 5,
-    "Net-(F1-Pad2)": 5
+    "Net-(F1-Pad2)": 5,
+    "/VBAT": 4,
+    "Net-(U2-TMR)": 4,
+    "Net-(U4-FB)": 4
   }
 }
 ```
@@ -36,10 +39,11 @@ placement beats a beautifully placed board with failed routes.
 ```json
 {
   "score_weights": {
-    "placement": 0.15,
-    "route_completion": 0.65,
+    "placement": 0.10,
+    "route_completion": 0.55,
     "via_penalty": 0.10,
-    "containment": 0.10
+    "containment": 0.10,
+    "drc": 0.15
   }
 }
 ```
