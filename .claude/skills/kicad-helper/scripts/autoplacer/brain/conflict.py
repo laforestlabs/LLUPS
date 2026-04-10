@@ -9,7 +9,8 @@ import time
 from collections import defaultdict
 
 from .types import (
-    Point, Layer, BoardState, Net, TraceSegment, Via, GridCell, RoutingResult
+    Point, Layer, BoardState, Net, TraceSegment, Via, GridCell, RoutingResult,
+    RRRIteration, RRRSummary, PathResult
 )
 from .router import RoutingGrid, AStarRouter
 from .grid_builder import build_grid, path_to_traces
@@ -22,12 +23,12 @@ class RipUpRerouter:
     HARD_BLOCK = 1e6  # Cross-net traces must be impassable
 
     def __init__(self, state: BoardState, config: dict = None,
-                 max_iterations: int = 50):
+                 max_iterations: int = None):
         self.state = state
         self.cfg = config or {}
-        self.max_iterations = max_iterations
-        self.max_rips_per_net = self.cfg.get("max_rips_per_net", 8)
-        self.stagnation_limit = self.cfg.get("rip_stagnation_limit", 8)
+        self.max_iterations = self.cfg.get("max_rrr_iterations", 25)
+        self.max_rips_per_net = self.cfg.get("max_rips_per_net", 4)
+        self.rip_stagnation_limit = self.cfg.get("rip_stagnation_limit", 6)
         self.timeout_s = self.cfg.get("rrr_timeout_s", 60)
         self.resolution = self.cfg.get("grid_resolution_mm", 0.5)
         self.clearance = self.cfg.get("clearance_mm", 0.2)
@@ -36,12 +37,13 @@ class RipUpRerouter:
         self.via_size = self.cfg.get("via_size_mm", 0.6)
 
     def solve(self, initial_traces: list[TraceSegment],
-              initial_vias: list[Via],
-              failed_nets: list[str]) -> tuple[list[TraceSegment], list[Via], list[str]]:
+            initial_vias: list[Via],
+            failed_nets: list[str]) -> tuple[list[TraceSegment], list[Via], list[str], RRRSummary]:
         """Rip-up and re-route to resolve failed nets.
 
-        Returns (traces, vias, still_failed_nets).
+        Returns (traces, vias, still_failed_nets, rrr_summary).
         """
+        summary = RRRSummary()
         net_traces: dict[str, list[TraceSegment]] = defaultdict(list)
         net_vias: dict[str, list[Via]] = defaultdict(list)
         for t in initial_traces:
@@ -63,9 +65,12 @@ class RipUpRerouter:
             if not queue:
                 break
 
+            iter_t0 = time.monotonic()
+
             # Wall-clock timeout
             if time.monotonic() - t_start > self.timeout_s:
                 print(f"  RRR timed out after {self.timeout_s}s")
+                summary.timed_out = True
                 break
 
             net_name = queue.pop(0)
@@ -96,9 +101,17 @@ class RipUpRerouter:
             router = AStarRouter(grid)
             result = self._try_route(router, grid, net)
 
+            iter_victims: list[str] = []
+
             if result.success:
                 net_traces[net_name] = result.segments
                 net_vias[net_name] = result.vias
+                summary.iteration_log.append(RRRIteration(
+                    iteration=iteration, target_net=net_name,
+                    success=True, victims_ripped=[],
+                    queue_size=len(queue),
+                    elapsed_ms=(time.monotonic() - iter_t0) * 1000.0))
+                summary.iterations_used = iteration + 1
                 continue
 
             # Find victims to rip (rip-count-aware)
@@ -113,6 +126,8 @@ class RipUpRerouter:
                 net_vias.pop(victim_name, None)
                 queue.append(victim_name)
                 ripped_any = True
+                iter_victims.append(victim_name)
+                summary.total_rips += 1
 
             if ripped_any:
                 # Retry blocked net with victims removed
@@ -145,6 +160,13 @@ class RipUpRerouter:
             else:
                 queue.append(net_name)
 
+            summary.iteration_log.append(RRRIteration(
+                iteration=iteration, target_net=net_name,
+                success=result.success, victims_ripped=iter_victims,
+                queue_size=len(queue),
+                elapsed_ms=(time.monotonic() - iter_t0) * 1000.0))
+            summary.iterations_used = iteration + 1
+
             # Stagnation check
             current_failed = len(queue)
             if current_failed < best_failed:
@@ -152,8 +174,9 @@ class RipUpRerouter:
                 stagnant = 0
             else:
                 stagnant += 1
-                if stagnant >= self.stagnation_limit:
+                if stagnant >= self.rip_stagnation_limit:
                     print(f"  RRR stagnated after {iteration+1} iterations")
+                    summary.stagnated = True
                     break
 
         # Flatten results
@@ -161,9 +184,14 @@ class RipUpRerouter:
         all_vias = [v for vs in net_vias.values() for v in vs]
         still_failed = list(set(queue))
 
+        summary.nets_recovered = len(failed_nets) - len(still_failed)
+        summary.nets_still_failed = len(still_failed)
+        summary.elapsed_ms = (time.monotonic() - t_start) * 1000.0
+        summary.rip_counts = dict(rip_counts)
+
         print(f"  RRR complete: {len(still_failed)} nets still failed "
               f"(was {len(failed_nets)})")
-        return all_traces, all_vias, still_failed
+        return all_traces, all_vias, still_failed, summary
 
     def _try_route(self, router: AStarRouter, grid: RoutingGrid,
                    net: Net) -> RoutingResult:
@@ -199,14 +227,14 @@ class RipUpRerouter:
 
             start = grid.to_cell(a_pos, a_layer)
             end = grid.to_cell(b_pos, b_layer)
-            path = router.find_path(start, end, width_cells)
+            pr = router.find_path(start, end, width_cells)
 
-            if path is None:
+            if pr.path is None:
                 for try_layer in [Layer.FRONT, Layer.BACK]:
                     alt_s = GridCell(start.x, start.y, try_layer)
                     alt_e = GridCell(end.x, end.y, try_layer)
-                    path = router.find_path(alt_s, alt_e, width_cells)
-                    if path:
+                    pr = router.find_path(alt_s, alt_e, width_cells)
+                    if pr.path:
                         if try_layer != a_layer:
                             vias.append(Via(a_pos, net.name,
                                             self.via_drill, self.via_size))
@@ -215,12 +243,12 @@ class RipUpRerouter:
                                             self.via_drill, self.via_size))
                         break
 
-            if path is None:
+            if pr.path is None:
                 all_ok = False
                 continue
 
             segs, pvias = path_to_traces(
-                path, grid, net.name, width, self.via_drill, self.via_size)
+                pr.path, grid, net.name, width, self.via_drill, self.via_size)
             segments.extend(segs)
             vias.extend(pvias)
 
@@ -253,7 +281,7 @@ class RipUpRerouter:
         if not pad_xs:
             return []
 
-        margin = 5.0
+        margin = 10.0
         bbox_min = Point(min(pad_xs) - margin, min(pad_ys) - margin)
         bbox_max = Point(max(pad_xs) + margin, max(pad_ys) + margin)
 
@@ -282,4 +310,4 @@ class RipUpRerouter:
                 candidates.append((score, net_name))
 
         candidates.sort(reverse=True)
-        return [name for _, name in candidates[:2]]
+        return [name for _, name in candidates[:4]]

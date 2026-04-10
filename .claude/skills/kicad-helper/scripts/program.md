@@ -11,13 +11,18 @@ Only override parameters you want to constrain — unlisted params use defaults.
 ```json
 {
   "param_ranges": {
-    "force_attract_k": [0.01, 0.5, 0.15],
-    "force_repel_k": [5.0, 200.0, 0.15],
+    "force_attract_k": [0.01, 0.3, 0.15],
+    "force_repel_k": [50.0, 500.0, 0.15],
     "cooling_factor": [0.90, 0.995, 0.05],
-    "edge_margin_mm": [1.0, 5.0, 0.1],
-    "clearance_mm": [0.15, 1.0, 0.1],
-    "existing_trace_cost": [1.0, 50.0, 0.2],
-    "max_rips_per_net": [2, 15, 0.2]
+    "edge_margin_mm": [2.0, 8.0, 0.1],
+    "clearance_mm": [0.2, 0.35, 0.1],
+    "max_rips_per_net": [3, 20, 0.2],
+    "grid_resolution_mm": [0.25, 0.5, 0.15]
+  },
+  "net_priority": {
+    "/CHG_N": 5,
+    "/NTC_SENSE": 5,
+    "Net-(F1-Pad2)": 5
   }
 }
 ```
@@ -31,10 +36,10 @@ placement beats a beautifully placed board with failed routes.
 ```json
 {
   "score_weights": {
-    "placement": 0.20,
-    "route_completion": 0.50,
-    "trace_efficiency": 0.20,
-    "via_penalty": 0.10
+    "placement": 0.15,
+    "route_completion": 0.65,
+    "via_penalty": 0.10,
+    "containment": 0.10
   }
 }
 ```

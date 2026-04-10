@@ -144,6 +144,34 @@ class RoutingGrid:
             g.cost = [list(c) for c in self.cost]
         return g
 
+    def stats(self) -> dict:
+        """Return grid occupancy statistics for observability."""
+        total = self.rows * self.cols
+        result = {"total_cells_per_layer": total, "layers": self.layers}
+        blocked = 0
+        total_cost = 0.0
+        for layer in range(self.layers):
+            if _HAS_NUMPY:
+                arr = self.cost[layer]
+                layer_blocked = int(np.count_nonzero(arr >= 1e6))
+                layer_cost = float(arr[arr < 1e6].sum()) if layer_blocked < total else 0.0
+            else:
+                layer_blocked = sum(1 for c in self.cost[layer] if c >= 1e6)
+                layer_cost = sum(c for c in self.cost[layer] if c < 1e6)
+            blocked += layer_blocked
+            total_cost += layer_cost
+        total_all = total * self.layers
+        free_cells = total_all - blocked
+        return {
+            "total_cells_per_layer": total,
+            "layers": self.layers,
+            "total_cells": total_all,
+            "blocked_cells": blocked,
+            "free_cells": free_cells,
+            "pct_occupied": round(blocked / max(1, total_all) * 100, 1),
+            "avg_cost_free": round(total_cost / max(1, free_cells), 3),
+        }
+
 
 def build_grid(state: BoardState, resolution: float, clearance: float,
                traces: list[TraceSegment] = None,
@@ -159,6 +187,9 @@ def build_grid(state: BoardState, resolution: float, clearance: float,
     pad_cells: set[tuple[int, int, int]] = set()
     escape_cells: set[tuple[int, int, int]] = set()
 
+    # Corridor half-width scales with resolution: at least 2 cells on each side
+    corridor_hw = max(2, math.ceil(3 * resolution / 0.25))
+
     for comp in state.components.values():
         comp_tl, comp_br = comp.bbox()
         for pad in comp.pads:
@@ -166,31 +197,27 @@ def build_grid(state: BoardState, resolution: float, clearance: float,
             for dc in range(-1, 2):
                 for dr in range(-1, 2):
                     pad_cells.add((pc.x + dc, pc.y + dr, pad.layer))
-            dx_l = pad.pos.x - comp_tl.x
-            dx_r = comp_br.x - pad.pos.x
-            dy_t = pad.pos.y - comp_tl.y
-            dy_b = comp_br.y - pad.pos.y
-            min_d = min(dx_l, dx_r, dy_t, dy_b)
-            if min_d == dx_l:
-                ce = grid.to_cell(Point(comp_tl.x - clearance * 2, pad.pos.y), pad.layer)
-                for c in range(ce.x, pc.x + 1):
-                    for dr in range(-1, 2):
-                        escape_cells.add((c, pc.y + dr, pad.layer))
-            elif min_d == dx_r:
-                ce = grid.to_cell(Point(comp_br.x + clearance * 2, pad.pos.y), pad.layer)
-                for c in range(pc.x, ce.x + 1):
-                    for dr in range(-1, 2):
-                        escape_cells.add((c, pc.y + dr, pad.layer))
-            elif min_d == dy_t:
-                ce = grid.to_cell(Point(pad.pos.x, comp_tl.y - clearance * 2), pad.layer)
-                for r in range(ce.y, pc.y + 1):
-                    for dc in range(-1, 2):
-                        escape_cells.add((pc.x + dc, r, pad.layer))
-            else:
-                ce = grid.to_cell(Point(pad.pos.x, comp_br.y + clearance * 2), pad.layer)
-                for r in range(pc.y, ce.y + 1):
-                    for dc in range(-1, 2):
-                        escape_cells.add((pc.x + dc, r, pad.layer))
+            # Carve escape corridors in all 4 directions from each pad
+            # Left
+            ce = grid.to_cell(Point(comp_tl.x - clearance * 2, pad.pos.y), pad.layer)
+            for c in range(ce.x, pc.x + 1):
+                for dr in range(-corridor_hw, corridor_hw + 1):
+                    escape_cells.add((c, pc.y + dr, pad.layer))
+            # Right
+            ce = grid.to_cell(Point(comp_br.x + clearance * 2, pad.pos.y), pad.layer)
+            for c in range(pc.x, ce.x + 1):
+                for dr in range(-corridor_hw, corridor_hw + 1):
+                    escape_cells.add((c, pc.y + dr, pad.layer))
+            # Top
+            ce = grid.to_cell(Point(pad.pos.x, comp_tl.y - clearance * 2), pad.layer)
+            for r in range(ce.y, pc.y + 1):
+                for dc in range(-corridor_hw, corridor_hw + 1):
+                    escape_cells.add((pc.x + dc, r, pad.layer))
+            # Bottom
+            ce = grid.to_cell(Point(pad.pos.x, comp_br.y + clearance * 2), pad.layer)
+            for r in range(pc.y, ce.y + 1):
+                for dc in range(-corridor_hw, corridor_hw + 1):
+                    escape_cells.add((pc.x + dc, r, pad.layer))
 
     # --- Mark component bodies as obstacles ---
     safe_cells = pad_cells | escape_cells

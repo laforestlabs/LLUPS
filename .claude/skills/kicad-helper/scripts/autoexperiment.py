@@ -93,6 +93,15 @@ class Experiment:
     drc_clearance: int = 0
     drc_courtyard: int = 0
     drc_total: int = 0
+    # Phase timing (ms)
+    placement_ms: float = 0.0
+    routing_ms: float = 0.0
+    rrr_ms: float = 0.0
+    # Routing detail
+    nets_routed: int = 0
+    failed_net_names: list = field(default_factory=list)
+    total_a_star_expansions: int = 0
+    grid_occupancy_pct: float = 0.0
 
 
 def _format_mmss(seconds: float) -> str:
@@ -227,6 +236,7 @@ def mutate_config_minor(base: dict, rng: random.Random,
         "clearance_mm":    (0.2, 0.4, 0.1),  # floor at 0.2 = DRC minimum
         "existing_trace_cost": (200.0, 5000.0, 0.2),
         "max_rips_per_net": (2, 15, 0.2),
+        "grid_resolution_mm": (0.25, 0.5, 0.15),
     }
     # Override with program.md ranges if provided
     for k, v in ranges.items():
@@ -262,6 +272,7 @@ def mutate_config_major(base: dict, rng: random.Random,
         "force_attract_k": (0.005, 0.15, 0.4),
         "force_repel_k":   (100.0, 500.0, 0.4),
         "cooling_factor":  (0.90, 0.995, 0.15),
+        "grid_resolution_mm": (0.2, 0.5, 0.3),
     }
     keys = rng.sample(list(aggressive_tunable.keys()),
                       rng.randint(1, len(aggressive_tunable)))
@@ -284,9 +295,10 @@ def config_delta(base: dict, candidate: dict) -> dict:
 
 
 def quick_drc(pcb_path: str) -> dict:
-    """Run kicad-cli DRC and return violation counts by category."""
+    """Run kicad-cli DRC and return violation counts + locations by category."""
     import re
     counts = {"shorts": 0, "unconnected": 0, "clearance": 0, "courtyard": 0, "total": 0}
+    violations = []  # list of {type, description, x_mm, y_mm, net1, net2}
     try:
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
             report_path = f.name
@@ -304,6 +316,27 @@ def quick_drc(pcb_path: str) -> dict:
                 continue
             vtype = m.group(1)
             counts["total"] += 1
+
+            # Parse location: "@(x_mm, y_mm)" pattern
+            loc_m = re.search(r'@\(([\d.\-]+)\s*mm\s*,\s*([\d.\-]+)\s*mm\)', line)
+            x_mm = float(loc_m.group(1)) if loc_m else None
+            y_mm = float(loc_m.group(2)) if loc_m else None
+
+            # Parse net names from the line
+            net_matches = re.findall(r'\[Net\s+\d+\]\(([^)]+)\)', line)
+            net1 = net_matches[0] if len(net_matches) > 0 else None
+            net2 = net_matches[1] if len(net_matches) > 1 else None
+
+            violation = {
+                "type": vtype,
+                "description": line.strip(),
+                "x_mm": x_mm,
+                "y_mm": y_mm,
+                "net1": net1,
+                "net2": net2,
+            }
+            violations.append(violation)
+
             if vtype == "shorting_items":
                 counts["shorts"] += 1
             elif vtype == "unconnected_items":
@@ -314,17 +347,28 @@ def quick_drc(pcb_path: str) -> dict:
                 counts["courtyard"] += 1
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
+    counts["violations"] = violations
     return counts
 
 
 def snapshot_pcb(pcb_path: str, output_png: str,
-                 canvas_px: int = 900, board_mm: tuple = (140.0, 90.0)):
+                  canvas_px: int = 900, board_mm: tuple = (140.0, 90.0),
+                  frame_info: dict | None = None):
     """Export a fixed-scale PNG snapshot for progress GIF.
 
     Renders to a constant canvas (canvas_px square) with the board bbox
     sized to ~80% of the canvas — same scale every frame regardless of
     where components have moved. White opaque background for contrast
     and to prevent prior frames bleeding through GIF disposal.
+
+    Args:
+        frame_info: Optional dict with keys:
+            - round_num: int
+            - score: float
+            - kept: bool
+            - timestamp: float (wall clock time from time.monotonic())
+            - drc_shorts: int (optional — if >0, frame gets red border & short markers)
+            - drc_violations: list[dict] (optional — DRC violations with coordinates)
     """
     try:
         with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp:
@@ -345,22 +389,113 @@ def snapshot_pcb(pcb_path: str, output_png: str,
         target_w = int(round(bw * scale))
         target_h = int(round(bh * scale))
 
-        subprocess.run([
+        # Build ImageMagick command for rendering + optional text overlay
+        cmd = [
             "magick",
             "-density", "300",
             "-background", "white",
             svg_path,
             "-flatten",
             "-resize", f"{target_w}x{target_h}!",
-            "-bordercolor", "#222", "-border", "3",
-            "-background", "white",
             "-gravity", "center",
             "-extent", f"{canvas_px}x{canvas_px}",
-            output_png,
-        ], capture_output=True, check=True)
+        ]
+
+        if frame_info:
+            # Format timestamp as HH:MM:SS
+            ts = frame_info.get("timestamp", 0)
+            elapsed_s = ts
+            hours = int(elapsed_s // 3600)
+            mins = int((elapsed_s % 3600) // 60)
+            secs = int(elapsed_s % 60)
+            time_str = f"{hours:02d}:{mins:02d}:{secs:02d}"
+
+            round_num = frame_info.get("round_num", 0)
+            score = frame_info.get("score", 0)
+            kept = frame_info.get("kept", False)
+            drc_shorts = frame_info.get("drc_shorts", 0)
+
+            # Border color: green=kept, red=shorts, gray=discarded
+            if drc_shorts > 0:
+                border_color = "#CC0000"
+            elif kept:
+                border_color = "#00CC00"
+            else:
+                border_color = "#888888"
+
+            status_color = "#00CC00" if kept else "#CC0000"
+            status_text = "KEPT" if kept else "DISCARDED"
+
+            info_line = f"R{round_num:03d} | {time_str} | Score: {score:.1f} | {status_text}"
+            if drc_shorts > 0:
+                info_line += f" | SHORTS: {drc_shorts}"
+            font_size = max(16, canvas_px // 50)
+
+            # Draw colored border (3px)
+            cmd.extend([
+                "-bordercolor", border_color, "-border", "3",
+            ])
+
+            # Draw DRC short markers on the board image
+            drc_violations = frame_info.get("drc_violations", [])
+            if drc_violations:
+                # Board origin offset (centered in canvas + 3px border)
+                ox = (canvas_px - target_w) / 2 + 3
+                oy = (canvas_px - target_h) / 2 + 3
+                board_x0, board_y0 = _parse_board_origin_from_pcb(pcb_path)
+
+                for v in drc_violations:
+                    if v.get("x_mm") is None or v.get("type") != "shorting_items":
+                        continue
+                    px = ox + (v["x_mm"] - board_x0) * scale
+                    py = oy + (v["y_mm"] - board_y0) * scale
+                    r = max(6, int(scale * 1.2))
+                    cmd.extend([
+                        "-fill", "none", "-stroke", "red", "-strokewidth", "2",
+                        "-draw", f"line {px-r},{py-r} {px+r},{py+r}",
+                        "-draw", f"line {px-r},{py+r} {px+r},{py-r}",
+                    ])
+
+            # Draw semi-transparent black background band at bottom
+            # Account for border offset
+            total_w = canvas_px + 6  # 3px border each side
+            total_h = canvas_px + 6
+            band_height = font_size + 16
+            cmd.extend([
+                "-fill", "rgba(0,0,0,0.7)",
+                "-draw", f"rectangle 0,{total_h-band_height} {total_w} {total_h}",
+                "-fill", status_color,
+                "-gravity", "SouthWest",
+                "-pointsize", str(font_size),
+                "-font", "DejaVu-Sans-Bold",
+                "-annotate", f"+{font_size//2}+{font_size//2+2}", info_line,
+            ])
+
+        else:
+            # Original border only
+            cmd.extend([
+                "-bordercolor", "#222", "-border", "3",
+            ])
+
+        cmd.append(output_png)
+
+        subprocess.run(cmd, capture_output=True, check=True)
         os.remove(svg_path)
     except (subprocess.CalledProcessError, FileNotFoundError):
         pass  # non-fatal — skip snapshot if tools missing
+
+
+def _parse_board_origin_from_pcb(pcb_path: str) -> tuple[float, float]:
+    """Parse board outline origin from .kicad_pcb file."""
+    try:
+        with open(pcb_path) as f:
+            text = f.read()
+        m = re.search(r'\(gr_rect\s+\(start\s+([\d.\-]+)\s+([\d.\-]+)\)', text)
+        if m:
+            return float(m.group(1)), float(m.group(2))
+    except OSError:
+        pass
+    return 0.0, 0.0
 
 
 def assemble_gif(frames_dir: Path, output_path: str, delay_cs: int = 50):
@@ -487,16 +622,86 @@ def run_experiment(pcb_path: str, work_pcb: str, cfg: dict,
 
 
 def _apply_shorts_penalty(score: ExperimentScore, shorts: int) -> None:
-    """Apply log-scale shorts penalty in-place."""
+    """Apply additive shorts penalty in-place.
+
+    Deducts up to 15 points (out of ~100 max) so the routing-completion
+    signal is preserved even when shorts are present.
+    """
     if shorts > 0:
-        import math
-        score.total *= 1.0 / (1 + math.log10(1 + shorts))
+        penalty = min(15.0, shorts * 0.5)
+        score.total = max(0.0, score.total - penalty)
 
 
 def _log_and_record(exp: Experiment, experiments: list, log_path: Path) -> None:
     experiments.append(exp)
     with open(log_path, 'a') as f:
         f.write(json.dumps(asdict(exp), default=str) + '\n')
+
+
+def _write_round_detail(
+    rounds_dir: Path,
+    round_num: int,
+    score: ExperimentScore,
+    config_used: dict,
+    drc: dict,
+    duration_s: float,
+    kept: bool,
+    mode: str,
+    seed: int,
+    net_failure_rates: dict[str, float] | None = None,
+) -> None:
+    """Write detailed per-round JSON with full routing/RRR/DRC data."""
+    detail = {
+        "round": round_num,
+        "mode": mode,
+        "seed": seed,
+        "kept": kept,
+        "score": round(score.total, 3),
+        "duration_s": round(duration_s, 1),
+        "config": config_used,
+        "timing": {
+            "placement_ms": round(score.placement_ms, 1),
+            "routing_ms": round(score.routing_ms, 1),
+            "rrr_ms": round(score.rrr_ms, 1),
+        },
+        "routing": {
+            "routed": score.routed_nets,
+            "total": score.total_nets,
+            "failed": score.failed_nets,
+            "failed_nets": score.failed_net_names,
+            "traces": score.trace_count,
+            "vias": score.via_count,
+            "total_length_mm": round(score.total_trace_length_mm, 1),
+            "total_a_star_expansions": score.total_a_star_expansions,
+            "grid_occupancy_pct": round(score.grid_occupancy_pct, 1),
+        },
+        "per_net": [nr.to_dict() for nr in score.per_net_results],
+        "rrr": score.rrr_summary.to_dict() if score.rrr_summary else None,
+        "drc": {
+            "shorts": drc.get("shorts", 0),
+            "unconnected": drc.get("unconnected", 0),
+            "clearance": drc.get("clearance", 0),
+            "courtyard": drc.get("courtyard", 0),
+            "total": drc.get("total", 0),
+            "violations": drc.get("violations", []),
+        },
+        "placement": {
+            "total": round(score.placement.total, 2),
+            "net_distance": round(score.placement.net_distance, 2),
+            "crossover_count": score.placement.crossover_count,
+            "crossover_score": round(score.placement.crossover_score, 2),
+            "compactness": round(score.placement.compactness, 2),
+            "edge_compliance": round(score.placement.edge_compliance, 2),
+            "board_containment": round(score.placement.board_containment, 2),
+            "courtyard_overlap": round(score.placement.courtyard_overlap, 2),
+        },
+    }
+    if net_failure_rates:
+        detail["net_failure_rates"] = net_failure_rates
+    out_path = rounds_dir / f"round_{round_num:04d}.json"
+    with open(out_path, 'w') as f:
+        json.dump(detail, f, indent=2, default=str)
+        f.write('\n')
 
 
 def _score_sub_fields(score: ExperimentScore) -> tuple[float, float, float]:
@@ -541,8 +746,6 @@ def main():
                         help="Suppress pipeline output (default: on)")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="Show pipeline output")
-    parser.add_argument("--no-render", action="store_true",
-                        help="Skip PCB snapshot rendering (saves time)")
     parser.add_argument("--status-file", default="run_status.json",
                         help="Live run status JSON filename inside .experiments/")
     parser.add_argument("--log-level", default="INFO", choices=["INFO", "DEBUG"],
@@ -561,6 +764,7 @@ def main():
     program = load_program(args.program)
     param_ranges = program.get("param_ranges", {})
     score_weights = program.get("score_weights", None)
+    net_priority = program.get("net_priority", {})
 
     work_dir = Path(args.pcb).parent / ".experiments"
     work_dir.mkdir(exist_ok=True)
@@ -579,14 +783,15 @@ def main():
     
     best_dir = work_dir / "best"
     best_dir.mkdir(exist_ok=True)
+    rounds_dir = work_dir / "rounds"
+    rounds_dir.mkdir(exist_ok=True)
     frames_dir = work_dir / "frames"
-    if not args.no_render:
-        # Clear any frames from previous runs so the GIF doesn't include stale data
-        if frames_dir.exists():
-            import glob as _glob
-            for f in _glob.glob(str(frames_dir / "frame_*.png")):
-                os.remove(f)
-        frames_dir.mkdir(exist_ok=True)
+    # Clear any frames from previous runs so the GIF doesn't include stale data
+    if frames_dir.exists():
+        import glob as _glob
+        for f in _glob.glob(str(frames_dir / "frame_*.png")):
+            os.remove(f)
+    frames_dir.mkdir(exist_ok=True)
 
     # Per-worker scratch directories (avoid file conflicts in parallel mode)
     workers_dir = work_dir / "workers"
@@ -631,6 +836,9 @@ def main():
     except (OSError, ValueError):
         pass
 
+    # Start timing for GIF timestamps (before baseline run)
+    loop_t0 = time.monotonic()
+
     print(f"=== Autonomous PCB Experiment Loop ===")
     print(f"PCB:         {args.pcb}")
     print(f"Rounds:      {args.rounds}")
@@ -644,6 +852,8 @@ def main():
     # Run baseline (serial, in-process)
     print("Round   0/-- [BASE ] running baseline...", flush=True)
     best_cfg = dict(DEFAULT_CONFIG)
+    if net_priority:
+        best_cfg["net_priority"] = net_priority
     best_seed = 0
     best_score, base_dur = run_experiment(
         args.pcb, baseline_pcb, best_cfg, best_seed, quiet=args.quiet)
@@ -666,15 +876,17 @@ def main():
                duration_s=base_dur)
 
     # Capture baseline frame for GIF
-    if not args.no_render:
-        snapshot_pcb(baseline_pcb, str(frames_dir / "frame_0000.png"),
-                     board_mm=board_mm)
+    baseline_elapsed = time.monotonic() - loop_t0
+    snapshot_pcb(baseline_pcb, str(frames_dir / "frame_0000.png"),
+                 board_mm=board_mm,
+                 frame_info={"round_num": 0, "score": best_score.total,
+                             "kept": False, "timestamp": baseline_elapsed})
 
     experiments: list[Experiment] = []
     minor_stagnant = 0
     kept_count = 0
     round_num = 0
-    loop_t0 = time.monotonic()
+    net_fail_counts: dict[str, int] = {}
     completed_durations: list[float] = [base_dur]
     last_completion_ts: float | None = time.monotonic()
 
@@ -710,7 +922,7 @@ def main():
                     stop_file.unlink()
                 break
             
-            batch_size = min(n_workers, args.rounds - round_num)
+            batch_size = min(n_workers, args.rounds - round_num, max(args.plateau, 1))
             batch_seeds = args.batch_seeds
 
             # Generate batch of candidates
@@ -737,6 +949,8 @@ def main():
             for _ in range(1, min(batch_seeds, batch_size)):
                 explore_seed = rng.randint(0, 2**31)
                 explore_cfg = mutate_config_major(dict(DEFAULT_CONFIG), rng, param_ranges)
+                if net_priority:
+                    explore_cfg["net_priority"] = net_priority
                 explore_delta = config_delta(DEFAULT_CONFIG, explore_cfg)
                 batch.append(("explore", explore_cfg, explore_seed, explore_delta))
 
@@ -756,6 +970,17 @@ def main():
                     candidate_seed = exp_seed
                 delta = config_delta(DEFAULT_CONFIG, candidate_cfg)
                 batch.append((mode, candidate_cfg, candidate_seed, delta))
+
+            # Reserve ~20% of batch for pure exploration (random config + seed)
+            n_explore = max(1, batch_size // 5)
+            for i in range(min(n_explore, len(batch))):
+                idx = len(batch) - 1 - i  # replace from end
+                explore_seed = rng.randint(0, 2**31)
+                explore_cfg = mutate_config_major(dict(DEFAULT_CONFIG), rng, param_ranges)
+                if net_priority:
+                    explore_cfg["net_priority"] = net_priority
+                explore_delta = config_delta(DEFAULT_CONFIG, explore_cfg)
+                batch[idx] = ("explore", explore_cfg, explore_seed, explore_delta)
 
             if n_workers == 1:
                 # Single-worker: run in-process (no subprocess overhead)
@@ -910,8 +1135,29 @@ def main():
                     drc_clearance=drc["clearance"],
                     drc_courtyard=drc["courtyard"],
                     drc_total=drc["total"],
+                    placement_ms=round(score.placement_ms, 1),
+                    routing_ms=round(score.routing_ms, 1),
+                    rrr_ms=round(score.rrr_ms, 1),
+                    nets_routed=score.routed_nets,
+                    failed_net_names=score.failed_net_names,
+                    total_a_star_expansions=score.total_a_star_expansions,
+                    grid_occupancy_pct=round(score.grid_occupancy_pct, 1),
                 )
+                # Track per-net failure rates
+                for net_name in score.failed_net_names:
+                    net_fail_counts[net_name] = net_fail_counts.get(net_name, 0) + 1
                 _log_and_record(exp, experiments, log_path)
+                # Compute running failure rates for observability
+                _net_failure_rates = (
+                    {name: round(count / round_num, 3)
+                     for name, count in net_fail_counts.items()}
+                    if round_num > 0 else {}
+                )
+                _write_round_detail(
+                    rounds_dir, round_num, score, candidate_cfg,
+                    drc, duration, kept, mode, candidate_seed,
+                    net_failure_rates=_net_failure_rates,
+                )
                 completed_durations.append(duration)
                 last_completion_ts = time.monotonic()
                 remaining_in_batch = max(0, remaining_in_batch - 1)
@@ -934,15 +1180,18 @@ def main():
                     latest_marker=marker,
                 )
 
-                if not args.no_render:
-                    frame_png = str(frames_dir / f"frame_{round_num:04d}.png")
-                    snapshot_pcb(str(best_dir / "best.kicad_pcb"), frame_png,
-                                 board_mm=board_mm)
+                frame_elapsed = time.monotonic() - loop_t0
+                frame_png = str(frames_dir / f"frame_{round_num:04d}.png")
+                snapshot_pcb(str(best_dir / "best.kicad_pcb"), frame_png,
+                             board_mm=board_mm,
+                             frame_info={"round_num": round_num, "score": best_total,
+                                         "kept": kept, "timestamp": frame_elapsed,
+                                         "drc_shorts": drc["shorts"],
+                                         "drc_violations": drc.get("violations", [])})
 
     # Assemble progress GIF from frames
-    if not args.no_render:
-        gif_path = str(work_dir / "progress.gif")
-        assemble_gif(frames_dir, gif_path)
+    gif_path = str(work_dir / "progress.gif")
+    assemble_gif(frames_dir, gif_path)
 
     # Regenerate dashboard PNG from the full experiments.jsonl history
     dashboard_path = work_dir / "experiments_dashboard.png"

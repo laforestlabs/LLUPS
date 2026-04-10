@@ -6,6 +6,7 @@ Grid resolution matches minimum trace width (0.5mm default).
 from __future__ import annotations
 import heapq
 import math
+import time
 from typing import Optional
 
 try:
@@ -15,7 +16,8 @@ except ImportError:
     _HAS_NUMPY = False
 
 from .types import (
-    Point, Layer, BoardState, Net, TraceSegment, Via, GridCell, RoutingResult
+    Point, Layer, BoardState, Net, TraceSegment, Via, GridCell, RoutingResult,
+    PathResult, NetRoutingResult
 )
 from .graph import minimum_spanning_tree
 from .grid_builder import RoutingGrid, build_grid, path_to_traces
@@ -40,10 +42,10 @@ class AStarRouter:
 
     def find_path(self, start: GridCell, end: GridCell,
                   width_cells: int = 1,
-                  max_search: int = 500000) -> Optional[list[GridCell]]:
-        """A* with octile heuristic (numpy-optimized)."""
+                  max_search: int = 500000) -> PathResult:
+        """A* with octile heuristic (numpy-optimized). Returns PathResult."""
         if start == end:
-            return [start]
+            return PathResult([start], 0, 0.0)
 
         grid = self.grid
         ex, ey, el = end.x, end.y, end.layer
@@ -105,7 +107,7 @@ class AStarRouter:
                         path.append(GridCell(px, py, Layer(pl)))
                         x, y, layer = px, py, pl
                     path.reverse()
-                    return path
+                    return PathResult(path, counter, float(g_arr[el, ey * cols + ex]))
 
                 cur_idx = cy * cols + cx
                 cur_g = g_arr[cl, cur_idx]
@@ -189,7 +191,7 @@ class AStarRouter:
                         heapq.heappush(open_set,
                                        (via_g + h_arr[ol, cur_idx], counter, nbr_v))
 
-            return None
+            return PathResult(None, counter, 0.0)
 
         # --- Pure-Python fallback (no numpy) ---
         start_t = (sx, sy, sl)
@@ -212,7 +214,7 @@ class AStarRouter:
                     t = came_from[t]
                     path.append(GridCell(t[0], t[1], Layer(t[2])))
                 path.reverse()
-                return path
+                return PathResult(path, counter, g_score.get(cur, 0.0))
 
             cur_g = g_score.get(cur, 1e18)
             if f > cur_g + abs(cx - ex) + abs(cy - ey) + 1e-6:
@@ -266,7 +268,7 @@ class AStarRouter:
                     counter += 1
                     heapq.heappush(open_set, (via_g + h, counter, nbr_v))
 
-        return None
+        return PathResult(None, counter, 0.0)
 
     def _heuristic(self, a: GridCell, b: GridCell) -> float:
         """Manhattan distance + via cost if layers differ."""
@@ -294,8 +296,8 @@ class RoutingSolver:
         self.mst_retry_limit = self.cfg.get("mst_retry_limit", 3)
         self.allow_width_relaxation = self.cfg.get("allow_width_relaxation", True)
 
-    def solve(self) -> tuple[list[TraceSegment], list[Via], list[str]]:
-        """Route all nets. Returns (traces, vias, failed_net_names)."""
+    def solve(self) -> tuple[list[TraceSegment], list[Via], list[str], list[NetRoutingResult]]:
+        """Route all nets. Returns (traces, vias, failed_net_names, per_net_results)."""
         grid = build_grid(self.state, self.resolution, self.clearance)
         router = AStarRouter(grid)
         ordered = self._prioritize_nets()
@@ -303,9 +305,14 @@ class RoutingSolver:
         all_traces: list[TraceSegment] = []
         all_vias: list[Via] = []
         failed: list[str] = []
+        per_net_results: list[NetRoutingResult] = []
 
         for net in ordered:
-            result = self._route_net(router, grid, net)
+            t0 = time.monotonic()
+            result, net_metric = self._route_net(router, grid, net)
+            net_metric.time_ms = (time.monotonic() - t0) * 1000.0
+            per_net_results.append(net_metric)
+
             if result.success:
                 all_traces.extend(result.segments)
                 all_vias.extend(result.vias)
@@ -333,16 +340,19 @@ class RoutingSolver:
         if failed:
             print(f"  Failed: {failed}")
 
-        return all_traces, all_vias, failed
+        return all_traces, all_vias, failed, per_net_results
 
     def _prioritize_nets(self) -> list[Net]:
         """Order nets for routing."""
         nets = []
+        priority_overrides = self.cfg.get("net_priority", {})
         for net in self.state.nets.values():
             if self.skip_gnd and net.name in ("GND", "/GND"):
                 continue
             if len(net.pad_refs) < 2:
                 continue
+            if net.name in priority_overrides:
+                net.priority = priority_overrides[net.name]
             nets.append(net)
 
         def sort_key(n: Net) -> tuple:
@@ -356,8 +366,10 @@ class RoutingSolver:
         return sorted(nets, key=sort_key)
 
     def _route_net(self, router: AStarRouter, grid: RoutingGrid,
-                   net: Net) -> RoutingResult:
-        """Route a single net via MST of its pads, retrying with different roots on failure."""
+                   net: Net) -> tuple[RoutingResult, NetRoutingResult]:
+        """Route a single net via MST of its pads, retrying with different roots on failure.
+        Returns (RoutingResult, NetRoutingResult) for observability."""
+        metric = NetRoutingResult(net_name=net.name)
         pad_points: list[tuple[Point, Layer]] = []
         for ref, pad_id in net.pad_refs:
             comp = self.state.components.get(ref)
@@ -369,9 +381,13 @@ class RoutingSolver:
                     break
 
         if len(pad_points) < 2:
-            return RoutingResult(success=len(pad_points) <= 1)
+            metric.success = len(pad_points) <= 1
+            if not metric.success:
+                metric.failure_reason = "insufficient_pads"
+            return RoutingResult(success=len(pad_points) <= 1), metric
 
         width = net.width_mm
+        metric.width_used_mm = width
         strict_width_cells = self._width_to_cells(width + self.clearance)
         relaxed_width_cells = self._width_to_cells(width)
 
@@ -381,11 +397,11 @@ class RoutingSolver:
             names, lambda a, b: pos_map[a].dist(pos_map[b])
         )
 
-        # Retry only for multi-pad nets where edge ordering matters.
-        # 2-pad nets have one edge — retry is useless.
         try_limit = self._mst_try_limit(len(pad_points))
         best_result = None
         best_edges = -1
+        total_expansions = 0
+        used_relaxed = False
 
         for attempt in range(try_limit):
             edges = mst_edges if attempt == 0 else self._mst_from_root(
@@ -403,31 +419,36 @@ class RoutingSolver:
                 start = grid.to_cell(a_pos, a_layer)
                 end = grid.to_cell(b_pos, b_layer)
 
-                path = None
+                pr = PathResult(None, 0, 0.0)
                 for width_cells in self._edge_width_candidates(
                         strict_width_cells, relaxed_width_cells):
-                    path = router.find_path(start, end, width_cells, self.max_search)
-                    if path is not None:
+                    pr = router.find_path(start, end, width_cells, self.max_search)
+                    total_expansions += pr.expansions
+                    if pr.path is not None:
+                        if width_cells == relaxed_width_cells and relaxed_width_cells < strict_width_cells:
+                            used_relaxed = True
                         break
-                if path is None:
+                if pr.path is None:
                     vias_before = len(vias)
                     for width_cells in self._edge_width_candidates(
                             strict_width_cells, relaxed_width_cells):
                         for try_layer in [Layer.FRONT, Layer.BACK]:
                             alt_start = GridCell(start.x, start.y, try_layer)
                             alt_end = GridCell(end.x, end.y, try_layer)
-                            path = router.find_path(alt_start, alt_end, width_cells, self.max_search)
-                            if path:
+                            pr = router.find_path(alt_start, alt_end, width_cells, self.max_search)
+                            total_expansions += pr.expansions
+                            if pr.path:
                                 if try_layer != a_layer:
                                     vias.append(Via(a_pos, net.name,
                                                     self.via_drill, self.via_size))
                                 if try_layer != b_layer:
                                     vias.append(Via(b_pos, net.name,
                                                     self.via_drill, self.via_size))
+                                if width_cells == relaxed_width_cells and relaxed_width_cells < strict_width_cells:
+                                    used_relaxed = True
                                 break
-                        if path is not None:
+                        if pr.path is not None:
                             break
-                    # Mark newly-added escape vias as hard blocks
                     HARD_BLOCK = 1e6
                     for ev in vias[vias_before:]:
                         half = ev.size_mm / 2 + self.clearance
@@ -440,18 +461,16 @@ class RoutingSolver:
                             Point(ev.pos.x + half, ev.pos.y + half),
                             Layer.BACK, HARD_BLOCK)
 
-                if path is None:
+                if pr.path is None:
                     continue
 
                 edges_routed += 1
                 segs, path_vias = path_to_traces(
-                    path, grid, net.name, width,
+                    pr.path, grid, net.name, width,
                     self.via_drill, self.via_size)
                 segments.extend(segs)
                 vias.extend(path_vias)
 
-                # Mark this edge on the grid so subsequent MST edges
-                # see where we already routed (avoids overlap / wasted space)
                 for seg in segs:
                     grid.mark_segment(seg.start, seg.end, seg.layer,
                                       seg.width_mm + self.clearance,
@@ -465,9 +484,25 @@ class RoutingSolver:
                     cost=sum(s.length for s in segments),
                     success=all_ok)
             if all_ok:
+                metric.mst_retries = attempt
                 break
 
-        return best_result
+        # Populate metric from best result
+        metric.success = best_result.success
+        metric.segment_count = len(best_result.segments)
+        metric.via_count = len(best_result.vias)
+        metric.total_length_mm = sum(s.length for s in best_result.segments)
+        metric.a_star_expansions = total_expansions
+        metric.width_relaxed = used_relaxed
+        metric.front_length_mm = sum(
+            s.length for s in best_result.segments if s.layer == Layer.FRONT)
+        metric.back_length_mm = sum(
+            s.length for s in best_result.segments if s.layer == Layer.BACK)
+        if not metric.success:
+            metric.failure_reason = "path_not_found"
+            metric.mst_retries = try_limit - 1
+
+        return best_result, metric
 
     def _width_to_cells(self, width_mm: float) -> int:
         """Convert geometric width to conservative grid occupancy."""
