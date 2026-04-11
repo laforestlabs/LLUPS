@@ -1,0 +1,153 @@
+(footprint "BatteryHolder_MYOUNG_BH-18650-A1AJ006"
+	(version 20241229)
+	(generator "custom")
+	(layer "F.Cu")
+	(descr "Battery holder, MYOUNG BH-18650-A1AJ006, 1x18650, through-hole blade contacts, LCSC C5290175")
+	(tags "battery holder 18650 THT MYOUNG")
+	(property "Reference" "REF**"
+		(at 0 -12.5 0)
+		(layer "F.SilkS")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "BatteryHolder_MYOUNG_BH-18650-A1AJ006"
+		(at 0 12.5 0)
+		(layer "F.Fab")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(fp_line
+		(start -37.85 -10.54)
+		(end 37.85 -10.54)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+	)
+	(fp_line
+		(start -37.85 -10.54)
+		(end -37.85 10.54)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+	)
+	(fp_line
+		(start 37.85 -10.54)
+		(end 37.85 10.54)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+	)
+	(fp_line
+		(start -37.85 10.54)
+		(end 37.85 10.54)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+	)
+	(fp_line
+		(start -38.35 -11.04)
+		(end 38.35 -11.04)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+	)
+	(fp_line
+		(start -38.35 -11.04)
+		(end -38.35 11.04)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+	)
+	(fp_line
+		(start 38.35 -11.04)
+		(end 38.35 11.04)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+	)
+	(fp_line
+		(start -38.35 11.04)
+		(end 38.35 11.04)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+	)
+	(fp_rect
+		(start -37.85 -10.54)
+		(end 37.85 10.54)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.Fab")
+	)
+	(fp_text user "+"
+		(at -36 -5 0)
+		(layer "F.SilkS")
+		(effects
+			(font
+				(size 2 2)
+				(thickness 0.15)
+			)
+		)
+	)
+	(fp_text user "${REFERENCE}"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(fp_text user "+"
+		(at -35 0 0)
+		(layer "F.Fab")
+		(effects
+			(font
+				(size 2 2)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "1" thru_hole oval
+		(at -35 0)
+		(size 1.8 6.6)
+		(drill oval 0.8 5.6)
+		(layers "*.Cu" "*.Mask")
+	)
+	(pad "2" thru_hole oval
+		(at 35 0)
+		(size 1.8 6.6)
+		(drill oval 0.8 5.6)
+		(layers "*.Cu" "*.Mask")
+	)
+	(embedded_fonts no)
+)

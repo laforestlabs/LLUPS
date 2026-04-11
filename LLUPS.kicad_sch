@@ -5349,7 +5349,7 @@
 			(at 260 75 0)
 			(effects (font (size 1.27 1.27)))
 		)
-		(property "Footprint" "Battery:BatteryHolder_Keystone_1042_1x18650"
+		(property "Footprint" "LLUPS:BatteryHolder_MYOUNG_BH-18650-A1AJ006"
 			(at 260 70 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
@@ -5389,7 +5389,7 @@
 			(at 280 75 0)
 			(effects (font (size 1.27 1.27)))
 		)
-		(property "Footprint" "Battery:BatteryHolder_Keystone_1042_1x18650"
+		(property "Footprint" "LLUPS:BatteryHolder_MYOUNG_BH-18650-A1AJ006"
 			(at 280 70 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
