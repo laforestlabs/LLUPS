@@ -1,4 +1,4 @@
-"""Shared data structures for the autoplacer/autorouter system.
+"""Shared data structures for the autoplacer system.
 
 All types are plain Python dataclasses — no pcbnew imports.
 These serve as the interchange format between Brain and Hardware layers.
@@ -135,117 +135,6 @@ class BoardState:
         return Point((tl.x + br.x) / 2, (tl.y + br.y) / 2)
 
 
-@dataclass(slots=True)
-class GridCell:
-    x: int    # column
-    y: int    # row
-    layer: Layer
-
-    def __hash__(self):
-        return hash((self.x, self.y, self.layer))
-
-    def __eq__(self, other):
-        return self.x == other.x and self.y == other.y and self.layer == other.layer
-
-
-class PathResult(NamedTuple):
-    """Result from A* find_path — path cells + search metrics."""
-    path: list[GridCell] | None
-    expansions: int = 0
-    cost: float = 0.0
-
-
-@dataclass
-class RoutingResult:
-    segments: list[TraceSegment] = field(default_factory=list)
-    vias: list[Via] = field(default_factory=list)
-    cost: float = 0.0
-    success: bool = False
-
-
-@dataclass
-class NetRoutingResult:
-    """Per-net routing metrics for observability."""
-    net_name: str = ""
-    success: bool = False
-    segment_count: int = 0
-    via_count: int = 0
-    total_length_mm: float = 0.0
-    a_star_expansions: int = 0
-    time_ms: float = 0.0
-    width_used_mm: float = 0.0
-    width_relaxed: bool = False
-    mst_retries: int = 0
-    front_length_mm: float = 0.0
-    back_length_mm: float = 0.0
-    failure_reason: str | None = None
-
-    def to_dict(self) -> dict:
-        return {
-            "net": self.net_name,
-            "success": self.success,
-            "segments": self.segment_count,
-            "vias": self.via_count,
-            "length_mm": round(self.total_length_mm, 2),
-            "a_star_expansions": self.a_star_expansions,
-            "time_ms": round(self.time_ms, 1),
-            "width_mm": round(self.width_used_mm, 3),
-            "width_relaxed": self.width_relaxed,
-            "mst_retries": self.mst_retries,
-            "front_mm": round(self.front_length_mm, 2),
-            "back_mm": round(self.back_length_mm, 2),
-            "failure_reason": self.failure_reason,
-        }
-
-
-@dataclass
-class RRRIteration:
-    """One iteration of the rip-up and re-route loop."""
-    iteration: int = 0
-    target_net: str = ""
-    success: bool = False
-    victims_ripped: list[str] = field(default_factory=list)
-    queue_size: int = 0
-    elapsed_ms: float = 0.0
-
-    def to_dict(self) -> dict:
-        return {
-            "iteration": self.iteration,
-            "target": self.target_net,
-            "success": self.success,
-            "victims": self.victims_ripped,
-            "queue": self.queue_size,
-            "elapsed_ms": round(self.elapsed_ms, 1),
-        }
-
-
-@dataclass
-class RRRSummary:
-    """Summary of a full RRR run for observability."""
-    iterations_used: int = 0
-    nets_recovered: int = 0
-    nets_still_failed: int = 0
-    total_rips: int = 0
-    timed_out: bool = False
-    stagnated: bool = False
-    elapsed_ms: float = 0.0
-    iteration_log: list[RRRIteration] = field(default_factory=list)
-    rip_counts: dict[str, int] = field(default_factory=dict)
-
-    def to_dict(self) -> dict:
-        return {
-            "iterations_used": self.iterations_used,
-            "nets_recovered": self.nets_recovered,
-            "nets_still_failed": self.nets_still_failed,
-            "total_rips": self.total_rips,
-            "timed_out": self.timed_out,
-            "stagnated": self.stagnated,
-            "elapsed_ms": round(self.elapsed_ms, 1),
-            "iterations": [it.to_dict() for it in self.iteration_log],
-            "rip_counts": dict(self.rip_counts),
-        }
-
-
 @dataclass
 class PlacementIterationSnapshot:
     """Snapshot of placement state at one iteration."""
@@ -338,12 +227,7 @@ class ExperimentScore:
     # Phase timing (ms)
     placement_ms: float = 0.0
     routing_ms: float = 0.0
-    rrr_ms: float = 0.0
-    # Detailed results (not serialized in summary)
-    per_net_results: list[NetRoutingResult] = field(default_factory=list)
-    rrr_summary: RRRSummary | None = None
     failed_net_names: list[str] = field(default_factory=list)
-    total_a_star_expansions: int = 0
     drc_score: DRCScore = field(default_factory=DRCScore)
 
     def compute(self, weights: Optional[dict] = None,

@@ -17,6 +17,7 @@ Usage:
 """
 from __future__ import annotations
 import argparse
+import base64
 import glob
 import json
 import os
@@ -44,8 +45,45 @@ def load_rounds(rounds_dir: str) -> dict[int, dict]:
     return rounds
 
 
+def load_run_status(experiments_dir: str) -> dict | None:
+  """Load live run status if available."""
+  status_path = os.path.join(experiments_dir, "run_status.json")
+  if not os.path.exists(status_path):
+    return None
+  with open(status_path) as f:
+    return json.load(f)
+
+
+def load_frame_images(experiments_dir: str, output_path: str,
+            embed_images: bool = True) -> dict[int, str]:
+    """Load frame PNGs as base64 data URIs, keyed by round number.
+    frame_0000 = baseline, frame_0001 = round 1, etc."""
+    frames_dir = os.path.join(experiments_dir, "frames")
+    images = {}
+    if not os.path.isdir(frames_dir):
+        return images
+    for path in sorted(glob.glob(os.path.join(frames_dir, "frame_*.png"))):
+        fname = os.path.basename(path)
+        try:
+            num = int(fname.replace("frame_", "").replace(".png", ""))
+        except ValueError:
+            continue
+        if embed_images:
+          with open(path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode("ascii")
+          images[num] = f"data:image/png;base64,{b64}"
+        else:
+          rel_path = os.path.relpath(path, os.path.dirname(output_path) or ".")
+          rel_path = rel_path.replace(os.sep, "/")
+          cache_bust = int(os.path.getmtime(path))
+          images[num] = f"{rel_path}?v={cache_bust}"
+    return images
+
+
 def generate_report(experiments: list[dict], rounds: dict[int, dict],
-                    output_path: str) -> None:
+              output_path: str, frame_images: dict[int, str] | None = None,
+              run_status: dict | None = None, live_mode: bool = False,
+              refresh_seconds: int = 5) -> None:
     """Generate the self-contained HTML report."""
 
     # Compute summary stats
@@ -121,9 +159,30 @@ def generate_report(experiments: list[dict], rounds: dict[int, dict],
                     param_data[k] = []
                 param_data[k].append({"score": e["score"], "value": v, "kept": e["kept"]})
 
+    # Frame images JSON (round_num -> data URI)
+    frame_images = frame_images or {}
+    frames_json = json.dumps(frame_images)
+    is_live = bool(live_mode and run_status and run_status.get("phase") != "done")
+    refresh_meta = (
+      f'<meta http-equiv="refresh" content="{refresh_seconds}">'
+      if is_live else ""
+    )
+    live_banner = ""
+    if is_live:
+      current_round = run_status.get("round", total_rounds)
+      total_target = run_status.get("total_rounds", current_round)
+      best_live = float(run_status.get("best_score", best_score))
+      live_banner = (
+        '<div class="live-banner">'
+        f'Live report: auto-refreshing every {refresh_seconds}s while the run is active. '
+        f'Progress {current_round}/{total_target} · Best score {best_live:.2f}'
+        '</div>'
+      )
+
     html = f"""<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8">
+  {refresh_meta}
 <title>Experiment Report — {total_rounds} Rounds</title>
 <style>
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}
@@ -132,6 +191,8 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 h1 {{ font-size: 1.6em; border-bottom: 3px solid #2c3e50; padding-bottom: 0.3em; margin-bottom: 0.5em; }}
 h2 {{ font-size: 1.2em; color: #2c3e50; margin: 1.5em 0 0.5em; cursor: pointer; }}
 h2:hover {{ color: #3498db; }}
+  .live-banner {{ background: #fff7d6; border: 1px solid #e3c96a; color: #6b5711;
+           border-radius: 8px; padding: 12px 14px; margin: 0 0 1em; font-size: 0.95em; }}
 .summary {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 12px; margin: 1em 0; }}
 .card {{ background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
@@ -159,10 +220,33 @@ canvas {{ max-width: 100%; margin: 1em 0; }}
 .tag-kept {{ background: #d5f5e3; color: #27ae60; }}
 .tag-discard {{ background: #fadbd8; color: #e74c3c; }}
 .tag-major {{ background: #d6eaf8; color: #2980b9; }}
+/* Gallery */
+.gallery-container {{ background: white; border-radius: 8px; padding: 16px;
+                      box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin: 1em 0; text-align: center; }}
+.gallery-container img {{ max-width: 100%; border: 1px solid #ddd; border-radius: 4px; }}
+.gallery-controls {{ display: flex; align-items: center; justify-content: center; gap: 12px;
+                     margin: 12px 0; flex-wrap: wrap; }}
+.gallery-controls button {{ padding: 6px 16px; border: 1px solid #bdc3c7; border-radius: 4px;
+                            background: #ecf0f1; cursor: pointer; font-size: 0.9em; }}
+.gallery-controls button:hover {{ background: #d5dbdb; }}
+.gallery-controls input[type=range] {{ flex: 1; max-width: 400px; }}
+.gallery-label {{ font-size: 0.95em; color: #2c3e50; font-weight: 600; min-width: 200px; }}
+.gallery-none {{ color: #999; padding: 40px; font-style: italic; }}
+/* Metrics charts */
+.metrics-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+                 gap: 16px; margin: 1em 0; }}
+.metric-chart {{ background: white; border-radius: 8px; padding: 16px;
+                 box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+.metric-chart canvas {{ width: 100%; }}
+.metric-title {{ font-weight: 600; color: #2c3e50; margin-bottom: 8px; font-size: 0.95em; }}
+.legend {{ display: flex; gap: 16px; justify-content: center; margin-top: 8px; font-size: 0.8em; }}
+.legend-item {{ display: flex; align-items: center; gap: 4px; }}
+.legend-swatch {{ width: 14px; height: 3px; border-radius: 1px; }}
 </style>
 </head><body>
 
 <h1>PCB Layout Experiment Report</h1>
+{live_banner}
 
 <!-- Executive Summary -->
 <div class="summary">
@@ -181,6 +265,28 @@ canvas {{ max-width: 100%; margin: 1em 0; }}
 <div class="chart-container">
   <canvas id="scoreChart" height="200"></canvas>
 </div>
+</div>
+
+<!-- PCB Layout Gallery -->
+<h2 onclick="toggle('gallery-section')">▸ PCB Layout Gallery</h2>
+<div id="gallery-section" class="collapsible open">
+<div class="gallery-container" id="galleryContainer">
+  <div class="gallery-controls">
+    <button onclick="galleryNav(-1)">◀ Prev</button>
+    <input type="range" id="gallerySlider" min="0" max="0" value="0" oninput="galleryGo(+this.value)">
+    <button onclick="galleryNav(1)">Next ▶</button>
+    <label><input type="checkbox" id="autoPlay" onchange="toggleAutoPlay()"> Auto-play</label>
+  </div>
+  <div class="gallery-label" id="galleryLabel">No frames available</div>
+  <img id="galleryImg" style="display:none">
+  <div class="gallery-none" id="galleryNone">No frame images found in .experiments/frames/</div>
+</div>
+</div>
+
+<!-- Metrics Tracking -->
+<h2 onclick="toggle('metrics-section')">▸ Metrics Across Rounds</h2>
+<div id="metrics-section" class="collapsible open">
+<div class="metrics-grid" id="metricsGrid"></div>
 </div>
 
 <!-- Round Browser -->
@@ -240,6 +346,7 @@ canvas {{ max-width: 100%; margin: 1em 0; }}
 <script>
 const experiments = {experiments_json};
 const rounds = {rounds_json};
+const frameImages = {frames_json};
 
 // Toggle collapsible sections
 function toggle(id) {{
@@ -295,7 +402,7 @@ function toggleRoundDetail(roundNum, tr) {{
 
   let html = '<strong>Timing:</strong> ';
   const t = rd.timing || {{}};
-  html += `Placement: ${{(t.placement_ms/1000).toFixed(1)}}s | Routing: ${{(t.routing_ms/1000).toFixed(1)}}s | RRR: ${{(t.rrr_ms/1000).toFixed(1)}}s<br>`;
+  html += `Placement: ${{(t.placement_ms/1000).toFixed(1)}}s | Routing: ${{(t.routing_ms/1000).toFixed(1)}}s<br>`;
 
   const routing = rd.routing || {{}};
   html += `<strong>Routing:</strong> ${{routing.routed}}/${{routing.total}} nets, ${{routing.vias}} vias, ${{routing.total_length_mm?.toFixed(0)}}mm total<br>`;
@@ -306,10 +413,10 @@ function toggleRoundDetail(roundNum, tr) {{
   const perNet = rd.per_net || [];
   if (perNet.length > 0) {{
     html += '<details><summary>Per-net details (' + perNet.length + ' nets)</summary>';
-    html += '<table style="font-size:0.85em"><tr><th>Net</th><th>OK</th><th>Segs</th><th>Vias</th><th>Len</th><th>A*</th><th>ms</th><th>Reason</th></tr>';
+    html += '<table style="font-size:0.85em"><tr><th>Net</th><th>OK</th><th>Segs</th><th>Vias</th><th>Len</th><th>ms</th><th>Reason</th></tr>';
     perNet.forEach(n => {{
       const c = n.success ? '' : 'style="color:red"';
-      html += `<tr ${{c}}><td>${{n.net}}</td><td>${{n.success?'✓':'✗'}}</td><td>${{n.segments}}</td><td>${{n.vias}}</td><td>${{n.length_mm}}</td><td>${{n.a_star_expansions}}</td><td>${{n.time_ms}}</td><td>${{n.failure_reason||''}}</td></tr>`;
+      html += `<tr ${{c}}><td>${{n.net}}</td><td>${{n.success?'✓':'✗'}}</td><td>${{n.segments}}</td><td>${{n.vias}}</td><td>${{n.length_mm}}</td><td>${{n.time_ms}}</td><td>${{n.failure_reason||''}}</td></tr>`;
     }});
     html += '</table></details>';
   }}
@@ -448,10 +555,254 @@ function drawParamCharts() {{
   }});
 }}
 
+// ------- Gallery -------
+let galleryKeys = [];
+let galleryIdx = 0;
+let autoPlayTimer = null;
+
+function initGallery() {{
+  galleryKeys = Object.keys(frameImages).map(Number).sort((a,b) => a - b);
+  if (galleryKeys.length === 0) return;
+  document.getElementById('galleryNone').style.display = 'none';
+  document.getElementById('galleryImg').style.display = 'block';
+  const slider = document.getElementById('gallerySlider');
+  slider.max = galleryKeys.length - 1;
+  slider.value = 0;
+  galleryGo(0);
+}}
+
+function galleryGo(idx) {{
+  idx = Math.max(0, Math.min(galleryKeys.length - 1, Number(idx)));
+  galleryIdx = idx;
+  const roundNum = galleryKeys[idx];
+  document.getElementById('galleryImg').src = frameImages[roundNum];
+  document.getElementById('gallerySlider').value = idx;
+  const exp = experiments.find(e => e.round_num === roundNum);
+  let label = roundNum === 0 ? 'Baseline (Round 0)' : `Round ${{roundNum}}`;
+  if (exp) {{
+    label += ` — Score: ${{exp.score.toFixed(2)}} | Shorts: ${{exp.drc_shorts}} | DRC: ${{exp.drc_total}} | ${{exp.kept ? 'KEPT' : exp.mode}}`;
+  }}
+  document.getElementById('galleryLabel').textContent = label;
+}}
+
+function galleryNav(delta) {{
+  galleryGo(galleryIdx + delta);
+}}
+
+function toggleAutoPlay() {{
+  if (document.getElementById('autoPlay').checked) {{
+    autoPlayTimer = setInterval(() => {{
+      if (galleryIdx >= galleryKeys.length - 1) galleryGo(0);
+      else galleryNav(1);
+    }}, 1000);
+  }} else {{
+    clearInterval(autoPlayTimer);
+    autoPlayTimer = null;
+  }}
+}}
+
+// ------- Metrics Tracking Charts -------
+function drawMetricChart(container, title, dataPoints, color, yLabel) {{
+  const div = document.createElement('div');
+  div.className = 'metric-chart';
+  div.innerHTML = `<div class="metric-title">${{title}}</div>`;
+  const canvas = document.createElement('canvas');
+  canvas.height = 200;
+  div.appendChild(canvas);
+  container.appendChild(div);
+
+  function render() {{
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width = canvas.parentElement.clientWidth - 32;
+    const H = canvas.height = 200;
+    const pad = {{l: 55, r: 20, t: 15, b: 30}};
+    const pw = W - pad.l - pad.r;
+    const ph = H - pad.t - pad.b;
+    ctx.clearRect(0, 0, W, H);
+
+    if (dataPoints.length === 0) return;
+    const vals = dataPoints.map(d => d.y);
+    let minV = Math.min(...vals);
+    let maxV = Math.max(...vals);
+    if (minV === maxV) {{ minV -= 1; maxV += 1; }}
+    const rangeV = maxV - minV;
+
+    // Grid lines
+    ctx.strokeStyle = '#eee'; ctx.lineWidth = 1;
+    ctx.fillStyle = '#999'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+    for (let i = 0; i <= 5; i++) {{
+      const y = pad.t + (ph * i / 5);
+      ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+      const v = maxV - rangeV * i / 5;
+      ctx.fillText(Number.isInteger(v) ? v.toString() : v.toFixed(1), pad.l - 6, y + 4);
+    }}
+
+    // X axis labels
+    ctx.textAlign = 'center'; ctx.fillStyle = '#999';
+    const step = Math.max(1, Math.floor(dataPoints.length / 10));
+    dataPoints.forEach((d, i) => {{
+      if (i % step === 0 || i === dataPoints.length - 1) {{
+        const x = pad.l + (i / Math.max(dataPoints.length - 1, 1)) * pw;
+        ctx.fillText('R' + d.x, x, H - pad.b + 16);
+      }}
+    }});
+
+    // Line
+    ctx.beginPath();
+    ctx.strokeStyle = color; ctx.lineWidth = 2;
+    dataPoints.forEach((d, i) => {{
+      const x = pad.l + (i / Math.max(dataPoints.length - 1, 1)) * pw;
+      const y = pad.t + (1 - (d.y - minV) / rangeV) * ph;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }});
+    ctx.stroke();
+
+    // Points
+    dataPoints.forEach((d, i) => {{
+      const x = pad.l + (i / Math.max(dataPoints.length - 1, 1)) * pw;
+      const y = pad.t + (1 - (d.y - minV) / rangeV) * ph;
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = d.kept ? '#2ecc71' : color;
+      ctx.fill();
+    }});
+
+    // Y-axis label
+    ctx.save();
+    ctx.translate(12, pad.t + ph / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = '#666'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(yLabel || '', 0, 0);
+    ctx.restore();
+  }}
+  render();
+  window.addEventListener('resize', render);
+}}
+
+function drawMultiMetricChart(container, title, series, yLabel) {{
+  /* series = [{{label, color, data: [{{x, y, kept}}]}}] */
+  const div = document.createElement('div');
+  div.className = 'metric-chart';
+  div.innerHTML = `<div class="metric-title">${{title}}</div>`;
+  const canvas = document.createElement('canvas');
+  canvas.height = 220;
+  div.appendChild(canvas);
+
+  // Legend
+  const legend = document.createElement('div');
+  legend.className = 'legend';
+  series.forEach(s => {{
+    legend.innerHTML += `<span class="legend-item"><span class="legend-swatch" style="background:${{s.color}}"></span>${{s.label}}</span>`;
+  }});
+  div.appendChild(legend);
+  container.appendChild(div);
+
+  function render() {{
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width = canvas.parentElement.clientWidth - 32;
+    const H = canvas.height = 220;
+    const pad = {{l: 55, r: 20, t: 15, b: 30}};
+    const pw = W - pad.l - pad.r;
+    const ph = H - pad.t - pad.b;
+    ctx.clearRect(0, 0, W, H);
+
+    const allVals = series.flatMap(s => s.data.map(d => d.y));
+    if (allVals.length === 0) return;
+    let minV = Math.min(...allVals);
+    let maxV = Math.max(...allVals);
+    if (minV === maxV) {{ minV -= 1; maxV += 1; }}
+    const rangeV = maxV - minV;
+    const n = Math.max(...series.map(s => s.data.length));
+
+    // Grid
+    ctx.strokeStyle = '#eee'; ctx.lineWidth = 1;
+    ctx.fillStyle = '#999'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+    for (let i = 0; i <= 5; i++) {{
+      const y = pad.t + (ph * i / 5);
+      ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+      const v = maxV - rangeV * i / 5;
+      ctx.fillText(Number.isInteger(v) ? v.toString() : v.toFixed(1), pad.l - 6, y + 4);
+    }}
+
+    // X labels
+    ctx.textAlign = 'center';
+    const ref = series[0].data;
+    const step = Math.max(1, Math.floor(ref.length / 10));
+    ref.forEach((d, i) => {{
+      if (i % step === 0 || i === ref.length - 1) {{
+        const x = pad.l + (i / Math.max(ref.length - 1, 1)) * pw;
+        ctx.fillText('R' + d.x, x, H - pad.b + 16);
+      }}
+    }});
+
+    // Lines
+    series.forEach(s => {{
+      ctx.beginPath(); ctx.strokeStyle = s.color; ctx.lineWidth = 2;
+      s.data.forEach((d, i) => {{
+        const x = pad.l + (i / Math.max(s.data.length - 1, 1)) * pw;
+        const y = pad.t + (1 - (d.y - minV) / rangeV) * ph;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }});
+      ctx.stroke();
+      // Points
+      s.data.forEach((d, i) => {{
+        const x = pad.l + (i / Math.max(s.data.length - 1, 1)) * pw;
+        const y = pad.t + (1 - (d.y - minV) / rangeV) * ph;
+        ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = s.color; ctx.fill();
+      }});
+    }});
+
+    // Y label
+    ctx.save();
+    ctx.translate(12, pad.t + ph / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = '#666'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(yLabel || '', 0, 0);
+    ctx.restore();
+  }}
+  render();
+  window.addEventListener('resize', render);
+}}
+
+function initMetrics() {{
+  const grid = document.getElementById('metricsGrid');
+  const mkData = (key) => experiments.map(e => ({{x: e.round_num, y: e[key] || 0, kept: e.kept}}));
+
+  // Shorts
+  drawMetricChart(grid, 'DRC Shorts per Round', mkData('drc_shorts'), '#e74c3c', 'Shorts');
+
+  // Unconnected
+  drawMetricChart(grid, 'Unconnected Nets per Round', mkData('drc_unconnected'), '#e67e22', 'Unconnected');
+
+  // Placement Score
+  drawMetricChart(grid, 'Placement Score per Round', mkData('placement_score'), '#3498db', 'Placement');
+
+  // Overall Score
+  drawMetricChart(grid, 'Overall Score per Round',
+    experiments.map(e => ({{x: e.round_num, y: e.score, kept: e.kept}})), '#2ecc71', 'Score');
+
+  // DRC composite: clearance + courtyard + total
+  drawMultiMetricChart(grid, 'DRC Violations Breakdown', [
+    {{label: 'Total', color: '#2c3e50', data: mkData('drc_total')}},
+    {{label: 'Clearance', color: '#f39c12', data: mkData('drc_clearance')}},
+    {{label: 'Courtyard', color: '#9b59b6', data: mkData('drc_courtyard')}},
+    {{label: 'Shorts', color: '#e74c3c', data: mkData('drc_shorts')}},
+  ], 'Violations');
+
+  // Route completion & via score
+  drawMultiMetricChart(grid, 'Routing Metrics', [
+    {{label: 'Route Completion %', color: '#2ecc71', data: mkData('route_completion')}},
+    {{label: 'Via Score', color: '#3498db', data: mkData('via_score')}},
+    {{label: 'Trace Efficiency', color: '#e67e22', data: mkData('trace_efficiency')}},
+  ], 'Score / %');
+}}
+
 // Init
 populateRounds();
 drawScoreChart();
 drawParamCharts();
+initGallery();
+initMetrics();
 window.addEventListener('resize', drawScoreChart);
 </script>
 </body></html>"""
@@ -470,6 +821,10 @@ def main():
                         help="Output HTML path (default: <experiments_dir>/report.html)")
     parser.add_argument("--log", default="experiments.jsonl",
                         help="JSONL log filename (default: experiments.jsonl)")
+    parser.add_argument("--live", action="store_true",
+              help="Generate a lightweight live report with relative frame paths and auto-refresh")
+    parser.add_argument("--refresh-seconds", type=int, default=5,
+              help="Live report refresh interval in seconds (default: 5)")
     args = parser.parse_args()
 
     log_path = os.path.join(args.experiments_dir, args.log)
@@ -485,7 +840,23 @@ def main():
     print(f"Loaded {len(rounds)} round details")
 
     output = args.output or os.path.join(args.experiments_dir, "report.html")
-    generate_report(experiments, rounds, output)
+    frame_images = load_frame_images(
+      args.experiments_dir,
+      output,
+      embed_images=not args.live,
+    )
+    print(f"Loaded {len(frame_images)} frame images")
+
+    run_status = load_run_status(args.experiments_dir) if args.live else None
+    generate_report(
+      experiments,
+      rounds,
+      output,
+      frame_images,
+      run_status=run_status,
+      live_mode=args.live,
+      refresh_seconds=max(1, args.refresh_seconds),
+    )
 
 
 if __name__ == "__main__":

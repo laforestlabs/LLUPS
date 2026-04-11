@@ -1,7 +1,11 @@
 """FreeRouting integration — DSN export → FreeRouting CLI → SES import.
 
-Replaces the custom A*/RRR router with the FreeRouting autorouter
-via the Specctra DSN/SES file exchange format.
+Routing pipeline:
+  clear_traces() → export_dsn() → run_freerouting() → import_ses()
+  Then count_board_tracks() extracts real trace/via counts from the result.
+
+Note: Uses FreeRouting v1.9.0.  v2.1.0 has a regression where max_passes
+is ignored and routing runs indefinitely.
 """
 from __future__ import annotations
 
@@ -10,28 +14,6 @@ import os
 import re
 import subprocess
 import tempfile
-
-def _make_settings(max_passes: int) -> dict:
-    """Build FreeRouting settings — GUI disabled, blocking dialogs suppressed."""
-    return {
-        "gui": {"enabled": False},
-        "dialog_confirmation_timeout": 0,
-        "router": {
-            "max_passes": max_passes,
-            "max_threads": 1,
-            "optimizer": {
-                "max_passes": max_passes,
-                "max_threads": 1,
-            },
-        },
-        "usage_and_diagnostic_data": {"disable_analytics": True},
-        "feature_flags": {
-            "logging": True,
-            "file_load_dialog_at_startup": False,
-            "select_mode": False,
-            "macros": False,
-        },
-    }
 
 
 def _run_pcbnew_script(script: str) -> None:
@@ -47,14 +29,63 @@ def _run_pcbnew_script(script: str) -> None:
         )
 
 
-def clear_traces(kicad_pcb_path: str) -> None:
-    """Remove all traces and non-thermal vias from the board."""
+def clear_traces(kicad_pcb_path: str,
+                 preserve_thermal_vias: bool = True,
+                 thermal_refs: list[str] | None = None,
+                 thermal_radius_mm: float = 3.0) -> None:
+    """Remove all traces/vias from the board, optionally preserving thermal vias."""
+    thermal_refs = thermal_refs or []
     _run_pcbnew_script(
-        "import pcbnew\n"
+        "import math, pcbnew\n"
         f"board = pcbnew.LoadBoard({kicad_pcb_path!r})\n"
-        "for t in list(board.GetTracks()): board.Remove(t)\n"
+        f"thermal_refs = {thermal_refs!r}\n"
+        f"thermal_radius_mm = {thermal_radius_mm!r}\n"
+        f"preserve = {preserve_thermal_vias!r}\n"
+        "thermal_centers = []\n"
+        "if preserve:\n"
+        "    for ref in thermal_refs:\n"
+        "        fp = board.FindFootprintByReference(ref)\n"
+        "        if fp:\n"
+        "            pos = fp.GetPosition()\n"
+        "            thermal_centers.append((pcbnew.ToMM(pos.x), pcbnew.ToMM(pos.y)))\n"
+        "to_remove = []\n"
+        "for t in board.GetTracks():\n"
+        "    if preserve and isinstance(t, pcbnew.PCB_VIA):\n"
+        "        vpos = t.GetPosition()\n"
+        "        vx, vy = pcbnew.ToMM(vpos.x), pcbnew.ToMM(vpos.y)\n"
+        "        if any(math.hypot(vx-cx, vy-cy) <= thermal_radius_mm for cx,cy in thermal_centers):\n"
+        "            continue\n"
+        "    to_remove.append(t)\n"
+        "for t in to_remove: board.Remove(t)\n"
         f"board.Save({kicad_pcb_path!r})\n"
     )
+
+
+def count_board_tracks(kicad_pcb_path: str) -> dict:
+    """Count traces, vias, and total trace length from a routed board.
+
+    Runs in subprocess to avoid pcbnew SWIG issues.
+    Returns {traces: int, vias: int, total_length_mm: float}.
+    """
+    result = subprocess.run(
+        ["python3", "-c",
+         "import json, pcbnew\n"
+         f"board = pcbnew.LoadBoard({kicad_pcb_path!r})\n"
+         "traces = vias = 0\n"
+         "length_nm = 0\n"
+         "for t in board.GetTracks():\n"
+         "    if isinstance(t, pcbnew.PCB_VIA):\n"
+         "        vias += 1\n"
+         "    else:\n"
+         "        traces += 1\n"
+         "        length_nm += t.GetLength()\n"
+         "print(json.dumps({'traces': traces, 'vias': vias,"
+         "  'total_length_mm': round(pcbnew.ToMM(length_nm), 2)}))\n"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return {"traces": 0, "vias": 0, "total_length_mm": 0.0}
+    return json.loads(result.stdout.strip())
 
 
 def export_dsn(kicad_pcb_path: str, dsn_path: str) -> None:
@@ -81,8 +112,7 @@ def parse_freerouting_output(stdout: str, stderr: str,
 
     combined = stdout + "\n" + stderr
 
-    # Parse final routing result:
-    # "Auto-routing was completed in X.XX seconds with the score of X (N unrouted and M violations)."
+    # v2.x format: "Auto-routing was completed in X.XX seconds with the score of X (N unrouted and M violations)."
     m = re.search(
         r'Auto-routing was completed in ([\d.]+) seconds.*?'
         r'score of ([\d.]+).*?(\d+) unrouted.*?(\d+) violations',
@@ -93,15 +123,23 @@ def parse_freerouting_output(stdout: str, stderr: str,
         stats["score"] = float(m.group(2))
         stats["unrouted"] = int(m.group(3))
         stats["violations"] = int(m.group(4))
+    else:
+        # v1.9.x format: "Auto-routing was completed in X.XX seconds."
+        m19 = re.search(
+            r'Auto-routing was completed in ([\d.]+) seconds',
+            combined,
+        )
+        if m19:
+            stats["routing_seconds"] = float(m19.group(1))
 
-    # Count successful passes
+    # Count successful passes (v2.x logs per-pass)
     pass_matches = re.findall(r'Auto-router pass #(\d+)', combined)
     if pass_matches:
         stats["passes"] = int(pass_matches[-1])
 
-    # Parse optimization time
+    # Parse optimization time (both versions)
     m_opt = re.search(
-        r'Optimization was completed in ([\d.]+) seconds',
+        r'[Oo]ptimization was completed in ([\d.]+) seconds',
         combined,
     )
     if m_opt:
@@ -114,11 +152,10 @@ def run_freerouting(dsn_path: str, ses_path: str,
                     jar_path: str, timeout_s: int = 120,
                     max_passes: int = 40,
                     work_dir: str | None = None) -> dict:
-    """Run FreeRouting CLI headless and return result metadata."""
+    """Run FreeRouting CLI and return result metadata."""
     cmd = [
         "java",
         "-jar", jar_path,
-        "--gui.enabled=false",
         "-de", dsn_path,
         "-do", ses_path,
         "-mp", str(max_passes),
@@ -126,13 +163,7 @@ def run_freerouting(dsn_path: str, ses_path: str,
         "-dct", "0",  # auto-dismiss dialogs immediately
     ]
 
-    # Write a freerouting.json with GUI disabled into the working directory
-    # so FreeRouting picks it up and doesn't pop dialog boxes.
-    # Also set max_passes here since the JSON config overrides the CLI flag.
     cwd = work_dir or os.path.dirname(dsn_path)
-    settings_path = os.path.join(cwd, "freerouting.json")
-    with open(settings_path, "w") as f:
-        json.dump(_make_settings(max_passes), f)
 
     result = subprocess.run(
         cmd, capture_output=True, text=True, timeout=timeout_s, cwd=cwd,
@@ -157,8 +188,13 @@ def import_ses(kicad_pcb_path: str, ses_path: str,
 def route_with_freerouting(kicad_pcb_path: str, output_path: str,
                            jar_path: str, config: dict) -> dict:
     """Full DSN → FreeRouting → SES pipeline. Returns routing stats."""
-    # Clear existing traces so FreeRouting starts fresh
-    clear_traces(kicad_pcb_path)
+    # Clear existing traces so FreeRouting starts fresh (preserve thermal vias)
+    clear_traces(
+        kicad_pcb_path,
+        preserve_thermal_vias=True,
+        thermal_refs=config.get("thermal_refs", []),
+        thermal_radius_mm=config.get("thermal_radius_mm", 3.0),
+    )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         dsn_path = os.path.join(tmpdir, "board.dsn")
@@ -172,12 +208,12 @@ def route_with_freerouting(kicad_pcb_path: str, output_path: str,
             max_passes=config.get("freerouting_max_passes", 40),
         )
 
-        # Only import SES if routing produced output
+        # Import SES if routing produced output
         if os.path.exists(ses_path):
             import_ses(kicad_pcb_path, ses_path, output_path)
         else:
-            # Copy original if routing failed to produce output
-            import shutil
-            shutil.copy2(kicad_pcb_path, output_path)
+            raise RuntimeError(
+                f"FreeRouting produced no SES output (rc={stats.get('returncode', '?')})"
+            )
 
     return stats

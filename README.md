@@ -57,6 +57,9 @@ python3 .claude/skills/kicad-helper/scripts/dashboard_app.py --port 5000
 
 # Or: one-line terminal status
 watch -n2 cat .experiments/run_status.txt
+
+# Or: leave the HTML report open; it rebuilds after each round and refreshes itself
+xdg-open report.html
 ```
 
 **After a run:**
@@ -68,7 +71,7 @@ xdg-open .experiments/progress.gif
 # Score dashboard (PNG)
 xdg-open .experiments/experiments_dashboard.png
 
-# Interactive HTML report (richest view)
+# Interactive HTML report (richest view; rebuilt live during the run and finalized at the end)
 python3 .claude/skills/kicad-helper/scripts/generate_report.py .experiments/ -o report.html
 xdg-open report.html
 ```

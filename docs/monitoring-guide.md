@@ -20,6 +20,7 @@ In the second, pick one of these to watch progress:
 |--------|---------|-------------|
 | **Web dashboard** | `python3 .claude/skills/kicad-helper/scripts/dashboard_app.py --port 5000` then open `http://localhost:5000` | Live score chart, round table, log viewer, start/stop controls |
 | **Terminal status** | `watch -n2 cat .experiments/run_status.txt` | One-line summary: round, best score, ETA, kept count |
+| **Live HTML report** | `xdg-open report.html` | Rebuilt after each round and auto-refreshes while the run is active |
 | **Watch frames** | `ls -lt .experiments/frames/ \| head` | PNG snapshots appearing as each round completes |
 
 After the run finishes, the best outputs are ready:
@@ -31,7 +32,7 @@ xdg-open .experiments/progress.gif
 # Multi-panel score dashboard
 xdg-open .experiments/experiments_dashboard.png
 
-# Interactive HTML report (richest view — filterable tables, per-net analysis)
+# Interactive HTML report (richest view — rebuilt live during runs, filterable tables, per-net analysis)
 python3 .claude/skills/kicad-helper/scripts/generate_report.py .experiments/ -o report.html
 xdg-open report.html
 ```
@@ -46,6 +47,7 @@ Every run writes to the `.experiments/` directory. Here is every artifact, when 
 
 | File | Format | Contents |
 |------|--------|----------|
+| `report.html` | HTML | Interactive report rebuilt after each completed round; auto-refreshes while the run is active |
 | `run_status.json` | JSON | Machine-readable status: round, best score, ETA, worker counts, throughput |
 | `run_status.txt` | Text | Human-readable one-liner of the same status |
 | `experiments.jsonl` | JSONL | One JSON record per round — full scoring breakdown, config delta, DRC counts, timing |
@@ -57,6 +59,7 @@ Every run writes to the `.experiments/` directory. Here is every artifact, when 
 
 | File | Format | Contents |
 |------|--------|----------|
+| `.experiments/report.html` | HTML | Final self-contained copy of the interactive report |
 | `progress.gif` | GIF | Animated sequence of all frame PNGs showing layout evolution |
 | `experiments_dashboard.png` | PNG | Multi-panel matplotlib figure (see [Dashboard Panels](#dashboard-panels-png) below) |
 
@@ -153,7 +156,7 @@ The dashboard PNG contains up to five panels:
 1. **Score per round** — Dots per round (green=kept, gray=discarded, diamond=major mutation), with a running-best line
 2. **Scoring breakdown** — Line chart of the six sub-scores: placement, route completion, trace efficiency, via score, courtyard overlap, board containment
 3. **DRC violations** — Stacked bar chart: shorts, unconnected, clearance, courtyard violations per round
-4. **Phase timing** — Stacked bar chart: placement, routing, and rip-up-reroute time per round (in seconds)
+4. **Phase timing** — Stacked bar chart: placement and routing time per round (in seconds)
 5. **Config sensitivity** — Heatmap of normalized parameter values for kept runs only
 
 To regenerate this from history (e.g., after adjusting `plot_experiments.py`):

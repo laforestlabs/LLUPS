@@ -1,6 +1,7 @@
 """Pipeline orchestrators — PlacementEngine, RoutingEngine, FullPipeline.
 
-Each engine: adapter.load() -> brain algorithm -> adapter.apply() -> score.
+Routing uses FreeRouting (Java) via DSN/SES file exchange.
+Each engine: adapter.load() -> algorithm -> score.
 """
 from __future__ import annotations
 import os
@@ -9,20 +10,9 @@ from typing import Any
 
 from .brain.types import BoardState, PlacementScore, ExperimentScore, DRCScore
 from .brain.placement import PlacementSolver, PlacementScorer
-from .freerouting_runner import route_with_freerouting
+from .freerouting_runner import route_with_freerouting, count_board_tracks
 from .hardware.adapter import KiCadAdapter
 from .config import DEFAULT_CONFIG
-
-# Optional debug logging
-def _get_log() -> Any:
-    """Get debug logger if available."""
-    try:
-        import logging_config
-        return logging_config.get_logger("pipeline")
-    except ImportError:
-        return None
-
-_pipeline_log = None  # Lazy init
 
 
 class PlacementEngine:
@@ -64,16 +54,19 @@ class RoutingEngine:
     """Run FreeRouting autorouter via DSN/SES file exchange."""
 
     def run(self, pcb_path: str, output_path: str = None,
-            config: dict = None, rip_up: bool = True) -> dict:
+            config: dict = None) -> dict:
         cfg = {**DEFAULT_CONFIG, **(config or {})}
         out = output_path or pcb_path
 
         jar_path = cfg.get("freerouting_jar",
-                           os.path.expanduser("~/.local/lib/freerouting-2.1.0.jar"))
+                           os.path.expanduser("~/.local/lib/freerouting-1.9.0.jar"))
 
         t0 = time.monotonic()
         stats = route_with_freerouting(pcb_path, out, jar_path, cfg)
         routing_ms = (time.monotonic() - t0) * 1000.0
+
+        # Count actual traces/vias from the routed board
+        track_counts = count_board_tracks(out)
 
         # Count nets from the board state
         adapter = KiCadAdapter(out)
@@ -92,15 +85,12 @@ class RoutingEngine:
         unrouted = max(0, min(unrouted, n_total))
 
         return {
-            "traces": 0,  # exact count not available from FreeRouting
-            "vias": 0,
+            "traces": track_counts["traces"],
+            "vias": track_counts["vias"],
             "failed_nets": [f"unrouted_{i}" for i in range(unrouted)],
             "total_nets": n_total,
-            "total_length_mm": 0.0,
+            "total_length_mm": track_counts["total_length_mm"],
             "routing_ms": routing_ms,
-            "rrr_ms": 0.0,
-            "rrr_summary": None,
-            "per_net_results": [],
             "freerouting_stats": stats,
         }
 
@@ -152,11 +142,7 @@ class FullPipeline:
             total_trace_length_mm=routing["total_length_mm"],
             placement_ms=placement_ms,
             routing_ms=routing.get("routing_ms", 0.0),
-            rrr_ms=0.0,
-            per_net_results=[],
-            rrr_summary=None,
             failed_net_names=list(failed) if isinstance(failed, list) else [],
-            total_a_star_expansions=0,
         )
         # Attach placement score
         exp_score.placement = PlacementScore(
@@ -211,6 +197,6 @@ def _run_kicad_cli_drc(pcb_path: str) -> dict:
                 counts["clearance"] += 1
             elif vtype == "courtyards_overlap":
                 counts["courtyard"] += 1
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        pass
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
+        counts["error"] = str(exc)
     return counts

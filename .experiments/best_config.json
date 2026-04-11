@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "timestamp": 1775823795.6772342,
+  "timestamp": 1775883426.5037494,
   "best_cfg": {
     "signal_width_mm": 0.127,
-    "power_width_mm": 0.254,
+    "power_width_mm": 0.127,
     "via_drill_mm": 0.3,
     "via_size_mm": 0.6,
-    "placement_clearance_mm": 2.409,
+    "placement_clearance_mm": 2.9559,
     "power_nets": [
       "+3V3",
       "+5V",
@@ -26,45 +26,57 @@
       "VBUS"
     ],
     "placement_grid_mm": 1.0,
-    "edge_margin_mm": 6.0,
-    "force_attract_k": 0.02,
-    "force_repel_k": 152.4382,
-    "cooling_factor": 0.9722,
+    "edge_margin_mm": 5.8704,
+    "force_attract_k": 0.0741,
+    "force_repel_k": 274.9489,
+    "cooling_factor": 0.9788,
     "max_placement_iterations": 100,
     "placement_convergence_threshold": 1.5,
     "placement_score_every_n": 1,
     "intra_cluster_iters": 80,
     "skip_gnd_routing": true,
-    "net_priority": {},
+    "net_priority": {
+      "/CHG_N": 5,
+      "/NTC_SENSE": 5,
+      "Net-(F1-Pad2)": 5,
+      "/VBAT": 4,
+      "Net-(U2-TMR)": 4,
+      "Net-(U4-FB)": 4
+    },
     "thermal_refs": [
       "U2",
       "U4"
     ],
     "thermal_radius_mm": 3.0,
-    "freerouting_jar": "/home/jason/.local/lib/freerouting-2.1.0.jar",
+    "freerouting_jar": "/home/jason/.local/lib/freerouting-1.9.0.jar",
     "freerouting_timeout_s": 120,
     "freerouting_max_passes": 40,
     "freerouting_ignore_nets": [],
     "ic_groups": {
       "U1": [
         "C1",
-        "C2",
         "R1",
         "R2",
         "F1",
         "J1"
       ],
       "U2": [
+        "C2",
+        "C3",
         "C4",
         "R3",
         "R4",
         "R5",
+        "R6",
+        "R7",
+        "R8",
         "RT1",
         "D1",
         "D2"
       ],
       "U3": [
-        "Q1"
+        "Q1",
+        "U6"
       ],
       "U4": [
         "C5",
@@ -78,13 +90,21 @@
         "R9",
         "R10",
         "R11",
-        "J2"
-      ],
-      "U6": [
+        "J2",
         "J3"
+      ],
+      "BT1": [
+        "BT2"
       ]
+    },
+    "group_labels": {
+      "U1": "USB INPUT",
+      "U2": "CHARGER",
+      "U3": "BATT PROT",
+      "U4": "BOOST 5V",
+      "U5": "LDO 3.3V"
     }
   },
-  "best_seed": 1406280348,
-  "best_score": 65.50586325247764
+  "best_seed": 57529426,
+  "best_score": 91.1204074881426
 }

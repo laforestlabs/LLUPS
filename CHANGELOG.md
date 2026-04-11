@@ -1,5 +1,28 @@
 # LLUPS Engineering Changelog
 
+## 2026-04-11: Codebase Cleanup — Old Python Router Removed
+
+Removed all remnants of the custom Python A*/RRR autorouter. FreeRouting is now the sole routing engine.
+
+### Files Deleted
+- `simple_router.py` — old A* grid router
+- `reroute_net.py` — old MST-based Python net rerouter
+- `autoplacer/_apply_routing.py` — old routing application code
+- `BUGFIX_PLAN.md`, `IMPROVEMENT_PLAN.md` — old planning docs
+- `docs/freerouting-plan.md`, `docs/dashboard-automation.md` — completed migration plans
+
+### Code Cleaned
+- `autoroute.py`: removed dead `--no-rrr` flag and `rip_up` parameter
+- `diff_rounds.py`: removed A\* Expansions and RRR timing fields
+- `generate_report.py`: removed RRR timing display and per-net `a_star_expansions` column
+- `plot_experiments.py`: removed RRR bar from stacked timing chart
+
+### Documentation Updated
+- `docs/next-steps.md`: rewritten to reflect current state (150-round experiment complete, old items removed)
+- `docs/monitoring-guide.md`: removed rip-up-reroute reference from timing chart description
+
+---
+
 ## 2026-04-09: Autoplacer Improvement Plan — Implementation & Validation
 
 ### Changes Implemented (from IMPROVEMENT_PLAN.md)

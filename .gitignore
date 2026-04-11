@@ -28,6 +28,9 @@ __pycache__/
 
 # Scoring results and renders (regenerated per run)
 .claude/skills/kicad-helper/scripts/results/
+
+# Archived experiment data from old router
+.experiments_old_broken_routing/
 renders/
 
 # Experiment temp files (only keep JSONL, dashboard, best board, and progress GIF)
@@ -52,3 +55,4 @@ renders/
 .DS_Store
 Thumbs.db
 desktop.ini
+*.kicad_sch.bak

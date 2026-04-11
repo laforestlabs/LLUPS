@@ -82,8 +82,8 @@ Use `python3 scripts/layout_session.py summary` to review the full session histo
 
 The autoexperiment system collects detailed per-round data for post-run analysis:
 
-- **Round detail JSONs**: `.experiments/rounds/round_NNNN.json` — full config, per-net routing results (A* expansions, timing, layer split, failure reasons), RRR convergence log, phase timings, DRC violations with (x,y) coordinates, placement scores
-- **Enriched JSONL**: `experiments.jsonl` includes `placement_ms`, `routing_ms`, `rrr_ms`, `failed_net_names`, `total_a_star_expansions`, `grid_occupancy_pct`
+- **Round detail JSONs**: `.experiments/rounds/round_NNNN.json` — full config, per-net routing results (timing, layer split, failure reasons), phase timings, DRC violations with (x,y) coordinates, placement scores
+- **Enriched JSONL**: `experiments.jsonl` includes `placement_ms`, `routing_ms`, `failed_net_names`, `grid_occupancy_pct`
 - **GIF frames**: Short-circuit markers (red X) overlaid on PCB snapshots; border color indicates kept (green), shorts (red), or discarded (gray)
 
 **Post-run analysis workflow:**

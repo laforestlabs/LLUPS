@@ -15,12 +15,10 @@ def main():
     parser = argparse.ArgumentParser(description="Autoroute KiCad PCB")
     parser.add_argument("pcb", help="Input .kicad_pcb file")
     parser.add_argument("--output", "-o", help="Output file (default: in-place)")
-    parser.add_argument("--no-rrr", action="store_true",
-                        help="Skip rip-up and re-route")
     args = parser.parse_args()
 
     engine = RoutingEngine()
-    result = engine.run(args.pcb, args.output, rip_up=not args.no_rrr)
+    result = engine.run(args.pcb, args.output)
     print(json.dumps(result, indent=2))
 
 

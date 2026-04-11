@@ -1,6 +1,6 @@
 # LLUPS Autoplacer Architecture
 
-This document describes how the current autoplacer stack operates in code.
+This document describes how the autoplacer stack operates.
 
 ## High-Level System Map
 
@@ -13,44 +13,37 @@ flowchart TD
 
   fullPipeline --> placementEngine
   fullPipeline --> routingEngine
+  fullPipeline --> drcAnalysis[kicad-cli DRC]
 
-  placementEngine --> adapterLoadA[KiCadAdapter.load]
-  routingEngine --> adapterLoadB[KiCadAdapter.load]
-
-  adapterLoadA --> boardStateA[BoardState]
-  adapterLoadB --> boardStateB[BoardState]
-
-  boardStateA --> placementSolver[PlacementSolver.solve]
+  placementEngine --> adapterLoad[KiCadAdapter.load]
+  adapterLoad --> boardState[BoardState]
+  boardState --> placementSolver[PlacementSolver.solve]
   placementSolver --> placementScorer[PlacementScorer.score]
   placementSolver --> applyPlacement[KiCadAdapter.apply_placement]
 
-  boardStateB --> routingSolver[RoutingSolver.solve]
-  routingSolver --> rrrSolver[RipUpRerouter.solve]
-  routingSolver --> applyRouting[KiCadAdapter.apply_routing]
-  rrrSolver --> applyRouting
+  routingEngine --> freerouting[FreeRouting via DSN/SES]
+  freerouting --> countTracks[count_board_tracks]
 
   placementScorer --> experimentScore[ExperimentScore.compute]
-  routingSolver --> experimentScore
-  rrrSolver --> experimentScore
+  countTracks --> experimentScore
+  drcAnalysis --> experimentScore
 
   applyPlacement --> pcbArtifact[PCB file output]
-  applyRouting --> pcbArtifact
+  freerouting --> pcbArtifact
   experimentScore --> autoexperimentLoop[Experiment keep/discard loop]
-  autoexperimentLoop --> dashboardArtifacts[JSONL + dashboard PNG + GIF + status files]
+  autoexperimentLoop --> artifacts[JSONL + report + GIF + status files]
 ```
-
-
 
 ## Layer Responsibilities
 
-- `hardware/adapter.py` is the I/O boundary with KiCad (`pcbnew`): load board state, apply placement, apply routing.
+- `hardware/adapter.py` is the I/O boundary with KiCad (`pcbnew`): loads board state, applies placement.
 - `brain/` modules are pure-Python algorithmic logic:
   - `placement.py`: footprint placement and placement scoring
-  - `router.py`: A* routing, net prioritization, MST-based per-net routing
-  - `conflict.py`: rip-up/reroute when initial routing fails
+  - `graph.py`: netlist graph analysis for placement grouping
   - `types.py`: shared dataclasses and scoring objects
-- `pipeline.py` composes placement + routing and emits `ExperimentScore`.
-- `autoexperiment.py` runs iterative optimization rounds, applies shorts penalty, keeps best board, and writes dashboard artifacts.
+- `freerouting_runner.py`: DSN export → FreeRouting CLI → SES import → track counting.
+- `pipeline.py` composes placement + routing + DRC and emits `ExperimentScore`.
+- `autoexperiment.py` runs iterative optimization rounds, keeps best board, writes artifacts.
 
 ## Data Model Path
 
@@ -59,14 +52,11 @@ flowchart LR
   kicadBoard[.kicad_pcb] --> adapterLoad[KiCadAdapter.load]
   adapterLoad --> boardState[BoardState dataclasses]
   boardState --> placementPhase[Placement phase]
-  boardState --> routingPhase[Routing phase]
-  placementPhase --> placementMetrics[PlacementScore fields]
-  routingPhase --> routingMetrics[routed_nets failed_nets traces vias]
+  placementPhase --> placementMetrics[PlacementScore]
+  boardState --> routingPhase[FreeRouting]
+  routingPhase --> routingMetrics[traces, vias, length, unrouted]
   placementMetrics --> expScore[ExperimentScore.compute]
   routingMetrics --> expScore
   expScore --> bestDecision[Best candidate decision]
   bestDecision --> bestBoard[best.kicad_pcb]
 ```
-
-
-

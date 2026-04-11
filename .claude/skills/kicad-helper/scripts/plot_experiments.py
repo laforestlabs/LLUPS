@@ -134,7 +134,6 @@ def plot_experiments(experiments, output_path):
 
         p_ms = [e.get("placement_ms", 0) for e in experiments]
         r_ms = [e.get("routing_ms", 0) for e in experiments]
-        rrr_ms = [e.get("rrr_ms", 0) for e in experiments]
 
         bar_w = 0.8
         ax_t.bar(rounds, [v / 1000 for v in p_ms], bar_w,
@@ -142,13 +141,10 @@ def plot_experiments(experiments, output_path):
         ax_t.bar(rounds, [v / 1000 for v in r_ms], bar_w,
                  bottom=[v / 1000 for v in p_ms],
                  label="Routing", color="#2ecc71")
-        bottoms_t = [(p + r) / 1000 for p, r in zip(p_ms, r_ms)]
-        ax_t.bar(rounds, [v / 1000 for v in rrr_ms], bar_w,
-                 bottom=bottoms_t, label="RRR", color="#e74c3c")
 
         ax_t.set_ylabel("Time (seconds)", fontsize=10)
         ax_t.set_title("Phase Timing per Round", fontsize=11)
-        ax_t.legend(loc="upper right", fontsize=7, ncol=3)
+        ax_t.legend(loc="upper right", fontsize=7, ncol=2)
         ax_t.grid(True, alpha=0.3, axis="y")
 
     # --- Last Panel: Config delta heatmap ---
