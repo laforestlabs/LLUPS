@@ -27,6 +27,8 @@ All scripts are in this skill's `scripts/` directory. Run them with `python3`.
 | `move_component.py` | `python3 scripts/move_component.py <pcb> <ref> <x_mm> <y_mm> [--rotate-deg N]` | Move a footprint to absolute position |
 | `arrange_grid.py` | `python3 scripts/arrange_grid.py <pcb> <ref_prefix> --cols N --spacing-mm S [--start-x X --start-y Y]` | Arrange matching footprints in a grid |
 | `align_components.py` | `python3 scripts/align_components.py <pcb> <refs...> --axis x|y` | Align footprints along an axis |
+| `add_group_labels.py` | `python3 scripts/add_group_labels.py <pcb> --config <config.py> [--in-place] [--dry-run]` | Add/update silkscreen group labels on PCB from ic_groups config. Idempotent. |
+| `split_schematic.py` | `python3 scripts/split_schematic.py <sch> --config <config.py> [--dry-run] [--backup]` | Split flat schematic into hierarchical sheets by ic_groups. Creates sub-sheets with hierarchical labels for cross-group nets. |
 
 ### Scoring & Visual Analysis
 

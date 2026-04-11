@@ -5,7 +5,7 @@ import os
 DEFAULT_CONFIG = {
     # Trace widths (5 mil = 0.127mm)
     "signal_width_mm": 0.127,
-    "power_width_mm": 0.254,
+    "power_width_mm": 0.127,
 
     # Via
     "via_drill_mm": 0.3,
@@ -46,18 +46,29 @@ DEFAULT_CONFIG = {
     "thermal_radius_mm": 3.0,
 
     # FreeRouting
-    "freerouting_jar": os.path.expanduser("~/.local/lib/freerouting-2.1.0.jar"),
+    "freerouting_jar": os.path.expanduser("~/.local/lib/freerouting-1.9.0.jar"),
     "freerouting_timeout_s": 120,
     "freerouting_max_passes": 40,
     "freerouting_ignore_nets": [],  # nets excluded from routing (use zones instead)
 
     # Explicit IC groups (IC + supporting components that should stay together)
     "ic_groups": {
-        "U1": ["C1", "C2", "R1", "R2", "F1", "J1"],
-        "U2": ["C4", "R3", "R4", "R5", "RT1", "D1", "D2"],
-        "U3": ["Q1"],
+        "U1": ["C1", "R1", "R2", "F1", "J1"],
+        "U2": ["C2", "C3", "C4", "R3", "R4", "R5", "R6", "R7", "R8", "RT1", "D1", "D2"],
+        "U3": ["Q1", "U6"],
         "U4": ["C5", "C6", "C7", "L1", "D3"],
-        "U5": ["C8", "R9", "R10", "R11", "J2"],
-        "U6": ["J3"],
+        "U5": ["C8", "R9", "R10", "R11", "J2", "J3"],
+        "BT1": ["BT2"],
+    },
+
+    # Human-readable group labels for silkscreen annotation.
+    # Keys are the IC group leaders from ic_groups above.
+    # Used by add_group_labels.py to place text on the PCB.
+    "group_labels": {
+        "U1": "USB INPUT",
+        "U2": "CHARGER",
+        "U3": "BATT PROT",
+        "U4": "BOOST 5V",
+        "U5": "LDO 3.3V",
     },
 }

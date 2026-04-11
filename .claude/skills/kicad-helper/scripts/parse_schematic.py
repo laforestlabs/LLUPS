@@ -10,12 +10,11 @@ from collections import defaultdict
 
 # Maps IC reference to its supporting components
 IC_GROUPS = {
-    "U1": ["C1", "C2", "R1", "R2", "F1", "J1"],  # USB-C controller
-    "U2": ["C4", "R3", "R4", "R5", "RT1", "D1", "D2"],  # BQ24072 charger
-    "U3": ["Q1"],  # HY2113 protection
+    "U1": ["C1", "R1", "R2", "F1", "J1"],  # USB-C controller
+    "U2": ["C2", "C3", "C4", "R3", "R4", "R5", "R6", "R7", "R8", "RT1", "D1", "D2"],  # BQ24072 charger
+    "U3": ["Q1", "U6"],  # HY2113 protection + LN61C supervisor
     "U4": ["C5", "C6", "C7", "L1", "D3"],  # MT3608 boost
-    "U5": ["C8", "R9", "R10", "R11", "J2"],  # AP2112 LDO
-    "U6": ["J3"],  # connector
+    "U5": ["C8", "R9", "R10", "R11", "J2", "J3"],  # AP2112 LDO + output/debug connectors
     "BT1": ["BT2"],  # battery cells
 }
 

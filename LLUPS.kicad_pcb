@@ -7829,4 +7829,67 @@
 		)
 	)
 	(embedded_fonts no)
+
+
+	(gr_text "USB INPUT"
+		(at 9.33 2.00)
+		(layer "F.SilkS")
+		(uuid "group_label_u1_485f2cce")
+		(effects
+			(font
+				(size 1.0 1.0)
+				(thickness 0.15)
+			)
+			(justify left)
+		)
+	)
+	(gr_text "CHARGER"
+		(at 29.54 2.50)
+		(layer "F.SilkS")
+		(uuid "group_label_u2_7a33ef26")
+		(effects
+			(font
+				(size 1.0 1.0)
+				(thickness 0.15)
+			)
+			(justify left)
+		)
+	)
+	(gr_text "BATT PROT"
+		(at 50.33 6.50)
+		(layer "F.SilkS")
+		(uuid "group_label_u3_2f5f1b7b")
+		(effects
+			(font
+				(size 1.0 1.0)
+				(thickness 0.15)
+			)
+			(justify left)
+		)
+	)
+	(gr_text "BOOST 5V"
+		(at 67.33 2.50)
+		(layer "F.SilkS")
+		(uuid "group_label_u4_c7a6f767")
+		(effects
+			(font
+				(size 1.0 1.0)
+				(thickness 0.15)
+			)
+			(justify left)
+		)
+	)
+	(gr_text "LDO 3.3V"
+		(at 77.43 0.50)
+		(layer "F.SilkS")
+		(uuid "group_label_u5_bcebe28b")
+		(effects
+			(font
+				(size 1.0 1.0)
+				(thickness 0.15)
+			)
+			(justify left)
+		)
+	)
+
 )
