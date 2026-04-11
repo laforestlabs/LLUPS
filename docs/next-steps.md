@@ -1,7 +1,7 @@
 # LLUPS — Suggested Next Steps
 
-> Updated: 2026-04-12
-> Current state: Placement engine improved — pad containment enforced, net-topology-aware placement, DRC visualization in GIF renders. Best score: 91.33.
+> Updated: 2026-04-11
+> Current state: Connector/mounting-hole pad containment enforced (no more exceptions). Best score: 89.91 (150-round run, 0 shorts all rounds).
 
 ---
 
@@ -10,7 +10,7 @@
 - **FreeRouting** is the sole router. Routing time is ~15-30 sec/round.
 - **Subprocess isolation** for pcbnew calls avoids the SwigPyObject stale-object bug.
 - **Blocking dialogs eliminated** via `dialog_confirmation_timeout: 0` in `freerouting.json`.
-- **Best score: 91.33** — plateau confirmed; score ceiling driven by DRC violations.
+- **Best score: 89.91** — from 150-round experiment after removing connector/mounting-hole pad exemptions.
 
 ### Score Ceiling Analysis
 
@@ -32,6 +32,14 @@ The best score ~91 is near the theoretical ceiling given current constraints:
 ---
 
 ## Completed
+
+### Connector/mounting-hole pad containment enforced (2026-04-11)
+
+- Removed all exceptions that allowed connectors (J*) and mounting holes (H*) to have pads outside PCB edge cuts
+- `_score_board_containment()` now scores all component types equally — no more skip for connectors/mounting holes
+- `_clamp_pads_to_board()` now applies to all components including solver-locked ones (removed both kind and locked checks)
+- Connectors and mounting holes removed from auto-lock in `adapter.py` (only batteries remain locked)
+- 150-round experiment: best score 89.91, 0 shorts all rounds, board containment 99.5-100%
 
 ### Pad containment enforcement (2026-04-12)
 

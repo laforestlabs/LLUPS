@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "timestamp": 1775883426.5037494,
+  "timestamp": 1775928686.3515728,
   "best_cfg": {
     "signal_width_mm": 0.127,
     "power_width_mm": 0.127,
     "via_drill_mm": 0.3,
     "via_size_mm": 0.6,
-    "placement_clearance_mm": 2.9559,
+    "placement_clearance_mm": 2.0312,
     "power_nets": [
       "+3V3",
       "+5V",
@@ -26,32 +26,63 @@
       "VBUS"
     ],
     "placement_grid_mm": 1.0,
-    "edge_margin_mm": 5.8704,
-    "force_attract_k": 0.0741,
-    "force_repel_k": 274.9489,
-    "cooling_factor": 0.9788,
+    "edge_margin_mm": 5.0344,
+    "force_attract_k": 0.0566,
+    "force_repel_k": 130.658,
+    "cooling_factor": 0.97,
     "max_placement_iterations": 100,
     "placement_convergence_threshold": 1.5,
     "placement_score_every_n": 1,
     "intra_cluster_iters": 80,
-    "skip_gnd_routing": true,
-    "net_priority": {
-      "/CHG_N": 5,
-      "/NTC_SENSE": 5,
-      "Net-(F1-Pad2)": 5,
-      "/VBAT": 4,
-      "Net-(U2-TMR)": 4,
-      "Net-(U4-FB)": 4
+    "scatter_mode": "cluster",
+    "reheat_strength": 0.1,
+    "randomize_group_layout": false,
+    "courtyard_padding_mm": 0.5,
+    "pad_inset_margin_mm": 0.3,
+    "min_placement_score": 30.0,
+    "component_zones": {
+      "J1": {
+        "edge": "left"
+      },
+      "J2": {
+        "edge": "right"
+      },
+      "J3": {
+        "edge": "right"
+      },
+      "BT1": {
+        "zone": "center-bottom"
+      },
+      "BT2": {
+        "zone": "center-bottom"
+      },
+      "H4": {
+        "corner": "bottom-left"
+      },
+      "H86": {
+        "corner": "bottom-right"
+      }
     },
+    "signal_flow_order": [
+      "U1",
+      "U2",
+      "U3",
+      "U4",
+      "U5"
+    ],
+    "skip_gnd_routing": true,
+    "net_priority": {},
     "thermal_refs": [
       "U2",
       "U4"
     ],
     "thermal_radius_mm": 3.0,
     "freerouting_jar": "/home/jason/.local/lib/freerouting-1.9.0.jar",
-    "freerouting_timeout_s": 120,
+    "freerouting_timeout_s": 60,
     "freerouting_max_passes": 40,
-    "freerouting_ignore_nets": [],
+    "freerouting_ignore_nets": [
+      "GND"
+    ],
     "ic_groups": {
       "U1": [
         "C1",
@@ -105,6 +136,6 @@
       "U5": "LDO 3.3V"
     }
   },
-  "best_seed": 57529426,
-  "best_score": 91.1204074881426
+  "best_seed": 0,
+  "best_score": 89.91364267508644
 }

@@ -109,8 +109,8 @@ class KiCadAdapter:
 
             kind = _classify_component(ref, val)
             # Lock mechanically-fixed parts regardless of KiCad lock flag.
-            # Battery holders have fixed positions; connectors are edge-pinned.
-            is_locked = fp.IsLocked() or kind in ("connector", "mounting_hole", "battery")
+            # Battery holders have fixed positions.
+            is_locked = fp.IsLocked() or kind in ("battery",)
             comp = Component(
                 ref=ref,
                 value=val,

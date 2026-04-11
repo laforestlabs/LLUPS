@@ -185,11 +185,7 @@ class PlacementScorer:
         return (good / total) * 100
 
     def _score_board_containment(self) -> float:
-        """Score how well components and pads stay within the board outline.
-
-        Edge-mounted connectors (kind=connector) are excluded — their pads
-        intentionally overhang the board edge (USB, battery holders, etc).
-        """
+        """Score how well components and pads stay within the board outline."""
         tl, br = self.state.board_outline
 
         total_pads = 0
@@ -198,10 +194,6 @@ class PlacementScorer:
         bodies_outside = 0
 
         for comp in self.state.components.values():
-            # Connectors are edge-mounted by design — skip containment check
-            if comp.kind in ("connector", "mounting_hole"):
-                continue
-
             total_bodies += 1
             c_tl, c_br = comp.bbox()
             if (c_tl.x < tl.x or c_br.x > br.x or
@@ -1300,11 +1292,7 @@ class PlacementSolver:
                 _update_pad_positions(comp, old_pos, comp.rotation)
 
     def _clamp_pads_to_board(self, comps: dict[str, Component]):
-        """Hard clamp: shift components inward so all pads are inside the board.
-
-        Connectors and mounting holes are exempt — their pads intentionally
-        overhang the board edge (USB, battery holders, etc).
-        """
+        """Hard clamp: shift components inward so all pads are inside the board."""
         tl, br = self.state.board_outline
         inset = self.cfg.get("pad_inset_margin_mm", 0.3)
         min_x = tl.x + inset
@@ -1313,8 +1301,6 @@ class PlacementSolver:
         max_y = br.y - inset
 
         for comp in comps.values():
-            if comp.locked or comp.kind in ("connector", "mounting_hole"):
-                continue
             if not comp.pads:
                 continue
 
