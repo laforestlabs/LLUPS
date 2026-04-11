@@ -219,8 +219,8 @@ class PlacementScorer:
 
         pad_frac = pads_outside / max(1, total_pads)
         body_frac = bodies_outside / max(1, total_bodies)
-        # Weighted: 60% pad containment, 40% body containment
-        score = 100.0 * (1.0 - 0.6 * pad_frac - 0.4 * body_frac)
+        # Weighted: 80% pad containment, 20% body containment
+        score = 100.0 * (1.0 - 0.8 * pad_frac - 0.2 * body_frac)
         return max(0.0, min(100.0, score))
 
     def _score_courtyard_overlap(self) -> float:
@@ -361,6 +361,7 @@ class PlacementSolver:
             else:
                 max_disp = self._force_step(comps, conn_graph, damping)
             self._resolve_overlaps(comps)
+            self._clamp_pads_to_board(comps)
             damping *= self.cooling
 
             # Score more frequently for faster convergence detection
@@ -383,6 +384,13 @@ class PlacementSolver:
 
             if max_disp < self.convergence_threshold and iteration > 30:
                 print(f"  Displacement converged at iteration {iteration+1}")
+                break
+
+            # Adaptive convergence: early exit when placement is good and stable
+            if (iteration > 15 and best_score.total > 85.0
+                    and max_disp < 3.0 and stagnant >= 3):
+                print(f"  Adaptive early exit at iteration {iteration+1} "
+                      f"(score={best_score.total:.1f}, disp={max_disp:.2f})")
                 break
 
         # Step 7: Swap optimization — directly minimize crossovers
@@ -430,6 +438,9 @@ class PlacementSolver:
 
         # Step 10: Hard clamp — nothing outside the board
         self._clamp_to_board(best_comps)
+
+        # Step 11: Ensure all pads are inside the board boundary
+        self._clamp_pads_to_board(best_comps)
 
         # Final score
         work_state.components = best_comps
@@ -626,6 +637,14 @@ class PlacementSolver:
             ref: comp.pos for ref, comp in comps.items() if comp.locked
         }
 
+        # Sort clusters by total connectivity (highest first) so the most
+        # connected cluster gets placed first, improving net-topology bias.
+        clusters = sorted(
+            clusters,
+            key=lambda c: sum(conn_graph.degree(r) for r in c),
+            reverse=True,
+        )
+
         for cluster in clusters:
             unlocked = [r for r in cluster if not comps[r].locked]
             if not unlocked:
@@ -633,6 +652,8 @@ class PlacementSolver:
 
             if scatter_mode == "random":
                 # --- Random scatter: uniform random positions within bounds ---
+                # Sort by area descending: large components placed first
+                unlocked.sort(key=lambda r: comps[r].area, reverse=True)
                 for ref in unlocked:
                     zone_cfg = zones_cfg.get(ref, {})
                     if "zone" in zone_cfg:
@@ -704,13 +725,33 @@ class PlacementSolver:
 
             # Spread components around centroid (with seeded jitter)
             n = len(unlocked)
-            self.rng.shuffle(unlocked)  # randomize cluster member ordering
+            # Sort by area descending: ICs and large components placed first,
+            # then passives fill in around them.
+            unlocked.sort(key=lambda r: comps[r].area, reverse=True)
             radius = math.sqrt(n) * 3.0  # spread based on count
 
             # Radius variation: wider for randomize_group_layout mode
             r_lo, r_hi = (0.3, 1.8) if randomize_group else (0.8, 1.2)
 
+            # Track placed components for net-topology bias
+            placed_this_cluster: set[str] = set()
+
             for i, ref in enumerate(unlocked):
+                # Net-topology bias: if this component has already-placed
+                # connected neighbors, bias position toward their centroid.
+                nbr_cx, nbr_cy, nbr_w = 0.0, 0.0, 0.0
+                for nbr, w in conn_graph.neighbors(ref).items():
+                    if nbr in comps and (comps[nbr].locked or nbr in placed_this_cluster):
+                        nbr_cx += comps[nbr].pos.x * w
+                        nbr_cy += comps[nbr].pos.y * w
+                        nbr_w += w
+                if nbr_w > 0:
+                    # Blend 50% toward connected neighbors, 50% toward cluster centroid
+                    local_cx = 0.5 * cx + 0.5 * (nbr_cx / nbr_w)
+                    local_cy = 0.5 * cy + 0.5 * (nbr_cy / nbr_w)
+                else:
+                    local_cx, local_cy = cx, cy
+
                 # Decoupling cap proximity: caps in IC groups get tighter radius
                 is_decoupling_cap = (
                     ref.startswith("C") and
@@ -727,8 +768,8 @@ class PlacementSolver:
 
                 old_pos = Point(comps[ref].pos.x, comps[ref].pos.y)
                 old_rot = comps[ref].rotation
-                new_x = cx + r * math.cos(angle)
-                new_y = cy + r * math.sin(angle)
+                new_x = local_cx + r * math.cos(angle)
+                new_y = local_cy + r * math.sin(angle)
 
                 # Enforce zone bounds if component has a zone constraint
                 zone_cfg = zones_cfg.get(ref, {})
@@ -740,6 +781,45 @@ class PlacementSolver:
 
                 comps[ref].pos = Point(new_x, new_y)
                 _update_pad_positions(comps[ref], old_pos, old_rot)
+
+                # Early rotation: try all 4 orientations for ICs at placement
+                # time — prevents suboptimal rotations from locking in.
+                if comps[ref].kind == "ic" and len(comps[ref].pads) >= 2:
+                    pad_offsets = [
+                        (p.pos.x - comps[ref].pos.x, p.pos.y - comps[ref].pos.y)
+                        for p in comps[ref].pads
+                    ]
+                    orig_rot = comps[ref].rotation
+                    best_rot = orig_rot
+                    best_rscore = -1.0
+                    temp_state = copy.copy(self.state)
+                    temp_state.components = comps
+                    for rot in [0, 90, 180, 270]:
+                        delta = math.radians(rot - orig_rot)
+                        cos_d, sin_d = math.cos(delta), math.sin(delta)
+                        for k, p in enumerate(comps[ref].pads):
+                            ox, oy = pad_offsets[k]
+                            p.pos = Point(
+                                comps[ref].pos.x + ox * cos_d - oy * sin_d,
+                                comps[ref].pos.y + ox * sin_d + oy * cos_d,
+                            )
+                        comps[ref].rotation = rot
+                        rscore = self._score_rotation_for_routing(temp_state, comps[ref])
+                        if rscore > best_rscore:
+                            best_rscore = rscore
+                            best_rot = rot
+                    # Apply best rotation
+                    delta = math.radians(best_rot - orig_rot)
+                    cos_d, sin_d = math.cos(delta), math.sin(delta)
+                    for k, p in enumerate(comps[ref].pads):
+                        ox, oy = pad_offsets[k]
+                        p.pos = Point(
+                            comps[ref].pos.x + ox * cos_d - oy * sin_d,
+                            comps[ref].pos.y + ox * sin_d + oy * cos_d,
+                        )
+                    comps[ref].rotation = best_rot
+
+                placed_this_cluster.add(ref)
 
     def _optimize_intra_cluster(self, comps: dict[str, Component],
                                 clusters: list[set[str]],
@@ -1217,6 +1297,44 @@ class PlacementSolver:
             comp.pos.x = max(tl.x + hw + 1.0, min(br.x - hw - 1.0, comp.pos.x))
             comp.pos.y = max(tl.y + hh + 1.0, min(br.y - hh - 1.0, comp.pos.y))
             if comp.pos.x != old_pos.x or comp.pos.y != old_pos.y:
+                _update_pad_positions(comp, old_pos, comp.rotation)
+
+    def _clamp_pads_to_board(self, comps: dict[str, Component]):
+        """Hard clamp: shift components inward so all pads are inside the board.
+
+        Connectors and mounting holes are exempt — their pads intentionally
+        overhang the board edge (USB, battery holders, etc).
+        """
+        tl, br = self.state.board_outline
+        inset = self.cfg.get("pad_inset_margin_mm", 0.3)
+        min_x = tl.x + inset
+        min_y = tl.y + inset
+        max_x = br.x - inset
+        max_y = br.y - inset
+
+        for comp in comps.values():
+            if comp.locked or comp.kind in ("connector", "mounting_hole"):
+                continue
+            if not comp.pads:
+                continue
+
+            # Find max violation across all pads
+            shift_x = 0.0
+            shift_y = 0.0
+            for pad in comp.pads:
+                if pad.pos.x < min_x:
+                    shift_x = max(shift_x, min_x - pad.pos.x)
+                elif pad.pos.x > max_x:
+                    shift_x = min(shift_x, max_x - pad.pos.x)
+                if pad.pos.y < min_y:
+                    shift_y = max(shift_y, min_y - pad.pos.y)
+                elif pad.pos.y > max_y:
+                    shift_y = min(shift_y, max_y - pad.pos.y)
+
+            if abs(shift_x) > 0.001 or abs(shift_y) > 0.001:
+                old_pos = Point(comp.pos.x, comp.pos.y)
+                comp.pos.x += shift_x
+                comp.pos.y += shift_y
                 _update_pad_positions(comp, old_pos, comp.rotation)
 
     def _snap_to_grid(self, comps: dict[str, Component]):

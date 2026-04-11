@@ -1,7 +1,7 @@
 # LLUPS — Suggested Next Steps
 
-> Updated: 2026-04-11
-> Current state: Critical placement/rendering bugs fixed — placements now actually apply to PCB, connectors snap to edges, GIF shows per-round layouts
+> Updated: 2026-04-12
+> Current state: Placement engine improved — pad containment enforced, net-topology-aware placement, DRC visualization in GIF renders. Best score: 91.33.
 
 ---
 
@@ -10,142 +10,101 @@
 - **FreeRouting** is the sole router. Routing time is ~15-30 sec/round.
 - **Subprocess isolation** for pcbnew calls avoids the SwigPyObject stale-object bug.
 - **Blocking dialogs eliminated** via `dialog_confirmation_timeout: 0` in `freerouting.json`.
-- **Scoring fixed**: `ExperimentScore.compute()` uses passed weights; `board_containment` no longer zeroes all scores.
-- 28-round verification experiment completed after bug fixes.
-- **Best score: 91.12** — plateau confirmed, but search space now explored properly.
-
-### Bug Fixes (2026-04-11)
-
-| Fix | File | Detail |
-|-----|------|--------|
-| Locked components never written | `adapter.py` | `apply_placement` checked `comp.locked` (solver flag) instead of `fp.IsLocked()` (KiCad flag) — connectors/batteries/mounting holes positions were never saved to PCB |
-| Connector pad positions stale | `placement.py` | `_pin_edge_components` didn't call `_update_pad_positions()` when snapping connectors to edges — pads stayed at original positions, corrupting net distance calculations |
-| GIF frames all identical | `autoexperiment.py` | Frames always rendered `best.kicad_pcb` instead of each round's `work_pcb` — now shows actual per-round layout |
-
-### Verification Experiment (28 rounds, post-fix)
-
-| Metric | Before fix | After fix |
-|--------|-----------|-----------|
-| Explore avg score | 65.91 | **85.30** (+19 pts) |
-| Explore timeouts | 5/5 (100%) | **1/10** (10%) |
-| Placement scores | All 0.0 (explore) | 64-84 across modes |
-| GIF frames | All identical | **All unique** (29 distinct layouts) |
-| Minor avg | 86.71 | **88.12** |
-
-### Recent Improvements (2026-04-12)
-
-| Feature | Status | Detail |
-|---------|--------|--------|
-| Type-aware placement zones | **Done** | `component_zones` config: connectors→edges, batteries→center-bottom, mounting holes→corners |
-| Signal flow ordering | **Done** | `signal_flow_order` biases IC placement left→right along X-axis |
-| Decoupling cap proximity | **Done** | Caps in `ic_groups` placed at 1.5× clearance radius from parent IC |
-| Scatter mode | **Done** | `scatter_mode="random"` for uniform random initial placement |
-| Temperature reheat | **Done** | Force sim reheats at 50% of iterations to escape local minima |
-| Wider MAJOR mutations | **Done** | Uniform sampling instead of Gaussian for aggressive exploration |
-| Placement validation gate | **Done** | Skips routing if placement score < `min_placement_score` |
-| Courtyard padding | **Done** | Configurable `courtyard_padding_mm` in overlap scoring |
-| Scoring rebalanced | **Done** | DRC weight 0.10→0.20, route_completion 0.55→0.50, containment 0.10→0.05 |
-| Elite config persistence | **Done** | Top-5 configs saved cross-run; seeded into early batches |
-| Plateau threshold | **Done** | Reduced 5→3 for faster MAJOR trigger |
-| Explore fraction | **Done** | Increased 20%→33% of batch |
-| FreeRouting timeout | **Done** | Reduced 120→60s |
-| Config separation | **Done** | `DEFAULT_CONFIG` (generic) + `LLUPS_CONFIG` (project-specific) |
-
-### Latest 50-Round Experiment Summary (2026-04-11)
-
-| Metric | Value |
-|--------|-------|
-| Rounds | 50 (0 kept) |
-| Score range | 64.76 – 90.37 (best remain 91.12) |
-| Score mean / median | 87.04 / 88.24 |
-| Nets routed | 26/26 in 47/50 rounds (3 total failures) |
-| DRC shorts | 0 in 28/50 rounds; up to 12 in worst case |
-| DRC unconnected | 18–91 per round (avg 27.1) |
-| DRC clearance | 24–34 per round (always present) |
-| DRC courtyard | 1–9 per round (always present) |
-| Placement score | 61.0–83.2 (avg 71.2, 3 rounds scored 0 / total failure) |
-| Via score | 63.8–82.3 (avg 70.4) |
+- **Best score: 91.33** — plateau confirmed; score ceiling driven by DRC violations.
 
 ### Score Ceiling Analysis
 
-The best score 91.12 is near the theoretical ceiling given current constraints:
-- **route_completion** (weight 0.55): Maxed at 100% in 94% of rounds — not the bottleneck
-- **board_containment** (weight 0.10): Maxed at 100% — not the bottleneck
-- **placement** (weight 0.10): Best ~83, contributes ~8.3/10 — modest room
+The best score ~91 is near the theoretical ceiling given current constraints:
+- **route_completion** (weight 0.50): Maxed at 100% in 94% of rounds — not the bottleneck
+- **board_containment** (weight 0.05): Maxed at 100% — not the bottleneck
+- **placement** (weight 0.10): Best ~86, contributes ~8.6/10 — modest room
 - **via_penalty** (weight 0.10): Best ~82, contributes ~8.2/10 — modest room
-- **DRC** (weight 0.15): ~62-70% effective score due to persistent courtyard/clearance/unconnected violations — **primary bottleneck**
+- **DRC** (weight 0.20): ~62-72% effective score due to persistent courtyard/clearance/unconnected violations — **primary bottleneck**
 
 ### Key Findings
 
-1. **DRC violations are the score ceiling**: Every round has 77-179 DRC violations (clearance, courtyard overlap, unconnected). These cap the DRC sub-score at ~65%, limiting total score to ~91-92. Placement and via improvements alone cannot push past 93.
-2. **Placement failures are catastrophic**: 3/50 rounds had placement_score=0 with routing completely failing (0 nets routed, 89-91 unconnected). These were all MINOR mutations — the placement engine occasionally produces degenerate layouts.
-3. **Explore and Major modes outperform Minor**: Explore (avg 88.37) and Major (avg 88.38) consistently beat Minor (avg 86.22), suggesting the search is trapped in a local optimum and needs larger perturbations.
-4. **Parameter sensitivity is weak**: All parameter-score correlations are low (|r| < 0.3). Edge margin has the strongest effect (r=-0.298), suggesting tighter edge margins slightly help. Clearance and force constants barely matter at this plateau.
-5. **Zero-short routing is achievable**: 28/50 rounds had 0 shorts — the router handles the 26-net board well when placement is reasonable. Shorts correlate with poor placements, not parameter settings.
+1. **DRC violations are the score ceiling**: Every round has 70-180 DRC violations (clearance, courtyard overlap, unconnected). These cap the DRC sub-score at ~65-72%, limiting total score to ~91-92.
+2. **Catastrophic placement failures eliminated**: Pad containment enforcement and large-first ordering prevent degenerate layouts. Minimum score rose from 68.51 to 84.00 in 30-round experiments.
+3. **Explore and Major modes outperform Minor**: Explore and Major consistently beat Minor, suggesting the search benefits from larger perturbations.
+4. **Parameter sensitivity is weak**: All parameter-score correlations are low (|r| < 0.3). Edge margin has the strongest effect. Clearance and force constants barely matter at this plateau.
+5. **Zero-short routing is achievable**: ~56% of rounds have 0 shorts. Shorts correlate with poor placements, not parameter settings.
+
+---
+
+## Completed
+
+### Pad containment enforcement (2026-04-12)
+
+- Added `_clamp_pads_to_board()` method that shifts components inward when any pad extends beyond the board boundary
+- Configurable `pad_inset_margin_mm` (default 0.3mm) in config
+- Board containment now 100% in all rounds (was 93.33%)
+- Called after overlap resolution in force loop and as final step in `solve()`
+
+### Placement logic improvements (2026-04-12)
+
+- **Net-topology-aware positioning**: components biased 50/50 toward cluster centroid and weighted centroid of already-placed connected neighbors
+- **Large-first ordering**: components within clusters sorted by area descending (ICs placed before passives)
+- **Connectivity-based cluster sorting**: clusters with highest total connectivity placed first
+- **Early IC rotation**: all 4 orientations evaluated at cluster placement time
+- **Adaptive convergence**: early exit from force loop when score > 85, displacement < 3.0, stagnant >= 3, iteration > 15
+- Placement score improved +4.50 mean (74.17 → 78.66)
+
+### Render visualization improvements (2026-04-12)
+
+- All DRC violation types rendered with distinct colors/shapes: shorts (red X), unconnected (orange circle), clearance (yellow dot), courtyard (magenta rectangle)
+- Sub-score breakdown line: `DRC | Place | Route | Via` shown below main score
+- Increased font size and info band opacity (85%)
+
+### Earlier completed items
+
+| Feature | Detail |
+|---------|--------|
+| Type-aware placement zones | `component_zones` config: connectors→edges, batteries→center-bottom, mounting holes→corners |
+| Signal flow ordering | `signal_flow_order` biases IC placement left→right along X-axis |
+| Decoupling cap proximity | Caps in `ic_groups` placed at 1.5× clearance radius from parent IC |
+| Scatter mode | `scatter_mode="random"` for uniform random initial placement |
+| Temperature reheat | Force sim reheats at 50% of iterations to escape local minima |
+| Wider MAJOR mutations | Uniform sampling instead of Gaussian for aggressive exploration |
+| Placement validation gate | Skips routing if placement score < `min_placement_score` |
+| Courtyard padding | Configurable `courtyard_padding_mm` in overlap scoring |
+| Scoring rebalanced | DRC weight 0.10→0.20, route_completion 0.55→0.50, containment 0.10→0.05 |
+| Elite config persistence | Top-5 configs saved cross-run; seeded into early batches |
+| Plateau threshold | Reduced 5→3 for faster MAJOR trigger |
+| Explore fraction | Increased 20%→33% of batch |
+| FreeRouting timeout | Reduced 120→60s |
+| Config separation | `DEFAULT_CONFIG` (generic) + `LLUPS_CONFIG` (project-specific) |
+| Guard against placement failures | Placement validation gate + courtyard padding prevents degenerate layouts |
+| Escape the local optimum | Explore fraction, MAJOR mutations, scatter mode, reheat, elite archive |
+| Power net routing (partial) | `"GND"` added to `freerouting_ignore_nets` |
 
 ---
 
 ## High Priority
 
-### 1. Ensure all footprint pads are inside PCB edge cuts border
+### 1. Fix DRC violations (primary score bottleneck)
 
-Currently some components (especially connectors and edge-placed parts) can have pads extending beyond the board edge cuts. The placement engine should validate that all electrical pads fall within the Edge.Cuts boundary, with a configurable inset margin. Pads outside the board edge are unfabricatable and cause DRC violations.
+DRC violations are the #1 barrier to score improvement. Partially addressed so far:
+- Increased `placement_clearance_mm` 2.0→2.5, added `courtyard_padding_mm` (0.5mm)
+- DRC scoring weight increased 0.10→0.20
+- `"GND"` added to `freerouting_ignore_nets` for zone routing
 
-### 2. Improve placement logic
-
-- Smarter initial placement using netlist topology (place tightly-connected components close together from the start, not just via force simulation)
-- Better handling of component rotation — try all 4 orientations during initial placement, not just during refinement
-- Constrain large components (ICs, battery holders) first, then fill in passives around them
-- Reduce force simulation iterations when placement is already good (adaptive convergence)
-
-### 3. Improve render visualization clarity and contrast
-
-- Increase trace/pad contrast against the board background
-- Use distinct colors for front/back copper layers
-- Highlight DRC violations with small red arrows or circles at violation coordinates
-- Add component reference labels to the render for easier identification
-- Improve text overlay readability (background boxes behind score text)
-
-### 4. ~~Fix DRC violations (primary score bottleneck)~~ — Partially addressed
-
-DRC violations are the #1 barrier to score improvement. Actions taken:
-- **Clearance violations**: Increased `placement_clearance_mm` 2.0→2.5, added `courtyard_padding_mm` (0.5mm) — should reduce courtyard and clearance violations.
-- **DRC scoring weight**: Increased from 0.10→0.20 to drive optimization toward fewer violations.
-- **Unconnected items**: Added `"GND"` to `freerouting_ignore_nets` so power nets are zone-routed instead of traced.
-
-Remaining:
-- **Unconnected items** (18-28/round, excluding failures): Investigate whether additional copper zones/fills would resolve remaining unconnected pads.
+Remaining work:
+- **Unconnected items** (17-28/round): Investigate whether additional copper zones/fills would resolve remaining unconnected pads. Consider adding `VBAT` and `VBUS` to `freerouting_ignore_nets`.
 - **Courtyard overlaps**: Monitor whether increased clearance resolves these, or if footprint courtyard modifications are needed.
+- **Clearance violations** (24-34/round): May require per-net clearance rules or trace width adjustments.
 
-### 2. ~~Guard against placement failures~~ — Done
+### 2. Scoring formula tuning
 
-- Added placement validation gate: routing is skipped if `placement_score < min_placement_score` (default 30), returning zeroed `ExperimentScore` with `skipped_routing=True` flag.
-- Added `courtyard_padding_mm` to overlap scoring to prevent degenerate overlap layouts.
-
-### 3. ~~Power net routing strategy~~ — Partially done
-
-Added `"GND"` to `freerouting_ignore_nets` by default. Consider also adding `VBAT` and `VBUS` after testing impact.
-
-### 4. ~~Escape the local optimum~~ — Done
-
-Multiple diversity mechanisms implemented:
-- **Explore fraction increased** 20%→33% of batch
-- **Plateau threshold reduced** 5→3 for faster MAJOR triggers
-- **Wider MAJOR mutations**: Uniform sampling instead of Gaussian
-- **Scatter mode**: Random uniform placement for explore candidates
-- **Temperature reheat**: Force sim reheats at 50% of iterations
-- **Randomize group layout**: Variable cluster radii per group
-- **Elite archive**: Cross-run learning seeds 30% of early batches from top-5 historical configs
+The pad containment enforcement (80/20 pad/body weight in `_score_board_containment`) changed the scoring dynamics. The overall score mean dipped slightly (88.82 → 87.25) despite clear quality improvements. Consider:
+- Re-evaluating sub-score weights to reflect actual quality better
+- Possibly reducing containment weight further since it's now always 100%
+- Adding a placement connectivity sub-score to reward net-topology-aware layouts
 
 ---
 
 ## Medium Priority
 
-### 5. ~~Tune `freerouting_max_passes`~~ — Done
-
-Reduced `freerouting_timeout_s` from 120→60. FreeRouting typically converges in 15-30s for this board.
-
-### 6. Deduplicate force simulation in placement.py
+### 3. Deduplicate force simulation in placement.py
 
 The force-directed placement code has ~180 lines duplicated between cluster-level and board-level loops. Extract to a single `force_step()` function.
 

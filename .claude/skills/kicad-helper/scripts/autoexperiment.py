@@ -372,6 +372,10 @@ def snapshot_pcb(pcb_path: str, output_png: str,
             - timestamp: float (wall clock time from time.monotonic())
             - drc_shorts: int (optional — if >0, frame gets red border & short markers)
             - drc_violations: list[dict] (optional — DRC violations with coordinates)
+            - placement_score: float (optional — placement sub-score)
+            - drc_score: float (optional — DRC sub-score)
+            - route_pct: float (optional — route completion %)
+            - via_score: float (optional — via penalty sub-score)
     """
     try:
         with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp:
@@ -432,14 +436,14 @@ def snapshot_pcb(pcb_path: str, output_png: str,
             info_line = f"R{round_num:03d} | {time_str} | Score: {score:.1f} | {status_text}"
             if drc_shorts > 0:
                 info_line += f" | SHORTS: {drc_shorts}"
-            font_size = max(16, canvas_px // 50)
+            font_size = max(18, canvas_px // 45)
 
             # Draw colored border (3px)
             cmd.extend([
                 "-bordercolor", border_color, "-border", "3",
             ])
 
-            # Draw DRC short markers on the board image
+            # Draw DRC violation markers on the board image (all types)
             drc_violations = frame_info.get("drc_violations", [])
             if drc_violations:
                 # Board origin offset (centered in canvas + 3px border)
@@ -448,31 +452,75 @@ def snapshot_pcb(pcb_path: str, output_png: str,
                 board_x0, board_y0 = _parse_board_origin_from_pcb(pcb_path)
 
                 for v in drc_violations:
-                    if v.get("x_mm") is None or v.get("type") != "shorting_items":
+                    if v.get("x_mm") is None:
                         continue
                     px = ox + (v["x_mm"] - board_x0) * scale
                     py = oy + (v["y_mm"] - board_y0) * scale
                     r = max(6, int(scale * 1.2))
-                    cmd.extend([
-                        "-fill", "none", "-stroke", "red", "-strokewidth", "2",
-                        "-draw", f"line {px-r},{py-r} {px+r},{py+r}",
-                        "-draw", f"line {px-r},{py+r} {px+r},{py-r}",
-                    ])
+                    vtype = v.get("type", "")
 
-            # Draw semi-transparent black background band at bottom
+                    if vtype == "shorting_items":
+                        # Red X for shorts
+                        cmd.extend([
+                            "-fill", "none", "-stroke", "#E63946", "-strokewidth", "2",
+                            "-draw", f"line {px-r},{py-r} {px+r},{py+r}",
+                            "-draw", f"line {px-r},{py+r} {px+r},{py-r}",
+                        ])
+                    elif vtype == "unconnected_items":
+                        # Orange circle for unconnected
+                        cmd.extend([
+                            "-fill", "none", "-stroke", "#FFA500", "-strokewidth", "1.5",
+                            "-draw", f"circle {px},{py} {px+r*0.7},{py}",
+                        ])
+                    elif vtype in ("clearance", "hole_clearance", "copper_edge_clearance"):
+                        # Yellow dot for clearance violations
+                        cmd.extend([
+                            "-fill", "rgba(255,255,0,0.5)", "-stroke", "none",
+                            "-draw", f"circle {px},{py} {px+r*0.5},{py}",
+                        ])
+                    elif vtype == "courtyards_overlap":
+                        # Magenta rectangle for courtyard overlaps
+                        cmd.extend([
+                            "-fill", "none", "-stroke", "#FF00FF", "-strokewidth", "1.5",
+                            "-draw", f"rectangle {px-r},{py-r} {px+r},{py+r}",
+                        ])
+
+            # Draw semi-transparent black background band at bottom (85% opaque)
             # Account for border offset
             total_w = canvas_px + 6  # 3px border each side
             total_h = canvas_px + 6
             band_height = font_size + 16
+
+            # Sub-score breakdown line (smaller text below main info)
+            p_score = frame_info.get("placement_score", 0)
+            d_score = frame_info.get("drc_score", 0)
+            r_pct = frame_info.get("route_pct", 0)
+            v_score = frame_info.get("via_score", 0)
+            has_subscores = any([p_score, d_score, r_pct, v_score])
+            if has_subscores:
+                sub_font = max(12, font_size - 4)
+                band_height = font_size + sub_font + 22
+                sub_line = f"DRC:{d_score:.0f} | Place:{p_score:.0f} | Route:{r_pct:.0f} | Via:{v_score:.0f}"
+
             cmd.extend([
-                "-fill", "rgba(0,0,0,0.7)",
+                "-fill", "rgba(0,0,0,0.85)",
                 "-draw", f"rectangle 0,{total_h-band_height} {total_w} {total_h}",
                 "-fill", status_color,
                 "-gravity", "SouthWest",
                 "-pointsize", str(font_size),
                 "-font", "DejaVu-Sans-Bold",
-                "-annotate", f"+{font_size//2}+{font_size//2+2}", info_line,
+                "-annotate", f"+{font_size//2}+{font_size//2+2}",
+                info_line,
             ])
+            if has_subscores:
+                cmd.extend([
+                    "-fill", "#AAAAAA",
+                    "-gravity", "SouthWest",
+                    "-pointsize", str(sub_font),
+                    "-font", "DejaVu-Sans",
+                    "-annotate", f"+{font_size//2}+{font_size + sub_font//2 + 6}",
+                    sub_line,
+                ])
 
         else:
             # Original border only
@@ -1354,7 +1402,11 @@ def main():
                              frame_info={"round_num": round_num, "score": score.total,
                                          "kept": kept, "timestamp": frame_elapsed,
                                          "drc_shorts": drc["shorts"],
-                                         "drc_violations": drc.get("violations", [])})
+                                         "drc_violations": drc.get("violations", []),
+                                         "placement_score": score.placement.total,
+                                         "drc_score": score.drc_score.total,
+                                         "route_pct": route_pct,
+                                         "via_score": via_sc})
                 seen_report_paths: set[Path] = set()
                 for live_report_path in live_report_paths:
                     if live_report_path in seen_report_paths:

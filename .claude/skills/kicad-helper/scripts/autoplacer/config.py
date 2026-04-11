@@ -52,6 +52,11 @@ DEFAULT_CONFIG = {
     # courtyard overlaps.  Drives the optimizer to leave breathing room.
     "courtyard_padding_mm": 0.5,
 
+    # Pad inset margin — minimum distance (mm) all electrical pads must be
+    # inside the board Edge.Cuts boundary.  Pads outside are unfabricatable.
+    # Connectors and mounting holes are exempt (pads intentionally overhang).
+    "pad_inset_margin_mm": 0.3,
+
     # Minimum placement score to proceed to routing.
     # Below this threshold routing is skipped (saves 15-30s on degenerate layouts).
     "min_placement_score": 30.0,
