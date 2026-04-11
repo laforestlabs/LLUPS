@@ -96,11 +96,9 @@ class Experiment:
     # Phase timing (ms)
     placement_ms: float = 0.0
     routing_ms: float = 0.0
-    rrr_ms: float = 0.0
     # Routing detail
     nets_routed: int = 0
     failed_net_names: list = field(default_factory=list)
-    total_a_star_expansions: int = 0
 
 
 def _format_mmss(seconds: float) -> str:
@@ -579,9 +577,12 @@ def _worker_run(args: tuple) -> tuple[ExperimentScore, float, str]:
         if score_weights:
             exp_score.compute(score_weights)
     except Exception as e:
+        import traceback
         from autoplacer.brain.types import ExperimentScore as ES
         exp_score = ES()
         exp_score.total = -1.0
+        # Capture traceback so failures are diagnosable
+        exp_score._error = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
         if worker_log:
             worker_log.error("worker_failed", error=str(e), error_type=type(e).__name__)
     finally:
@@ -670,6 +671,34 @@ def _log_and_record(exp: Experiment, experiments: list, log_path: Path) -> None:
         f.write(json.dumps(asdict(exp), default=str) + '\n')
 
 
+def _generate_html_report(report_script: Path, work_dir: Path, output_path: Path,
+                          *, live: bool, refresh_seconds: int = 5,
+                          quiet: bool = False) -> bool:
+    """Generate an HTML report from the current experiment state."""
+    if not report_script.exists():
+        return False
+
+    cmd = [
+        "python3",
+        str(report_script),
+        str(work_dir),
+        "--output",
+        str(output_path),
+    ]
+    if live:
+        cmd.extend(["--live", "--refresh-seconds", str(refresh_seconds)])
+
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+        if not quiet:
+            print(f"  Report saved: {output_path}")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"  Report generation failed: {e.stderr.decode()}",
+              file=sys.stderr)
+        return False
+
+
 def _write_round_detail(
     rounds_dir: Path,
     round_num: int,
@@ -694,7 +723,6 @@ def _write_round_detail(
         "timing": {
             "placement_ms": round(score.placement_ms, 1),
             "routing_ms": round(score.routing_ms, 1),
-            "rrr_ms": round(score.rrr_ms, 1),
         },
         "routing": {
             "routed": score.routed_nets,
@@ -704,10 +732,7 @@ def _write_round_detail(
             "traces": score.trace_count,
             "vias": score.via_count,
             "total_length_mm": round(score.total_trace_length_mm, 1),
-            "total_a_star_expansions": score.total_a_star_expansions,
         },
-        "per_net": [nr.to_dict() for nr in score.per_net_results],
-        "rrr": score.rrr_summary.to_dict() if score.rrr_summary else None,
         "drc": {
             "shorts": drc.get("shorts", 0),
             "unconnected": drc.get("unconnected", 0),
@@ -838,6 +863,9 @@ def main():
     log_path = work_dir / args.log
     status_json_path = work_dir / args.status_file
     status_txt_path = work_dir / "run_status.txt"
+    report_script = Path(__file__).parent / "generate_report.py"
+    report_path = work_dir / "report.html"
+    live_report_paths = [report_path, Path(args.pcb).parent / "report.html"]
 
     # Purge old log file so each run starts fresh
     if log_path.exists():
@@ -1118,6 +1146,9 @@ def main():
                         score.total = -1.0
                         duration = 0.0
                     drc = quick_drc(work_pcb)
+                    if score.total == -1.0:
+                        err_msg = getattr(score, '_error', 'unknown error')
+                        print(f"  Worker {i} CRASHED: {err_msg[:200]}", flush=True)
                     if score_weights:
                         score.compute(score_weights, drc_dict=drc)
                     else:
@@ -1192,10 +1223,8 @@ def main():
                     drc_total=drc["total"],
                     placement_ms=round(score.placement_ms, 1),
                     routing_ms=round(score.routing_ms, 1),
-                    rrr_ms=round(score.rrr_ms, 1),
                     nets_routed=score.routed_nets,
                     failed_net_names=score.failed_net_names,
-                    total_a_star_expansions=score.total_a_star_expansions,
                 )
                 # Track per-net failure rates
                 for net_name in score.failed_net_names:
@@ -1242,29 +1271,23 @@ def main():
                                          "kept": kept, "timestamp": frame_elapsed,
                                          "drc_shorts": drc["shorts"],
                                          "drc_violations": drc.get("violations", [])})
+                seen_report_paths: set[Path] = set()
+                for live_report_path in live_report_paths:
+                    if live_report_path in seen_report_paths:
+                        continue
+                    seen_report_paths.add(live_report_path)
+                    _generate_html_report(
+                        report_script,
+                        work_dir,
+                        live_report_path,
+                        live=True,
+                        refresh_seconds=5,
+                        quiet=True,
+                    )
 
     # Assemble progress GIF from frames
     gif_path = str(work_dir / "progress.gif")
     assemble_gif(frames_dir, gif_path)
-
-    # Generate HTML report
-    report_script = Path(__file__).parent / "generate_report.py"
-    if report_script.exists():
-        report_path = str(work_dir / "report.html")
-        # Also place a copy next to the PCB for convenience
-        report_copy = str(Path(args.pcb).parent / "report.html")
-        try:
-            subprocess.run(
-                ["python3", str(report_script), str(work_dir),
-                 "--output", report_path],
-                check=True, capture_output=True,
-            )
-            shutil.copy2(report_path, report_copy)
-            print(f"  Report saved: {report_path}")
-            print(f"  Report copy:  {report_copy}")
-        except subprocess.CalledProcessError as e:
-            print(f"  Report generation failed: {e.stderr.decode()}",
-                  file=sys.stderr)
 
     # Regenerate dashboard PNG from the full experiments.jsonl history
     dashboard_path = work_dir / "experiments_dashboard.png"
@@ -1310,6 +1333,13 @@ def main():
         latest_score=best_total,
         latest_marker="run complete",
     )
+
+    if _generate_html_report(report_script, work_dir, report_path, live=False):
+        for live_report_path in live_report_paths:
+            if live_report_path == report_path:
+                continue
+            shutil.copy2(report_path, live_report_path)
+            print(f"  Report copy:  {live_report_path}")
 
     _log_event("experiment_completed",
                total_rounds=len(experiments),
