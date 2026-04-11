@@ -37,7 +37,7 @@ _SCRIPT_DIR = str(Path(__file__).parent.absolute())
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-from autoplacer.config import DEFAULT_CONFIG
+from autoplacer.config import DEFAULT_CONFIG, LLUPS_CONFIG
 from autoplacer.pipeline import FullPipeline
 from autoplacer.brain.types import ExperimentScore
 
@@ -258,23 +258,32 @@ def mutate_config_minor(base: dict, rng: random.Random,
 
 def mutate_config_major(base: dict, rng: random.Random,
                         param_ranges: dict = None) -> dict:
-    """Large structural change: new seed + aggressive param shifts."""
+    """Large structural change: new seed + aggressive param shifts.
+
+    Uses uniform sampling across full parameter ranges (not Gaussian
+    perturbation) to create genuinely different force dynamics.
+    """
     cfg = mutate_config_minor(base, rng, param_ranges)
 
-    # Also mutate more aggressively — wider sigma
+    # Sample fresh from full ranges — uniform, not Gaussian
     aggressive_tunable = {
-        "force_attract_k": (0.005, 0.15, 0.4),
-        "force_repel_k":   (100.0, 500.0, 0.4),
-        "cooling_factor":  (0.90, 0.995, 0.15),
-        "placement_clearance_mm": (0.5, 4.0, 0.3),
+        "force_attract_k": (0.005, 0.15),
+        "force_repel_k":   (100.0, 500.0),
+        "cooling_factor":  (0.90, 0.995),
+        "placement_clearance_mm": (1.5, 5.0),
     }
     keys = rng.sample(list(aggressive_tunable.keys()),
                       rng.randint(1, len(aggressive_tunable)))
     for key in keys:
-        lo, hi, sigma_frac = aggressive_tunable[key]
-        # Sample fresh from range instead of perturbing
+        lo, hi = aggressive_tunable[key]
         new_val = rng.uniform(lo, hi)
         cfg[key] = round(new_val, 4)
+
+    # MAJOR mode: enable aggressive layout diversity
+    cfg["randomize_group_layout"] = True
+    cfg["reheat_strength"] = rng.uniform(0.05, 0.2)
+    # 50% chance of random scatter (vs cluster-based)
+    cfg["scatter_mode"] = "random" if rng.random() < 0.5 else "cluster"
 
     return cfg
 
@@ -665,6 +674,46 @@ def load_elite_config(work_dir: Path) -> tuple[dict, int, float] | None:
         return None
 
 
+def save_elite_archive(work_dir: Path, cfg: dict, seed: int, score: float,
+                       max_elites: int = 5) -> None:
+    """Append to top-N elite config archive for cross-run learning."""
+    archive_path = work_dir / "elite_configs.json"
+    archive = []
+    if archive_path.exists():
+        try:
+            with open(archive_path) as f:
+                archive = json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            archive = []
+
+    entry = {"score": score, "seed": seed, "config": cfg,
+             "timestamp": time.time()}
+    archive.append(entry)
+    # Keep only top-N by score (deduplicated by seed)
+    seen_seeds = set()
+    unique = []
+    for e in sorted(archive, key=lambda x: x["score"], reverse=True):
+        if e["seed"] not in seen_seeds:
+            seen_seeds.add(e["seed"])
+            unique.append(e)
+    archive = unique[:max_elites]
+
+    with open(archive_path, "w") as f:
+        json.dump(archive, f, indent=2, default=_json_default)
+
+
+def load_elite_archive(work_dir: Path) -> list[dict]:
+    """Load elite config archive for seeding new runs."""
+    archive_path = work_dir / "elite_configs.json"
+    if not archive_path.exists():
+        return []
+    try:
+        with open(archive_path) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, ValueError):
+        return []
+
+
 def _log_and_record(exp: Experiment, experiments: list, log_path: Path) -> None:
     experiments.append(exp)
     with open(log_path, 'a') as f:
@@ -794,8 +843,8 @@ def main():
                         help="Output best .kicad_pcb (default: <input>_best.kicad_pcb)")
     parser.add_argument("--log", "-l", default="experiments.jsonl",
                         help="Experiment log file (JSONL)")
-    parser.add_argument("--plateau", type=int, default=5,
-                        help="Minor rounds without improvement before MAJOR (default: 5)")
+    parser.add_argument("--plateau", type=int, default=3,
+                        help="Minor rounds without improvement before MAJOR (default: 3)")
     parser.add_argument("--seed", type=int, default=None,
                         help="Master RNG seed (default: random)")
     parser.add_argument("--quiet", "-q", action="store_true", default=True,
@@ -910,8 +959,12 @@ def main():
     print(f"Output:      {output_path}")
     print()
 
+    # Merge project-specific overrides with engine defaults.
+    # LLUPS_CONFIG is the current project; future: load from --project-config flag.
+    BASE_CONFIG = {**DEFAULT_CONFIG, **LLUPS_CONFIG}
+
     # Run baseline or resume from checkpoint
-    best_cfg = dict(DEFAULT_CONFIG)
+    best_cfg = dict(BASE_CONFIG)
     if net_priority:
         best_cfg["net_priority"] = net_priority
     best_seed = 0
@@ -986,6 +1039,16 @@ def main():
         latest_marker="baseline complete",
     )
 
+    # Seed from elite archive (cross-run learning)
+    elite_archive = load_elite_archive(work_dir)
+    elite_cfgs = []
+    for entry in elite_archive:
+        ecfg = dict(BASE_CONFIG)
+        ecfg.update(entry.get("config", {}))
+        elite_cfgs.append(ecfg)
+    if elite_cfgs:
+        _log_event("elite_archive_loaded", n_elites=len(elite_cfgs))
+
     # Use spawn context: each worker starts a clean Python process.
     # fork deadlocks because wx holds mutexes at fork time that children can't release.
     ctx = mp.get_context("spawn")
@@ -1020,16 +1083,18 @@ def main():
             else:
                 candidate_cfg = mutate_config_major(best_cfg, rng, param_ranges)
                 candidate_seed = exp_seed
-            delta = config_delta(DEFAULT_CONFIG, candidate_cfg)
+            delta = config_delta(BASE_CONFIG, candidate_cfg)
             batch.append((mode, candidate_cfg, candidate_seed, delta))
             
             # Additional seeds: explore from baseline
             for _ in range(1, min(batch_seeds, batch_size)):
                 explore_seed = rng.randint(0, 2**31)
-                explore_cfg = mutate_config_major(dict(DEFAULT_CONFIG), rng, param_ranges)
+                explore_cfg = mutate_config_major(dict(BASE_CONFIG), rng, param_ranges)
+                explore_cfg["scatter_mode"] = "random"  # explore always scatters
+                explore_cfg["randomize_group_layout"] = True
                 if net_priority:
                     explore_cfg["net_priority"] = net_priority
-                explore_delta = config_delta(DEFAULT_CONFIG, explore_cfg)
+                explore_delta = config_delta(BASE_CONFIG, explore_cfg)
                 batch.append(("explore", explore_cfg, explore_seed, explore_delta))
 
             # Fill remaining slots if batch_seeds < batch_size
@@ -1046,19 +1111,34 @@ def main():
                 else:
                     candidate_cfg = mutate_config_major(best_cfg, rng, param_ranges)
                     candidate_seed = exp_seed
-                delta = config_delta(DEFAULT_CONFIG, candidate_cfg)
+                delta = config_delta(BASE_CONFIG, candidate_cfg)
                 batch.append((mode, candidate_cfg, candidate_seed, delta))
 
-            # Reserve ~20% of batch for pure exploration (random config + seed)
-            n_explore = max(1, batch_size // 5)
+            # Reserve ~33% of batch for pure exploration (random config + seed)
+            n_explore = max(1, batch_size // 3)
+            # In early rounds, seed some explore slots from elite archive
+            n_elite_inject = 0
+            if elite_cfgs and round_num < 10:
+                n_elite_inject = min(len(elite_cfgs), n_explore)
             for i in range(min(n_explore, len(batch))):
                 idx = len(batch) - 1 - i  # replace from end
-                explore_seed = rng.randint(0, 2**31)
-                explore_cfg = mutate_config_major(dict(DEFAULT_CONFIG), rng, param_ranges)
-                if net_priority:
-                    explore_cfg["net_priority"] = net_priority
-                explore_delta = config_delta(DEFAULT_CONFIG, explore_cfg)
-                batch[idx] = ("explore", explore_cfg, explore_seed, explore_delta)
+                if i < n_elite_inject:
+                    # Use elite config with fresh seed
+                    elite_cfg = dict(elite_cfgs[i % len(elite_cfgs)])
+                    elite_seed = rng.randint(0, 2**31)
+                    if net_priority:
+                        elite_cfg["net_priority"] = net_priority
+                    elite_delta = config_delta(BASE_CONFIG, elite_cfg)
+                    batch[idx] = ("elite", elite_cfg, elite_seed, elite_delta)
+                else:
+                    explore_seed = rng.randint(0, 2**31)
+                    explore_cfg = mutate_config_major(dict(BASE_CONFIG), rng, param_ranges)
+                    explore_cfg["scatter_mode"] = "random"  # explore always scatters
+                    explore_cfg["randomize_group_layout"] = True
+                    if net_priority:
+                        explore_cfg["net_priority"] = net_priority
+                    explore_delta = config_delta(BASE_CONFIG, explore_cfg)
+                    batch[idx] = ("explore", explore_cfg, explore_seed, explore_delta)
 
             if n_workers == 1:
                 # Single-worker: run in-process (no subprocess overhead)
@@ -1175,6 +1255,7 @@ def main():
                     kept_count += 1
                     shutil.copy2(work_pcb, str(best_dir / "best.kicad_pcb"))
                     save_elite_config(work_dir, best_cfg, best_seed, best_total)
+                    save_elite_archive(work_dir, best_cfg, best_seed, best_total)
                     marker = f"NEW BEST +{improvement:.2f}"
                     _log_event("new_best",
                                round_num=round_num,
@@ -1265,9 +1346,12 @@ def main():
 
                 frame_elapsed = time.monotonic() - loop_t0
                 frame_png = str(frames_dir / f"frame_{round_num:04d}.png")
-                snapshot_pcb(str(best_dir / "best.kicad_pcb"), frame_png,
+                # Snapshot the current round's layout (not just the best),
+                # so the GIF shows what each round actually tried.
+                frame_pcb = work_pcb if os.path.exists(work_pcb) else str(best_dir / "best.kicad_pcb")
+                snapshot_pcb(frame_pcb, frame_png,
                              board_mm=board_mm,
-                             frame_info={"round_num": round_num, "score": best_total,
+                             frame_info={"round_num": round_num, "score": score.total,
                                          "kept": kept, "timestamp": frame_elapsed,
                                          "drc_shorts": drc["shorts"],
                                          "drc_violations": drc.get("violations", [])})
@@ -1312,7 +1396,7 @@ def main():
     print(f"=== Done: {len(experiments)} experiments ===")
     print(f"Best score: {best_score.summary()}")
     print(f"Best config delta from default: "
-          f"{json.dumps(config_delta(DEFAULT_CONFIG, best_cfg), indent=2)}")
+          f"{json.dumps(config_delta(BASE_CONFIG, best_cfg), indent=2)}")
     print(f"Best seed: {best_seed}")
     print(f"Output: {output_path}")
     print(f"Log:    {log_path}")

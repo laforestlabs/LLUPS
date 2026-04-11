@@ -24,6 +24,51 @@ flowchart TD
   finalScore --> result[Placed components + PlacementScore]
 ```
 
+## Type-Aware Placement
+
+### Component Zones
+
+Components can be assigned to placement zones via `config["component_zones"]`:
+
+```python
+component_zones = {
+    "J1": {"type": "edge", "edge": "left"},      # USB-C on left edge
+    "J2": {"type": "edge", "edge": "right"},      # Output on right edge
+    "BT1": {"type": "zone", "zone": "center-bottom"},  # Batteries centered
+    "H4": {"type": "corner", "corner": "top-left"},     # Mounting holes in corners
+}
+```
+
+Zone types:
+- **`edge`**: Component pinned to board edge (left/right/top/bottom) with 2mm inset
+- **`corner`**: Component placed 5mm from corner (top-left/top-right/bottom-left/bottom-right)
+- **`zone`**: Component placed within a named zone region (center, center-bottom, top-left, etc.)
+
+Unassigned connectors and mounting holes fall back to heuristic edge/corner placement.
+
+### Signal Flow Ordering
+
+`config["signal_flow_order"]` biases IC placement left→right along the X-axis. A 60/40 blend of flow-position and cluster position creates natural signal flow while respecting connectivity.
+
+### Decoupling Cap Proximity
+
+Capacitors listed in `ic_groups` (e.g., `{"refs": ["U1", "C1", "C2"]}`) are placed at 1.5× clearance radius from their parent IC, maintaining close decoupling.
+
+## Scatter Mode
+
+`config["scatter_mode"]` controls initial placement:
+- **`"cluster"`** (default): Force-directed cluster placement based on connectivity
+- **`"random"`**: Uniform random positions within board bounds — useful for explore candidates to escape local optima
+
+## Temperature Reheat
+
+At 50% of force simulation iterations, the solver reheats:
+- Temperature resets to `reheat_strength × initial_temperature`
+- Damping resets to 0.7
+- State dedup cache is cleared
+
+This helps the force simulation escape local minima in the placement landscape.
+
 
 
 ## Main Placement Rules

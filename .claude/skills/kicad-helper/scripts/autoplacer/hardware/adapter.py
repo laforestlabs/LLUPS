@@ -199,7 +199,11 @@ class KiCadAdapter:
             if ref not in components:
                 continue
             comp = components[ref]
-            if comp.locked:
+            # Only skip components explicitly locked by the user in KiCad.
+            # The solver's locked flag (set for connectors/mounting_holes/
+            # batteries by _pin_edge_components) is for the force simulation
+            # only — their solver-computed positions must still be written.
+            if fp.IsLocked():
                 continue
             fp.SetPosition(pcbnew.VECTOR2I(
                 pcbnew.FromMM(comp.pos.x),

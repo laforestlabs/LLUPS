@@ -60,3 +60,36 @@ flowchart LR
   expScore --> bestDecision[Best candidate decision]
   bestDecision --> bestBoard[best.kicad_pcb]
 ```
+
+## Configuration System
+
+Configuration is split into two layers in `autoplacer/config.py`:
+
+- **`DEFAULT_CONFIG`**: Generic defaults for any PCB project. Contains placement algorithm parameters (clearance, grid, forces), routing settings (timeout, passes, ignore nets), and feature toggles (scatter_mode, reheat, courtyard padding). Project-specific fields like `ic_groups`, `component_zones`, and `signal_flow_order` default to empty.
+- **`LLUPS_CONFIG`**: Project-specific overrides for the LLUPS board. Contains IC groupings with thermal refs, component zone assignments (connectors→edges, batteries→center-bottom, mounting holes→corners), and signal flow ordering for ICs.
+
+Configs are merged via `{**DEFAULT_CONFIG, **LLUPS_CONFIG, **(user_overrides or {})}` in both `pipeline.py` and `autoexperiment.py`.
+
+### Key Config Features
+
+| Config Key | Purpose |
+|-----------|---------|
+| `component_zones` | Maps refs to placement zones (edge, corner, zone constraints) |
+| `signal_flow_order` | List of refs biased left→right along X-axis |
+| `scatter_mode` | `"cluster"` (default) or `"random"` (uniform scatter) |
+| `reheat_strength` | Temperature reheat factor at 50% of force sim iterations |
+| `randomize_group_layout` | Enables variable cluster radii (0.3-1.8× vs 0.8-1.2×) |
+| `courtyard_padding_mm` | Extra padding added to courtyard overlap scoring |
+| `min_placement_score` | Minimum placement score to proceed to routing |
+
+## Evolutionary Optimization
+
+`autoexperiment.py` runs an evolutionary loop with three mutation modes:
+
+- **MINOR**: Gaussian perturbation from best config, reuses best seed
+- **MAJOR**: Uniform sampling (aggressive), new seed, optional scatter and group randomization
+- **EXPLORE**: Random config + seed, forced scatter mode (33% of batch)
+
+Cross-run learning via **elite archive**: top-5 configs saved to `elite_configs.json`, seeded into 30% of early batches in subsequent runs.
+
+A **placement validation gate** skips routing when placement score falls below `min_placement_score`, saving routing time on degenerate layouts.

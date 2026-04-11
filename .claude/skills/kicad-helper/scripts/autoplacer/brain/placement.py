@@ -87,8 +87,9 @@ class PlacementScorer:
     rotation quality. All computation is local.
     """
 
-    def __init__(self, state: BoardState):
+    def __init__(self, state: BoardState, config: dict = None):
         self.state = state
+        self.cfg = config or {}
 
     def score(self) -> PlacementScore:
         s = PlacementScore()
@@ -224,9 +225,11 @@ class PlacementScorer:
 
     def _score_courtyard_overlap(self) -> float:
         """Penalize overlapping component courtyards.
-        Uses bbox with clearance as courtyard proxy."""
+        Uses bbox with clearance + courtyard_padding_mm as courtyard proxy."""
         comps = list(self.state.components.values())
-        clearance = 0.25  # mm courtyard margin
+        base_clearance = 0.25  # mm courtyard margin
+        padding = self.cfg.get("courtyard_padding_mm", 0.0)
+        clearance = base_clearance + padding
         n = len(comps)
         overlaps = 0
         total_pairs = 0
@@ -318,11 +321,13 @@ class PlacementSolver:
         self._optimize_rotations(comps, work_state)
 
         # Step 6: Force-directed refinement with scoring feedback
-        scorer = PlacementScorer(work_state)
+        scorer = PlacementScorer(work_state, self.cfg)
         best_score = scorer.score()
         best_comps = {r: copy.deepcopy(c) for r, c in comps.items()}
         damping = 1.0
         stagnant = 0
+        reheat_strength = self.cfg.get("reheat_strength", 0.0)
+        reheat_done = False
 
         print(f"  Initial placement score: {best_score.total:.1f} "
               f"(nets={best_score.net_distance:.0f} "
@@ -330,6 +335,27 @@ class PlacementSolver:
               f"xovers={best_score.crossover_count})")
 
         for iteration in range(self.max_iterations):
+            # Temperature reheat: at 50% of iterations, apply perturbation kick
+            if (not reheat_done and reheat_strength > 0
+                    and iteration == self.max_iterations // 2):
+                reheat_done = True
+                tl_r, br_r = self.state.board_outline
+                diag = math.hypot(br_r.x - tl_r.x, br_r.y - tl_r.y)
+                kick_mag = diag * reheat_strength
+                unlocked_refs = [r for r in comps if not comps[r].locked]
+                for ref in unlocked_refs:
+                    old_pos = Point(comps[ref].pos.x, comps[ref].pos.y)
+                    comps[ref].pos.x += self.rng.gauss(0, kick_mag)
+                    comps[ref].pos.y += self.rng.gauss(0, kick_mag)
+                    # Clamp to board
+                    hw, hh = comps[ref].width_mm / 2, comps[ref].height_mm / 2
+                    comps[ref].pos.x = max(tl_r.x + hw + 1, min(br_r.x - hw - 1, comps[ref].pos.x))
+                    comps[ref].pos.y = max(tl_r.y + hh + 1, min(br_r.y - hh - 1, comps[ref].pos.y))
+                    _update_pad_positions(comps[ref], old_pos, comps[ref].rotation)
+                damping = 0.7  # partial reheat of damping
+                stagnant = 0
+                self._seen_force_states.clear()
+
             if _HAS_NUMPY:
                 max_disp = self._force_step_numpy(comps, conn_graph, damping)
             else:
@@ -407,7 +433,7 @@ class PlacementSolver:
 
         # Final score
         work_state.components = best_comps
-        final = PlacementScorer(work_state).score()
+        final = PlacementScorer(work_state, self.cfg).score()
         print(f"  Final placement score: {final.total:.1f} "
               f"(nets={final.net_distance:.0f} "
               f"cross={final.crossover_score:.0f} "
@@ -455,13 +481,62 @@ class PlacementSolver:
         return cross_score * 0.5 + access_score * 0.3 + dist_score * 0.2
 
     def _pin_edge_components(self, comps: dict[str, Component]):
-        """Lock edge components first - connectors, mounting holes to corners."""
+        """Pin components based on component_zones config, with fallback heuristics.
+
+        Supports three constraint types:
+          - edge: snap to named edge (left/right/top/bottom), lock in place
+          - corner: pin to named corner (top-left/top-right/bottom-left/bottom-right)
+          - zone: confine to a board region (used during _place_clusters, not locked)
+
+        Connectors without explicit zone config fall back to nearest-edge heuristic.
+        Mounting holes without config fall back to nearest-corner.
+        """
         tl, br = self.state.board_outline
         margin = self.edge_margin
+        zones = self.cfg.get("component_zones", {})
 
-        for comp in comps.values():
-            if comp.kind == "connector":
-                # Find nearest edge and center on it
+        for ref, comp in comps.items():
+            zone_cfg = zones.get(ref, {})
+
+            if "edge" in zone_cfg:
+                # Explicit edge assignment
+                old_pos = Point(comp.pos.x, comp.pos.y)
+                edge = zone_cfg["edge"]
+                if edge == "left":
+                    comp.pos.x = tl.x + margin
+                elif edge == "right":
+                    comp.pos.x = br.x - margin
+                elif edge == "top":
+                    comp.pos.y = tl.y + margin
+                elif edge == "bottom":
+                    comp.pos.y = br.y - margin
+                _update_pad_positions(comp, old_pos, comp.rotation)
+                comp.locked = True
+
+            elif "corner" in zone_cfg:
+                # Explicit corner assignment
+                corner = zone_cfg["corner"]
+                if "left" in corner:
+                    cx = tl.x + margin
+                else:
+                    cx = br.x - margin
+                if "top" in corner:
+                    cy = tl.y + margin
+                else:
+                    cy = br.y - margin
+                old_pos = Point(comp.pos.x, comp.pos.y)
+                comp.pos = Point(cx, cy)
+                _update_pad_positions(comp, old_pos, comp.rotation)
+                comp.locked = True
+
+            elif "zone" in zone_cfg:
+                # Zone constraint — don't lock, just set initial position.
+                # Actual confinement is enforced in _place_clusters and force sim.
+                pass  # handled later
+
+            elif comp.kind == "connector":
+                # Fallback: snap connector to nearest edge
+                old_pos = Point(comp.pos.x, comp.pos.y)
                 x, y = comp.pos.x, comp.pos.y
                 distances = {
                     "left": x - tl.x,
@@ -478,21 +553,73 @@ class PlacementSolver:
                     comp.pos.y = tl.y + margin
                 elif nearest == "bottom":
                     comp.pos.y = br.y - margin
+                _update_pad_positions(comp, old_pos, comp.rotation)
                 comp.locked = True
 
             elif comp.kind == "mounting_hole":
-                # Place at nearest corner
+                # Fallback: snap mounting hole to nearest corner
                 cx = tl.x + margin if comp.pos.x < (tl.x + br.x) / 2 else br.x - margin
                 cy = tl.y + margin if comp.pos.y < (tl.y + br.y) / 2 else br.y - margin
+                old_pos = Point(comp.pos.x, comp.pos.y)
                 comp.pos = Point(cx, cy)
+                _update_pad_positions(comp, old_pos, comp.rotation)
                 comp.locked = True
+
+    def _get_zone_bounds(self, zone_name: str) -> tuple[float, float, float, float]:
+        """Return (x_min, y_min, x_max, y_max) for a named board zone."""
+        tl, br = self.state.board_outline
+        margin = self.edge_margin
+        mid_x = (tl.x + br.x) / 2
+        mid_y = (tl.y + br.y) / 2
+
+        zone_map = {
+            "center":        (tl.x + margin, tl.y + margin, br.x - margin, br.y - margin),
+            "center-top":    (tl.x + margin, tl.y + margin, br.x - margin, mid_y),
+            "center-bottom": (tl.x + margin, mid_y, br.x - margin, br.y - margin),
+            "center-left":   (tl.x + margin, tl.y + margin, mid_x, br.y - margin),
+            "center-right":  (mid_x, tl.y + margin, br.x - margin, br.y - margin),
+            "top-left":      (tl.x + margin, tl.y + margin, mid_x, mid_y),
+            "top-right":     (mid_x, tl.y + margin, br.x - margin, mid_y),
+            "bottom-left":   (tl.x + margin, mid_y, mid_x, br.y - margin),
+            "bottom-right":  (mid_x, mid_y, br.x - margin, br.y - margin),
+        }
+        return zone_map.get(zone_name, zone_map["center"])
 
     def _place_clusters(self, comps: dict[str, Component],
                         clusters: list[set[str]],
                         conn_graph: AdjacencyGraph):
-        """Place each cluster's components near their connectivity centroid."""
+        """Place each cluster's components near their connectivity centroid.
+
+        Supports three placement strategies controlled by config:
+          - scatter_mode="cluster": centroid-based with jitter (default, exploit)
+          - scatter_mode="random": uniform random within board bounds (explore)
+          - signal_flow_order: biases cluster centroids left-to-right
+          - component_zones with "zone": confines components to named regions
+          - Decoupling caps (C* in ic_groups) placed at tighter radius to IC leader
+        """
         tl, br = self.state.board_outline
         margin = self.edge_margin + 5.0  # keep away from edges
+        scatter_mode = self.cfg.get("scatter_mode", "cluster")
+        signal_flow = self.cfg.get("signal_flow_order", [])
+        ic_groups = self.cfg.get("ic_groups", {})
+        zones_cfg = self.cfg.get("component_zones", {})
+        randomize_group = self.cfg.get("randomize_group_layout", False)
+
+        # Build reverse map: component ref -> group leader
+        ref_to_leader = {}
+        for leader, members in ic_groups.items():
+            ref_to_leader[leader] = leader
+            for m in members:
+                ref_to_leader[m] = leader
+
+        # Build signal-flow X targets (evenly spaced across board width)
+        flow_x_targets = {}
+        if signal_flow:
+            usable_left = tl.x + margin
+            usable_right = br.x - margin
+            for i, leader in enumerate(signal_flow):
+                frac = (i + 0.5) / len(signal_flow)
+                flow_x_targets[leader] = usable_left + frac * (usable_right - usable_left)
 
         # Find locked component positions for attraction
         locked_positions = {
@@ -504,6 +631,32 @@ class PlacementSolver:
             if not unlocked:
                 continue
 
+            if scatter_mode == "random":
+                # --- Random scatter: uniform random positions within bounds ---
+                for ref in unlocked:
+                    zone_cfg = zones_cfg.get(ref, {})
+                    if "zone" in zone_cfg:
+                        zx0, zy0, zx1, zy1 = self._get_zone_bounds(zone_cfg["zone"])
+                    else:
+                        zx0, zy0 = tl.x + margin, tl.y + margin
+                        zx1, zy1 = br.x - margin, br.y - margin
+
+                    hw, hh = comps[ref].width_mm / 2, comps[ref].height_mm / 2
+                    old_pos = Point(comps[ref].pos.x, comps[ref].pos.y)
+                    old_rot = comps[ref].rotation
+                    comps[ref].pos = Point(
+                        self.rng.uniform(zx0 + hw, max(zx0 + hw + 1, zx1 - hw)),
+                        self.rng.uniform(zy0 + hh, max(zy0 + hh + 1, zy1 - hh)),
+                    )
+                    # Random allowed rotation
+                    if comps[ref].kind == "ic":
+                        comps[ref].rotation = self.rng.choice([0, 90, 180, 270])
+                    elif comps[ref].kind == "passive":
+                        comps[ref].rotation = self.rng.choice([0, 90])
+                    _update_pad_positions(comps[ref], old_pos, old_rot)
+                continue
+
+            # --- Cluster mode: centroid-based with signal-flow bias ---
             # Compute centroid from locked neighbors' positions
             cx, cy, weight_sum = 0.0, 0.0, 0.0
             for ref in unlocked:
@@ -522,23 +675,70 @@ class PlacementSolver:
                 cx = (tl.x + br.x) / 2
                 cy = (tl.y + br.y) / 2
 
+            # Apply signal-flow X bias: blend centroid toward target X
+            # Find the cluster's group leader (if any)
+            cluster_leader = None
+            for ref in cluster:
+                leader = ref_to_leader.get(ref)
+                if leader and leader in flow_x_targets:
+                    cluster_leader = leader
+                    break
+            if cluster_leader and cluster_leader in flow_x_targets:
+                target_x = flow_x_targets[cluster_leader]
+                # 60% bias toward signal-flow target, 40% toward connectivity
+                cx = 0.4 * cx + 0.6 * target_x
+
             # Clamp to board interior
             cx = max(tl.x + margin, min(br.x - margin, cx))
             cy = max(tl.y + margin, min(br.y - margin, cy))
+
+            # Apply zone constraints: override centroid if component has a zone
+            # (uses first zone-constrained component in cluster to bias centroid)
+            for ref in unlocked:
+                zone_cfg = zones_cfg.get(ref, {})
+                if "zone" in zone_cfg:
+                    zx0, zy0, zx1, zy1 = self._get_zone_bounds(zone_cfg["zone"])
+                    cx = max(zx0, min(zx1, cx))
+                    cy = max(zy0, min(zy1, cy))
+                    break
 
             # Spread components around centroid (with seeded jitter)
             n = len(unlocked)
             self.rng.shuffle(unlocked)  # randomize cluster member ordering
             radius = math.sqrt(n) * 3.0  # spread based on count
+
+            # Radius variation: wider for randomize_group_layout mode
+            r_lo, r_hi = (0.3, 1.8) if randomize_group else (0.8, 1.2)
+
             for i, ref in enumerate(unlocked):
+                # Decoupling cap proximity: caps in IC groups get tighter radius
+                is_decoupling_cap = (
+                    ref.startswith("C") and
+                    ref in ref_to_leader and
+                    ref_to_leader[ref] != ref  # not the leader itself
+                )
+                if is_decoupling_cap:
+                    # Place within 1.5× clearance of centroid (very tight)
+                    r = self.clearance * 1.5 * self.rng.uniform(0.6, 1.0)
+                else:
+                    r = radius * (0.5 + 0.5 * (i % 2)) * self.rng.uniform(r_lo, r_hi)
+
                 angle = 2 * math.pi * i / max(n, 1) + self.rng.gauss(0, 0.3)
-                r = radius * (0.5 + 0.5 * (i % 2)) * self.rng.uniform(0.8, 1.2)
+
                 old_pos = Point(comps[ref].pos.x, comps[ref].pos.y)
                 old_rot = comps[ref].rotation
-                comps[ref].pos = Point(
-                    cx + r * math.cos(angle),
-                    cy + r * math.sin(angle),
-                )
+                new_x = cx + r * math.cos(angle)
+                new_y = cy + r * math.sin(angle)
+
+                # Enforce zone bounds if component has a zone constraint
+                zone_cfg = zones_cfg.get(ref, {})
+                if "zone" in zone_cfg:
+                    zx0, zy0, zx1, zy1 = self._get_zone_bounds(zone_cfg["zone"])
+                    hw, hh = comps[ref].width_mm / 2, comps[ref].height_mm / 2
+                    new_x = max(zx0 + hw, min(zx1 - hw, new_x))
+                    new_y = max(zy0 + hh, min(zy1 - hh, new_y))
+
+                comps[ref].pos = Point(new_x, new_y)
                 _update_pad_positions(comps[ref], old_pos, old_rot)
 
     def _optimize_intra_cluster(self, comps: dict[str, Component],

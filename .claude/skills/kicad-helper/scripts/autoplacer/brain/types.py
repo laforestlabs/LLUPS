@@ -235,10 +235,10 @@ class ExperimentScore:
         """Compute unified score. Route completion dominates, then placement + DRC."""
         w = weights or {}
         w_placement = w.get("placement", 0.15)
-        w_route = w.get("route_completion", 0.55)
+        w_route = w.get("route_completion", 0.50)
         w_via = w.get("via_penalty", 0.10)
-        w_contain = w.get("containment", 0.10)
-        w_drc = w.get("drc", 0.10)
+        w_contain = w.get("containment", 0.05)
+        w_drc = w.get("drc", 0.20)
 
         # Route completion: most important — must get all nets routed
         if self.total_nets > 0:

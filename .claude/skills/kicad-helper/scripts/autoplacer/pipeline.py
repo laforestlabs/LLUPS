@@ -12,7 +12,7 @@ from .brain.types import BoardState, PlacementScore, ExperimentScore, DRCScore
 from .brain.placement import PlacementSolver, PlacementScorer
 from .freerouting_runner import route_with_freerouting, count_board_tracks
 from .hardware.adapter import KiCadAdapter
-from .config import DEFAULT_CONFIG
+from .config import DEFAULT_CONFIG, LLUPS_CONFIG
 
 
 class PlacementEngine:
@@ -20,7 +20,7 @@ class PlacementEngine:
 
     def run(self, pcb_path: str, output_path: str = None,
             config: dict = None, seed: int = 0) -> dict:
-        cfg = {**DEFAULT_CONFIG, **(config or {})}
+        cfg = {**DEFAULT_CONFIG, **LLUPS_CONFIG, **(config or {})}
         adapter = KiCadAdapter(pcb_path)
         state = adapter.load()
 
@@ -34,7 +34,7 @@ class PlacementEngine:
 
         # Score final placement
         state.components = new_comps
-        scorer = PlacementScorer(state)
+        scorer = PlacementScorer(state, cfg)
         score = scorer.score()
 
         return {
@@ -55,7 +55,7 @@ class RoutingEngine:
 
     def run(self, pcb_path: str, output_path: str = None,
             config: dict = None) -> dict:
-        cfg = {**DEFAULT_CONFIG, **(config or {})}
+        cfg = {**DEFAULT_CONFIG, **LLUPS_CONFIG, **(config or {})}
         out = output_path or pcb_path
 
         jar_path = cfg.get("freerouting_jar",
@@ -100,7 +100,7 @@ class FullPipeline:
 
     def run(self, pcb_path: str, output_path: str = None,
             config: dict = None, seed: int = 0) -> dict:
-        cfg = {**DEFAULT_CONFIG, **(config or {})}
+        cfg = {**DEFAULT_CONFIG, **LLUPS_CONFIG, **(config or {})}
         out = output_path or pcb_path
 
         print("=" * 50)
@@ -110,6 +110,36 @@ class FullPipeline:
         pe = PlacementEngine()
         placement = pe.run(pcb_path, out, cfg, seed=seed)
         placement_ms = (time.monotonic() - placement_t0) * 1000.0
+
+        # Placement validation gate: skip routing if placement is degenerate
+        min_score = cfg.get("min_placement_score", 30.0)
+        if placement.get("score", 0) < min_score:
+            print(f"  Placement score {placement.get('score', 0):.1f} < {min_score} — "
+                  f"skipping routing (degenerate layout)")
+            exp_score = ExperimentScore(
+                placement_ms=placement_ms,
+            )
+            exp_score.placement = PlacementScore(
+                total=placement.get("score", 0),
+                net_distance=placement.get("net_distance", 0),
+                crossover_count=placement.get("crossovers", 0),
+                crossover_score=placement.get("crossover_score", 0),
+                edge_compliance=placement.get("edge_compliance", 0),
+                rotation_score=placement.get("rotation_score", 0),
+                board_containment=placement.get("board_containment", 0),
+                courtyard_overlap=placement.get("courtyard_overlap", 0),
+            )
+            exp_score.compute(drc_dict={"shorts": 0, "unconnected": 0,
+                                        "clearance": 0, "courtyard": 0, "total": 0})
+            return {
+                "placement": placement,
+                "routing": {"traces": 0, "vias": 0, "failed_nets": [],
+                            "total_nets": 0, "total_length_mm": 0, "routing_ms": 0},
+                "drc": {"shorts": 0, "unconnected": 0, "clearance": 0,
+                        "courtyard": 0, "total": 0},
+                "experiment_score": exp_score,
+                "skipped_routing": True,
+            }
 
         print()
         print("=" * 50)
