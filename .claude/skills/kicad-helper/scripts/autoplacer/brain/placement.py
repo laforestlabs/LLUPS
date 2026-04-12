@@ -493,10 +493,16 @@ class PlacementSolver:
 
         Connectors without explicit zone config fall back to nearest-edge heuristic.
         Mounting holes without config fall back to nearest-corner.
+
+        When unlock_all_footprints is True, initial positions are still set for
+        edge/corner constraints but components are NOT locked — the force
+        simulation can move them, and edge_compliance scoring incentivizes
+        keeping them near edges.
         """
         tl, br = self.state.board_outline
         margin = self.edge_margin
         zones = self.cfg.get("component_zones", {})
+        unlock_all = self.cfg.get("unlock_all_footprints", False)
 
         for ref, comp in comps.items():
             zone_cfg = zones.get(ref, {})
@@ -514,7 +520,7 @@ class PlacementSolver:
                 elif edge == "bottom":
                     comp.pos.y = br.y - margin
                 _update_pad_positions(comp, old_pos, comp.rotation)
-                comp.locked = True
+                comp.locked = not unlock_all
 
             elif "corner" in zone_cfg:
                 # Explicit corner assignment
@@ -530,7 +536,7 @@ class PlacementSolver:
                 old_pos = Point(comp.pos.x, comp.pos.y)
                 comp.pos = Point(cx, cy)
                 _update_pad_positions(comp, old_pos, comp.rotation)
-                comp.locked = True
+                comp.locked = not unlock_all
 
             elif "zone" in zone_cfg:
                 # Zone constraint — don't lock, just set initial position.
@@ -557,7 +563,7 @@ class PlacementSolver:
                 elif nearest == "bottom":
                     comp.pos.y = br.y - margin
                 _update_pad_positions(comp, old_pos, comp.rotation)
-                comp.locked = True
+                comp.locked = not unlock_all
 
             elif comp.kind == "mounting_hole":
                 # Fallback: snap mounting hole to nearest corner
@@ -566,7 +572,7 @@ class PlacementSolver:
                 old_pos = Point(comp.pos.x, comp.pos.y)
                 comp.pos = Point(cx, cy)
                 _update_pad_positions(comp, old_pos, comp.rotation)
-                comp.locked = True
+                comp.locked = not unlock_all
 
     def _get_zone_bounds(self, zone_name: str) -> tuple[float, float, float, float]:
         """Return (x_min, y_min, x_max, y_max) for a named board zone."""

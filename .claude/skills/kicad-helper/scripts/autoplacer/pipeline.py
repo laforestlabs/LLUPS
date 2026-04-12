@@ -21,8 +21,20 @@ class PlacementEngine:
     def run(self, pcb_path: str, output_path: str = None,
             config: dict = None, seed: int = 0) -> dict:
         cfg = {**DEFAULT_CONFIG, **LLUPS_CONFIG, **(config or {})}
-        adapter = KiCadAdapter(pcb_path)
+        adapter = KiCadAdapter(pcb_path, config=cfg)
         state = adapter.load()
+
+        # Override board outline if board size search is active
+        if cfg.get("enable_board_size_search", False):
+            from .brain.types import Point
+            w = cfg.get("board_width_mm", 90.0)
+            h = cfg.get("board_height_mm", 58.0)
+            cx = (state.board_outline[0].x + state.board_outline[1].x) / 2
+            cy = (state.board_outline[0].y + state.board_outline[1].y) / 2
+            state.board_outline = (
+                Point(cx - w / 2, cy - h / 2),
+                Point(cx + w / 2, cy + h / 2),
+            )
 
         print(f"Loaded {len(state.components)} components, {len(state.nets)} nets")
 
@@ -69,7 +81,7 @@ class RoutingEngine:
         track_counts = count_board_tracks(out)
 
         # Count nets from the board state
-        adapter = KiCadAdapter(out)
+        adapter = KiCadAdapter(out, config=cfg)
         state = adapter.load()
         skip_gnd = cfg.get("skip_gnd_routing", True)
         ignore_nets = set(cfg.get("freerouting_ignore_nets", []))
@@ -130,7 +142,9 @@ class FullPipeline:
                 courtyard_overlap=placement.get("courtyard_overlap", 0),
             )
             exp_score.compute(drc_dict={"shorts": 0, "unconnected": 0,
-                                        "clearance": 0, "courtyard": 0, "total": 0})
+                                        "clearance": 0, "courtyard": 0, "total": 0},
+                             board_area_mm2=cfg.get("board_width_mm", 90.0) * cfg.get("board_height_mm", 58.0)
+                                            if cfg.get("enable_board_size_search") else None)
             return {
                 "placement": placement,
                 "routing": {"traces": 0, "vias": 0, "failed_nets": [],
@@ -185,7 +199,9 @@ class FullPipeline:
             board_containment=placement.get("board_containment", 0),
             courtyard_overlap=placement.get("courtyard_overlap", 0),
         )
-        exp_score.compute(drc_dict=drc)
+        exp_score.compute(drc_dict=drc,
+                         board_area_mm2=cfg.get("board_width_mm", 90.0) * cfg.get("board_height_mm", 58.0)
+                                        if cfg.get("enable_board_size_search") else None)
 
         return {
             "placement": placement,

@@ -15,7 +15,7 @@ A compact PCB module providing regulated 5V and 3.3V power from two 18650 Li-ion
 | Protection | HY2113 (2.8V hard cutoff) + LN61C supervisor (3.3V operating cutoff) |
 | Boost | MT3608, 5V from 3.3-4.2V input |
 | LDO | AP2112K-3.3, 600mA |
-| Board | 90x58mm, 2-layer, 1oz Cu |
+| Board | 90×58mm default (variable with `--board-size-search`), 2-layer, 1oz Cu |
 
 ## Core Files
 
@@ -44,6 +44,43 @@ python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --
 
 The optimizer iterates placement and routing, keeping candidates that improve the overall score and discarding the rest. The best layout is saved to `LLUPS_best.kicad_pcb`.
 
+### Search Space Flags
+
+| Flag | Effect |
+|---|---|
+| `--unlock-all` | Unlock all footprints (batteries, connectors, mounting holes) — edge scoring still incentivizes edge placement |
+| `--board-size-search` | Add board width (60–120mm) and height (40–80mm) to the parameter search space (5mm steps) |
+
+```bash
+# Full exploration: unlock all footprints + vary board size over 150 rounds
+python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb \
+  --rounds 150 --unlock-all --board-size-search
+```
+
+## Experiment Manager GUI
+
+A standalone NiceGUI web app for configuring, running, monitoring, and analyzing experiments.
+
+```bash
+# Install dependencies (first time only)
+pip install nicegui sqlalchemy plotly scipy
+
+# Launch the GUI
+python3 -m gui
+# then open http://localhost:8080
+```
+
+### GUI Tabs
+
+| Tab | Purpose |
+|---|---|
+| **Setup** | Configure search dimensions, mutation strategy, score weights, feature toggles (unlock all, board size search), and save/load presets |
+| **Monitor** | Start/stop experiments, live score chart, status cards, round-by-round progress |
+| **Analysis** | Browse past experiments, score trend plots, parameter sensitivity (Spearman), correlation matrix, convergence analysis, CSV export |
+| **Board** | PCB layout viewer with layer selection and component list |
+
+Experiment data is stored in `.experiments/llups.db` (SQLite). Existing JSONL logs are auto-imported on first launch.
+
 ## Monitoring Your Run
 
 > All monitoring is read-only — it reads output files and never interferes with the experiment. Zero performance impact.
@@ -51,9 +88,8 @@ The optimizer iterates placement and routing, keeping candidates that improve th
 **During a run** — pick any of these (in a second terminal):
 
 ```bash
-# Live web dashboard (recommended)
-python3 .claude/skills/kicad-helper/scripts/dashboard_app.py --port 5000
-# then open http://localhost:5000
+# Experiment Manager GUI (recommended — includes live charts + analysis)
+python3 -m gui
 
 # Or: one-line terminal status
 watch -n2 cat .experiments/run_status.txt

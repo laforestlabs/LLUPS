@@ -99,6 +99,17 @@ DEFAULT_CONFIG = {
 
     # Human-readable group labels for silkscreen annotation.
     "group_labels": {},
+
+    # --- Search space flags ---
+    # When True, batteries/connectors/mounting holes are NOT auto-locked;
+    # edge_compliance scoring still incentivizes edge placement.
+    "unlock_all_footprints": False,
+
+    # When True, the autoexperiment loop can vary board_width_mm / board_height_mm.
+    "enable_board_size_search": False,
+    # Default board dimensions (mm) — overridden per-round when board size search is active.
+    "board_width_mm": 90.0,
+    "board_height_mm": 58.0,
 }
 
 

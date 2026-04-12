@@ -55,9 +55,10 @@ def _enum_to_layer(layer: Layer) -> int:
 class KiCadAdapter:
     """Reads and writes KiCad board state via pcbnew API."""
 
-    def __init__(self, pcb_path: str):
+    def __init__(self, pcb_path: str, config: dict = None):
         self.pcb_path = pcb_path
         self.board = None
+        self.cfg = config or {}
 
     def _ensure_loaded(self):
         if self.board is None:
@@ -108,9 +109,12 @@ class KiCadAdapter:
             h_mm = min(h_mm, 150.0)
 
             kind = _classify_component(ref, val)
-            # Lock mechanically-fixed parts regardless of KiCad lock flag.
-            # Battery holders have fixed positions.
-            is_locked = fp.IsLocked() or kind in ("battery",)
+            # Lock mechanically-fixed parts unless unlock_all_footprints is set.
+            # Battery holders have fixed positions by default.
+            if self.cfg.get("unlock_all_footprints", False):
+                is_locked = fp.IsLocked()
+            else:
+                is_locked = fp.IsLocked() or kind in ("battery",)
             comp = Component(
                 ref=ref,
                 value=val,
@@ -194,6 +198,12 @@ class KiCadAdapter:
         self._ensure_loaded()
         board = self.board
 
+        # Apply board outline change if config specifies board dimensions
+        if self.cfg.get("enable_board_size_search", False):
+            w_mm = self.cfg.get("board_width_mm", 90.0)
+            h_mm = self.cfg.get("board_height_mm", 58.0)
+            self._apply_board_outline(w_mm, h_mm)
+
         for fp in board.Footprints():
             ref = fp.GetReferenceAsString()
             if ref not in components:
@@ -214,3 +224,42 @@ class KiCadAdapter:
         out = output_path or self.pcb_path
         board.Save(out)
         print(f"Placement saved to {out}")
+
+    def _apply_board_outline(self, width_mm: float, height_mm: float):
+        """Rewrite the Edge.Cuts rectangle to the given dimensions, centered."""
+        board = self.board
+        bbox = board.GetBoardEdgesBoundingBox()
+        # Keep the center of the original board
+        cx = (bbox.GetLeft() + bbox.GetRight()) // 2
+        cy = (bbox.GetTop() + bbox.GetBottom()) // 2
+        half_w = pcbnew.FromMM(width_mm / 2)
+        half_h = pcbnew.FromMM(height_mm / 2)
+
+        new_left = cx - half_w
+        new_top = cy - half_h
+        new_right = cx + half_w
+        new_bottom = cy + half_h
+
+        # Remove existing Edge.Cuts lines
+        to_remove = []
+        for dwg in board.GetDrawings():
+            if dwg.GetLayer() == pcbnew.Edge_Cuts:
+                to_remove.append(dwg)
+        for dwg in to_remove:
+            board.Remove(dwg)
+
+        # Draw new rectangle
+        corners = [
+            (new_left, new_top), (new_right, new_top),
+            (new_right, new_bottom), (new_left, new_bottom),
+        ]
+        for i in range(4):
+            seg = pcbnew.PCB_SHAPE(board)
+            seg.SetShape(pcbnew.SHAPE_T_SEGMENT)
+            seg.SetLayer(pcbnew.Edge_Cuts)
+            seg.SetWidth(pcbnew.FromMM(0.05))
+            x1, y1 = corners[i]
+            x2, y2 = corners[(i + 1) % 4]
+            seg.SetStart(pcbnew.VECTOR2I(x1, y1))
+            seg.SetEnd(pcbnew.VECTOR2I(x2, y2))
+            board.Add(seg)

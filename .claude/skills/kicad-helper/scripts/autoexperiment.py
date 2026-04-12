@@ -218,6 +218,13 @@ def load_program(path: str) -> dict:
     return program
 
 
+def _board_area(cfg: dict):
+    """Return board_area_mm2 if board size search is active, else None."""
+    if cfg.get("enable_board_size_search", False):
+        return cfg.get("board_width_mm", 90.0) * cfg.get("board_height_mm", 58.0)
+    return None
+
+
 def mutate_config_minor(base: dict, rng: random.Random,
                         param_ranges: dict = None) -> dict:
     """Small perturbation of continuous parameters."""
@@ -232,6 +239,11 @@ def mutate_config_minor(base: dict, rng: random.Random,
         "edge_margin_mm":  (4.0, 10.0, 0.1),
         "placement_clearance_mm": (1.0, 3.0, 0.15),
     }
+    # Board size search — 5mm steps
+    if cfg.get("enable_board_size_search", False):
+        tunable["board_width_mm"] = (60.0, 120.0, 0.1)
+        tunable["board_height_mm"] = (40.0, 80.0, 0.1)
+
     # Override with program.md ranges if provided
     for k, v in ranges.items():
         if k in tunable and isinstance(v, (list, tuple)) and len(v) >= 2:
@@ -251,6 +263,9 @@ def mutate_config_minor(base: dict, rng: random.Random,
         # Integer params stay integer
         if isinstance(cfg.get(key), int):
             new_val = int(round(new_val))
+        # Board dimensions: round to 5mm steps
+        if key in ("board_width_mm", "board_height_mm"):
+            new_val = round(new_val / 5.0) * 5.0
         cfg[key] = round(new_val, 4)
 
     return cfg
@@ -272,11 +287,18 @@ def mutate_config_major(base: dict, rng: random.Random,
         "cooling_factor":  (0.90, 0.995),
         "placement_clearance_mm": (1.5, 5.0),
     }
+    if cfg.get("enable_board_size_search", False):
+        aggressive_tunable["board_width_mm"] = (60.0, 120.0)
+        aggressive_tunable["board_height_mm"] = (40.0, 80.0)
+
     keys = rng.sample(list(aggressive_tunable.keys()),
                       rng.randint(1, len(aggressive_tunable)))
     for key in keys:
         lo, hi = aggressive_tunable[key]
         new_val = rng.uniform(lo, hi)
+        # Board dimensions: round to 5mm steps
+        if key in ("board_width_mm", "board_height_mm"):
+            new_val = round(new_val / 5.0) * 5.0
         cfg[key] = round(new_val, 4)
 
     # MAJOR mode: enable aggressive layout diversity
@@ -632,7 +654,7 @@ def _worker_run(args: tuple) -> tuple[ExperimentScore, float, str]:
         result = pipeline.run(work_pcb, work_pcb, config=cfg, seed=seed)
         exp_score = result["experiment_score"]
         if score_weights:
-            exp_score.compute(score_weights)
+            exp_score.compute(score_weights, board_area_mm2=_board_area(cfg))
     except Exception as e:
         import traceback
         from autoplacer.brain.types import ExperimentScore as ES
@@ -905,6 +927,10 @@ def main():
                         help="Logging level (default: INFO)")
     parser.add_argument("--resume", action="store_true",
                         help="Resume from best config checkpoint if available")
+    parser.add_argument("--unlock-all", action="store_true",
+                        help="Unlock all footprints (batteries, connectors, mounting holes)")
+    parser.add_argument("--board-size-search", action="store_true",
+                        help="Include board width/height in the parameter search space")
     args = parser.parse_args()
 
     if args.verbose:
@@ -1011,6 +1037,12 @@ def main():
     # LLUPS_CONFIG is the current project; future: load from --project-config flag.
     BASE_CONFIG = {**DEFAULT_CONFIG, **LLUPS_CONFIG}
 
+    # Apply CLI feature flags
+    if args.unlock_all:
+        BASE_CONFIG["unlock_all_footprints"] = True
+    if args.board_size_search:
+        BASE_CONFIG["enable_board_size_search"] = True
+
     # Run baseline or resume from checkpoint
     best_cfg = dict(BASE_CONFIG)
     if net_priority:
@@ -1033,9 +1065,11 @@ def main():
             args.pcb, baseline_pcb, best_cfg, best_seed, quiet=args.quiet)
         base_drc = quick_drc(baseline_pcb)
         if score_weights:
-            best_score.compute(score_weights, drc_dict=base_drc)
+            best_score.compute(score_weights, drc_dict=base_drc,
+                               board_area_mm2=_board_area(best_cfg))
         else:
-            best_score.compute(drc_dict=base_drc)
+            best_score.compute(drc_dict=base_drc,
+                               board_area_mm2=_board_area(best_cfg))
 
         print(f"  -> baseline score={best_score.total:6.2f} shorts={base_drc['shorts']} "
               f"drc={base_drc['total']} ({base_dur:.1f}s)", flush=True)
@@ -1218,9 +1252,11 @@ def main():
                     quiet=args.quiet)
                 drc = quick_drc(work_pcb)
                 if score_weights:
-                    score.compute(score_weights, drc_dict=drc)
+                    score.compute(score_weights, drc_dict=drc,
+                                  board_area_mm2=_board_area(candidate_cfg))
                 else:
-                    score.compute(drc_dict=drc)
+                    score.compute(drc_dict=drc,
+                                  board_area_mm2=_board_area(candidate_cfg))
                 results = [(score, duration, work_pcb, drc, mode, candidate_cfg,
                             candidate_seed, delta)]
             else:
@@ -1278,9 +1314,11 @@ def main():
                         err_msg = getattr(score, '_error', 'unknown error')
                         print(f"  Worker {i} CRASHED: {err_msg[:200]}", flush=True)
                     if score_weights:
-                        score.compute(score_weights, drc_dict=drc)
+                        score.compute(score_weights, drc_dict=drc,
+                                      board_area_mm2=_board_area(candidate_cfg))
                     else:
-                        score.compute(drc_dict=drc)
+                        score.compute(drc_dict=drc,
+                                      board_area_mm2=_board_area(candidate_cfg))
                     results.append((score, duration, work_pcb, drc, mode,
                                     candidate_cfg, candidate_seed, delta))
 

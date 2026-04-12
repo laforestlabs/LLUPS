@@ -231,8 +231,13 @@ class ExperimentScore:
     drc_score: DRCScore = field(default_factory=DRCScore)
 
     def compute(self, weights: Optional[dict] = None,
-                drc_dict: Optional[dict] = None) -> float:
-        """Compute unified score. Route completion dominates, then placement + DRC."""
+                drc_dict: Optional[dict] = None,
+                board_area_mm2: Optional[float] = None) -> float:
+        """Compute unified score. Route completion dominates, then placement + DRC.
+        
+        If board_area_mm2 is provided (from board size search), an area bonus
+        rewards smaller boards.
+        """
         w = weights or {}
         w_placement = w.get("placement", 0.15)
         w_route = w.get("route_completion", 0.50)
@@ -266,6 +271,16 @@ class ExperimentScore:
             w_contain * self.placement.board_containment +
             w_drc * drc_val
         )
+
+        # Area bonus: reward smaller boards (only when board size search is active)
+        if board_area_mm2 is not None:
+            max_area = 120.0 * 80.0  # generous upper bound
+            area_score = max(0.0, min(100.0, 100.0 * (1.0 - board_area_mm2 / max_area)))
+            w_area = w.get("area", 0.05)
+            # Scale other weights down proportionally
+            scale = 1.0 - w_area
+            self.total = self.total * scale + w_area * area_score
+
         return self.total
 
     def summary(self) -> str:

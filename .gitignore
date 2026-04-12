@@ -45,6 +45,7 @@ renders/
 .experiments/frames/
 .experiments/rounds/
 .experiments/workers/
+.experiments/llups.db
 .experiments/baseline.kicad_pcb
 .experiments/baseline.kicad_pro
 
