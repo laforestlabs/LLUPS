@@ -109,6 +109,11 @@ class KiCadAdapter:
             h_mm = min(h_mm, 150.0)
 
             kind = _classify_component(ref, val)
+            # Detect through-hole: any pad with PTH attribute means THT footprint
+            has_pth = any(
+                p.GetAttribute() == pcbnew.PAD_ATTRIB_PTH
+                for p in fp.Pads()
+            )
             # Lock mechanically-fixed parts unless unlock_all_footprints is set.
             # Battery holders have fixed positions by default.
             if self.cfg.get("unlock_all_footprints", False):
@@ -126,6 +131,7 @@ class KiCadAdapter:
                 pads=[],
                 locked=is_locked,
                 kind=kind,
+                is_through_hole=has_pth,
             )
 
             for pad in fp.Pads():
@@ -215,6 +221,10 @@ class KiCadAdapter:
             # only — their solver-computed positions must still be written.
             if fp.IsLocked():
                 continue
+            # Flip to correct layer if solver assigned a different side
+            current_layer = _layer_to_enum(fp.GetLayer())
+            if comp.layer != current_layer:
+                fp.Flip(fp.GetPosition(), False)
             fp.SetPosition(pcbnew.VECTOR2I(
                 pcbnew.FromMM(comp.pos.x),
                 pcbnew.FromMM(comp.pos.y),

@@ -1,7 +1,613 @@
 [
   {
-    "score": 89.91364267508644,
-    "seed": 0,
+    "score": 92.27676104285405,
+    "seed": 764810723,
+    "config": {
+      "signal_width_mm": 0.127,
+      "power_width_mm": 0.127,
+      "via_drill_mm": 0.3,
+      "via_size_mm": 0.6,
+      "placement_clearance_mm": 1.9468,
+      "power_nets": [
+        "+3V3",
+        "+5V",
+        "/3V3",
+        "/5V",
+        "/CELL_NEG",
+        "/EN",
+        "/VBAT",
+        "/VBUS",
+        "/VSYS",
+        "/VSYS_BOOST",
+        "3.3V",
+        "3V3",
+        "5V",
+        "GND",
+        "VBAT",
+        "VBUS"
+      ],
+      "placement_grid_mm": 1.0,
+      "edge_margin_mm": 5.7888,
+      "force_attract_k": 0.0385,
+      "force_repel_k": 176.1883,
+      "cooling_factor": 0.9821,
+      "max_placement_iterations": 100,
+      "placement_convergence_threshold": 1.5,
+      "placement_score_every_n": 1,
+      "intra_cluster_iters": 80,
+      "scatter_mode": "cluster",
+      "reheat_strength": 0.13408208578572628,
+      "randomize_group_layout": true,
+      "courtyard_padding_mm": 0.5,
+      "pad_inset_margin_mm": 0.3,
+      "min_placement_score": 30.0,
+      "component_zones": {
+        "J1": {
+          "edge": "left"
+        },
+        "J2": {
+          "edge": "right"
+        },
+        "J3": {
+          "edge": "right"
+        },
+        "BT1": {
+          "zone": "center-bottom"
+        },
+        "BT2": {
+          "zone": "center-bottom"
+        },
+        "H4": {
+          "corner": "bottom-left"
+        },
+        "H86": {
+          "corner": "bottom-right"
+        }
+      },
+      "signal_flow_order": [
+        "U1",
+        "U2",
+        "U3",
+        "U4",
+        "U5"
+      ],
+      "skip_gnd_routing": true,
+      "net_priority": {
+        "/CHG_N": 5,
+        "/NTC_SENSE": 5,
+        "Net-(F1-Pad2)": 5,
+        "/VBAT": 4,
+        "Net-(U2-TMR)": 4,
+        "Net-(U4-FB)": 4
+      },
+      "thermal_refs": [
+        "U2",
+        "U4"
+      ],
+      "thermal_radius_mm": 3.0,
+      "freerouting_jar": "/home/jason/.local/lib/freerouting-1.9.0.jar",
+      "freerouting_timeout_s": 60,
+      "freerouting_max_passes": 40,
+      "freerouting_ignore_nets": [
+        "GND"
+      ],
+      "ic_groups": {
+        "U1": [
+          "C1",
+          "R1",
+          "R2",
+          "F1",
+          "J1"
+        ],
+        "U2": [
+          "C2",
+          "C3",
+          "C4",
+          "R3",
+          "R4",
+          "R5",
+          "R6",
+          "R7",
+          "R8",
+          "RT1",
+          "D1",
+          "D2"
+        ],
+        "U3": [
+          "Q1",
+          "U6"
+        ],
+        "U4": [
+          "C5",
+          "C6",
+          "C7",
+          "L1",
+          "D3"
+        ],
+        "U5": [
+          "C8",
+          "R9",
+          "R10",
+          "R11",
+          "J2",
+          "J3"
+        ],
+        "BT1": [
+          "BT2"
+        ]
+      },
+      "group_labels": {
+        "U1": "USB INPUT",
+        "U2": "CHARGER",
+        "U3": "BATT PROT",
+        "U4": "BOOST 5V",
+        "U5": "LDO 3.3V"
+      },
+      "unlock_all_footprints": false,
+      "enable_board_size_search": false,
+      "board_width_mm": 90.0,
+      "board_height_mm": 58.0
+    },
+    "timestamp": 1775996250.6342125
+  },
+  {
+    "score": 92.14476697624093,
+    "seed": 798006293,
+    "config": {
+      "signal_width_mm": 0.127,
+      "power_width_mm": 0.127,
+      "via_drill_mm": 0.3,
+      "via_size_mm": 0.6,
+      "placement_clearance_mm": 1.8589,
+      "power_nets": [
+        "+3V3",
+        "+5V",
+        "/3V3",
+        "/5V",
+        "/CELL_NEG",
+        "/EN",
+        "/VBAT",
+        "/VBUS",
+        "/VSYS",
+        "/VSYS_BOOST",
+        "3.3V",
+        "3V3",
+        "5V",
+        "GND",
+        "VBAT",
+        "VBUS"
+      ],
+      "placement_grid_mm": 1.0,
+      "edge_margin_mm": 5.9125,
+      "force_attract_k": 0.1162,
+      "force_repel_k": 376.2407,
+      "cooling_factor": 0.9582,
+      "max_placement_iterations": 100,
+      "placement_convergence_threshold": 1.5,
+      "placement_score_every_n": 1,
+      "intra_cluster_iters": 80,
+      "scatter_mode": "cluster",
+      "reheat_strength": 0.059519634302715715,
+      "randomize_group_layout": true,
+      "courtyard_padding_mm": 0.5,
+      "pad_inset_margin_mm": 0.3,
+      "min_placement_score": 30.0,
+      "component_zones": {
+        "J1": {
+          "edge": "left"
+        },
+        "J2": {
+          "edge": "right"
+        },
+        "J3": {
+          "edge": "right"
+        },
+        "BT1": {
+          "zone": "center-bottom"
+        },
+        "BT2": {
+          "zone": "center-bottom"
+        },
+        "H4": {
+          "corner": "bottom-left"
+        },
+        "H86": {
+          "corner": "bottom-right"
+        }
+      },
+      "signal_flow_order": [
+        "U1",
+        "U2",
+        "U3",
+        "U4",
+        "U5"
+      ],
+      "skip_gnd_routing": true,
+      "net_priority": {
+        "/CHG_N": 5,
+        "/NTC_SENSE": 5,
+        "Net-(F1-Pad2)": 5,
+        "/VBAT": 4,
+        "Net-(U2-TMR)": 4,
+        "Net-(U4-FB)": 4
+      },
+      "thermal_refs": [
+        "U2",
+        "U4"
+      ],
+      "thermal_radius_mm": 3.0,
+      "freerouting_jar": "/home/jason/.local/lib/freerouting-1.9.0.jar",
+      "freerouting_timeout_s": 60,
+      "freerouting_max_passes": 40,
+      "freerouting_ignore_nets": [
+        "GND"
+      ],
+      "ic_groups": {
+        "U1": [
+          "C1",
+          "R1",
+          "R2",
+          "F1",
+          "J1"
+        ],
+        "U2": [
+          "C2",
+          "C3",
+          "C4",
+          "R3",
+          "R4",
+          "R5",
+          "R6",
+          "R7",
+          "R8",
+          "RT1",
+          "D1",
+          "D2"
+        ],
+        "U3": [
+          "Q1",
+          "U6"
+        ],
+        "U4": [
+          "C5",
+          "C6",
+          "C7",
+          "L1",
+          "D3"
+        ],
+        "U5": [
+          "C8",
+          "R9",
+          "R10",
+          "R11",
+          "J2",
+          "J3"
+        ],
+        "BT1": [
+          "BT2"
+        ]
+      },
+      "group_labels": {
+        "U1": "USB INPUT",
+        "U2": "CHARGER",
+        "U3": "BATT PROT",
+        "U4": "BOOST 5V",
+        "U5": "LDO 3.3V"
+      },
+      "unlock_all_footprints": false,
+      "enable_board_size_search": false,
+      "board_width_mm": 90.0,
+      "board_height_mm": 58.0
+    },
+    "timestamp": 1775995940.1751122
+  },
+  {
+    "score": 91.32931260454089,
+    "seed": 1911382787,
+    "config": {
+      "signal_width_mm": 0.127,
+      "power_width_mm": 0.127,
+      "via_drill_mm": 0.3,
+      "via_size_mm": 0.6,
+      "placement_clearance_mm": 3.0,
+      "power_nets": [
+        "+3V3",
+        "+5V",
+        "/3V3",
+        "/5V",
+        "/CELL_NEG",
+        "/EN",
+        "/VBAT",
+        "/VBUS",
+        "/VSYS",
+        "/VSYS_BOOST",
+        "3.3V",
+        "3V3",
+        "5V",
+        "GND",
+        "VBAT",
+        "VBUS"
+      ],
+      "placement_grid_mm": 1.0,
+      "edge_margin_mm": 4.8341,
+      "force_attract_k": 0.0296,
+      "force_repel_k": 500.0,
+      "cooling_factor": 0.9666,
+      "max_placement_iterations": 100,
+      "placement_convergence_threshold": 1.5,
+      "placement_score_every_n": 1,
+      "intra_cluster_iters": 80,
+      "scatter_mode": "cluster",
+      "reheat_strength": 0.07290219826141209,
+      "randomize_group_layout": true,
+      "courtyard_padding_mm": 0.5,
+      "pad_inset_margin_mm": 0.3,
+      "min_placement_score": 30.0,
+      "component_zones": {
+        "J1": {
+          "edge": "left"
+        },
+        "J2": {
+          "edge": "right"
+        },
+        "J3": {
+          "edge": "right"
+        },
+        "BT1": {
+          "zone": "center-bottom"
+        },
+        "BT2": {
+          "zone": "center-bottom"
+        },
+        "H4": {
+          "corner": "bottom-left"
+        },
+        "H86": {
+          "corner": "bottom-right"
+        }
+      },
+      "signal_flow_order": [
+        "U1",
+        "U2",
+        "U3",
+        "U4",
+        "U5"
+      ],
+      "skip_gnd_routing": true,
+      "net_priority": {
+        "/CHG_N": 5,
+        "/NTC_SENSE": 5,
+        "Net-(F1-Pad2)": 5,
+        "/VBAT": 4,
+        "Net-(U2-TMR)": 4,
+        "Net-(U4-FB)": 4
+      },
+      "thermal_refs": [
+        "U2",
+        "U4"
+      ],
+      "thermal_radius_mm": 3.0,
+      "freerouting_jar": "/home/jason/.local/lib/freerouting-1.9.0.jar",
+      "freerouting_timeout_s": 60,
+      "freerouting_max_passes": 40,
+      "freerouting_ignore_nets": [
+        "GND"
+      ],
+      "ic_groups": {
+        "U1": [
+          "C1",
+          "R1",
+          "R2",
+          "F1",
+          "J1"
+        ],
+        "U2": [
+          "C2",
+          "C3",
+          "C4",
+          "R3",
+          "R4",
+          "R5",
+          "R6",
+          "R7",
+          "R8",
+          "RT1",
+          "D1",
+          "D2"
+        ],
+        "U3": [
+          "Q1",
+          "U6"
+        ],
+        "U4": [
+          "C5",
+          "C6",
+          "C7",
+          "L1",
+          "D3"
+        ],
+        "U5": [
+          "C8",
+          "R9",
+          "R10",
+          "R11",
+          "J2",
+          "J3"
+        ],
+        "BT1": [
+          "BT2"
+        ]
+      },
+      "group_labels": {
+        "U1": "USB INPUT",
+        "U2": "CHARGER",
+        "U3": "BATT PROT",
+        "U4": "BOOST 5V",
+        "U5": "LDO 3.3V"
+      },
+      "unlock_all_footprints": false,
+      "enable_board_size_search": false,
+      "board_width_mm": 90.0,
+      "board_height_mm": 58.0
+    },
+    "timestamp": 1775994657.9414783
+  },
+  {
+    "score": 90.76438983799352,
+    "seed": 1291694567,
+    "config": {
+      "signal_width_mm": 0.127,
+      "power_width_mm": 0.127,
+      "via_drill_mm": 0.3,
+      "via_size_mm": 0.6,
+      "placement_clearance_mm": 1.9468,
+      "power_nets": [
+        "+3V3",
+        "+5V",
+        "/3V3",
+        "/5V",
+        "/CELL_NEG",
+        "/EN",
+        "/VBAT",
+        "/VBUS",
+        "/VSYS",
+        "/VSYS_BOOST",
+        "3.3V",
+        "3V3",
+        "5V",
+        "GND",
+        "VBAT",
+        "VBUS"
+      ],
+      "placement_grid_mm": 1.0,
+      "edge_margin_mm": 5.7888,
+      "force_attract_k": 0.0277,
+      "force_repel_k": 176.1883,
+      "cooling_factor": 0.9821,
+      "max_placement_iterations": 100,
+      "placement_convergence_threshold": 1.5,
+      "placement_score_every_n": 1,
+      "intra_cluster_iters": 80,
+      "scatter_mode": "cluster",
+      "reheat_strength": 0.13408208578572628,
+      "randomize_group_layout": true,
+      "courtyard_padding_mm": 0.5,
+      "pad_inset_margin_mm": 0.3,
+      "edge_jitter_mm": 5.0,
+      "tht_backside_min_area_mm2": 50.0,
+      "min_placement_score": 30.0,
+      "component_zones": {
+        "J1": {
+          "edge": "left"
+        },
+        "J2": {
+          "edge": "right"
+        },
+        "J3": {
+          "edge": "right"
+        },
+        "BT1": {
+          "zone": "center-bottom"
+        },
+        "BT2": {
+          "zone": "center-bottom"
+        },
+        "H4": {
+          "corner": "bottom-left"
+        },
+        "H86": {
+          "corner": "bottom-right"
+        }
+      },
+      "signal_flow_order": [
+        "U1",
+        "U2",
+        "U3",
+        "U4",
+        "U5"
+      ],
+      "skip_gnd_routing": true,
+      "net_priority": {
+        "/CHG_N": 5,
+        "/NTC_SENSE": 5,
+        "Net-(F1-Pad2)": 5,
+        "/VBAT": 4,
+        "Net-(U2-TMR)": 4,
+        "Net-(U4-FB)": 4
+      },
+      "thermal_refs": [
+        "U2",
+        "U4"
+      ],
+      "thermal_radius_mm": 3.0,
+      "freerouting_jar": "/home/jason/.local/lib/freerouting-1.9.0.jar",
+      "freerouting_timeout_s": 60,
+      "freerouting_max_passes": 40,
+      "freerouting_ignore_nets": [
+        "GND"
+      ],
+      "ic_groups": {
+        "U1": [
+          "C1",
+          "R1",
+          "R2",
+          "F1",
+          "J1"
+        ],
+        "U2": [
+          "C2",
+          "C3",
+          "C4",
+          "R3",
+          "R4",
+          "R5",
+          "R6",
+          "R7",
+          "R8",
+          "RT1",
+          "D1",
+          "D2"
+        ],
+        "U3": [
+          "Q1",
+          "U6"
+        ],
+        "U4": [
+          "C5",
+          "C6",
+          "C7",
+          "L1",
+          "D3"
+        ],
+        "U5": [
+          "C8",
+          "R9",
+          "R10",
+          "R11",
+          "J2",
+          "J3"
+        ],
+        "BT1": [
+          "BT2"
+        ]
+      },
+      "group_labels": {
+        "U1": "USB INPUT",
+        "U2": "CHARGER",
+        "U3": "BATT PROT",
+        "U4": "BOOST 5V",
+        "U5": "LDO 3.3V"
+      },
+      "unlock_all_footprints": false,
+      "enable_board_size_search": false,
+      "board_width_mm": 90.0,
+      "board_height_mm": 58.0
+    },
+    "timestamp": 1776036146.0621512
+  },
+  {
+    "score": 90.59304676278137,
+    "seed": 1120458381,
     "config": {
       "signal_width_mm": 0.127,
       "power_width_mm": 0.127,
@@ -72,7 +678,14 @@
         "U5"
       ],
       "skip_gnd_routing": true,
-      "net_priority": {},
+      "net_priority": {
+        "/CHG_N": 5,
+        "/NTC_SENSE": 5,
+        "Net-(F1-Pad2)": 5,
+        "/VBAT": 4,
+        "Net-(U2-TMR)": 4,
+        "Net-(U4-FB)": 4
+      },
       "thermal_refs": [
         "U2",
         "U4"
@@ -135,148 +748,12 @@
         "U3": "BATT PROT",
         "U4": "BOOST 5V",
         "U5": "LDO 3.3V"
-      }
-    },
-    "timestamp": 1775928686.3519623
-  },
-  {
-    "score": 89.62786383572899,
-    "seed": 252860896,
-    "config": {
-      "signal_width_mm": 0.127,
-      "power_width_mm": 0.127,
-      "via_drill_mm": 0.3,
-      "via_size_mm": 0.6,
-      "placement_clearance_mm": 2.9191,
-      "power_nets": [
-        "+3V3",
-        "+5V",
-        "/3V3",
-        "/5V",
-        "/CELL_NEG",
-        "/EN",
-        "/VBAT",
-        "/VBUS",
-        "/VSYS",
-        "/VSYS_BOOST",
-        "3.3V",
-        "3V3",
-        "5V",
-        "GND",
-        "VBAT",
-        "VBUS"
-      ],
-      "placement_grid_mm": 1.0,
-      "edge_margin_mm": 6.0,
-      "force_attract_k": 0.0456,
-      "force_repel_k": 200.0,
-      "cooling_factor": 0.9067,
-      "max_placement_iterations": 100,
-      "placement_convergence_threshold": 1.5,
-      "placement_score_every_n": 1,
-      "intra_cluster_iters": 80,
-      "scatter_mode": "cluster",
-      "reheat_strength": 0.08570069515534928,
-      "randomize_group_layout": true,
-      "courtyard_padding_mm": 0.5,
-      "pad_inset_margin_mm": 0.3,
-      "min_placement_score": 30.0,
-      "component_zones": {
-        "J1": {
-          "edge": "left"
-        },
-        "J2": {
-          "edge": "right"
-        },
-        "J3": {
-          "edge": "right"
-        },
-        "BT1": {
-          "zone": "center-bottom"
-        },
-        "BT2": {
-          "zone": "center-bottom"
-        },
-        "H4": {
-          "corner": "bottom-left"
-        },
-        "H86": {
-          "corner": "bottom-right"
-        }
       },
-      "signal_flow_order": [
-        "U1",
-        "U2",
-        "U3",
-        "U4",
-        "U5"
-      ],
-      "skip_gnd_routing": true,
-      "net_priority": {},
-      "thermal_refs": [
-        "U2",
-        "U4"
-      ],
-      "thermal_radius_mm": 3.0,
-      "freerouting_jar": "/home/jason/.local/lib/freerouting-1.9.0.jar",
-      "freerouting_timeout_s": 60,
-      "freerouting_max_passes": 40,
-      "freerouting_ignore_nets": [
-        "GND"
-      ],
-      "ic_groups": {
-        "U1": [
-          "C1",
-          "R1",
-          "R2",
-          "F1",
-          "J1"
-        ],
-        "U2": [
-          "C2",
-          "C3",
-          "C4",
-          "R3",
-          "R4",
-          "R5",
-          "R6",
-          "R7",
-          "R8",
-          "RT1",
-          "D1",
-          "D2"
-        ],
-        "U3": [
-          "Q1",
-          "U6"
-        ],
-        "U4": [
-          "C5",
-          "C6",
-          "C7",
-          "L1",
-          "D3"
-        ],
-        "U5": [
-          "C8",
-          "R9",
-          "R10",
-          "R11",
-          "J2",
-          "J3"
-        ],
-        "BT1": [
-          "BT2"
-        ]
-      },
-      "group_labels": {
-        "U1": "USB INPUT",
-        "U2": "CHARGER",
-        "U3": "BATT PROT",
-        "U4": "BOOST 5V",
-        "U5": "LDO 3.3V"
-      }
+      "unlock_all_footprints": false,
+      "enable_board_size_search": false,
+      "board_width_mm": 90.0,
+      "board_height_mm": 58.0
     },
-    "timestamp": 1775924272.4398503
+    "timestamp": 1775994562.8274033
   }
 ]

@@ -61,6 +61,7 @@ class Component:
     pads: list[Pad] = field(default_factory=list)
     locked: bool = False
     kind: str = ""        # "connector", "mounting_hole", "ic", "passive", "misc"
+    is_through_hole: bool = False  # True if footprint has PTH pads
 
     @property
     def area(self) -> float:
@@ -276,7 +277,7 @@ class ExperimentScore:
         if board_area_mm2 is not None:
             max_area = 120.0 * 80.0  # generous upper bound
             area_score = max(0.0, min(100.0, 100.0 * (1.0 - board_area_mm2 / max_area)))
-            w_area = w.get("area", 0.05)
+            w_area = w.get("area", 0.10)
             # Scale other weights down proportionally
             scale = 1.0 - w_area
             self.total = self.total * scale + w_area * area_score

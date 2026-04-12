@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "timestamp": 1775928686.3515728,
+  "timestamp": 1776036146.0617902,
   "best_cfg": {
     "signal_width_mm": 0.127,
     "power_width_mm": 0.127,
     "via_drill_mm": 0.3,
     "via_size_mm": 0.6,
-    "placement_clearance_mm": 2.0312,
+    "placement_clearance_mm": 1.9468,
     "power_nets": [
       "+3V3",
       "+5V",
@@ -26,19 +26,21 @@
       "VBUS"
     ],
     "placement_grid_mm": 1.0,
-    "edge_margin_mm": 5.0344,
-    "force_attract_k": 0.0566,
-    "force_repel_k": 130.658,
-    "cooling_factor": 0.97,
+    "edge_margin_mm": 5.7888,
+    "force_attract_k": 0.0277,
+    "force_repel_k": 176.1883,
+    "cooling_factor": 0.9821,
     "max_placement_iterations": 100,
     "placement_convergence_threshold": 1.5,
     "placement_score_every_n": 1,
     "intra_cluster_iters": 80,
     "scatter_mode": "cluster",
-    "reheat_strength": 0.1,
-    "randomize_group_layout": false,
+    "reheat_strength": 0.13408208578572628,
+    "randomize_group_layout": true,
     "courtyard_padding_mm": 0.5,
     "pad_inset_margin_mm": 0.3,
+    "edge_jitter_mm": 5.0,
+    "tht_backside_min_area_mm2": 50.0,
     "min_placement_score": 30.0,
     "component_zones": {
       "J1": {
@@ -71,7 +73,14 @@
       "U5"
     ],
     "skip_gnd_routing": true,
-    "net_priority": {},
+    "net_priority": {
+      "/CHG_N": 5,
+      "/NTC_SENSE": 5,
+      "Net-(F1-Pad2)": 5,
+      "/VBAT": 4,
+      "Net-(U2-TMR)": 4,
+      "Net-(U4-FB)": 4
+    },
     "thermal_refs": [
       "U2",
       "U4"
@@ -134,8 +143,12 @@
       "U3": "BATT PROT",
       "U4": "BOOST 5V",
       "U5": "LDO 3.3V"
-    }
+    },
+    "unlock_all_footprints": false,
+    "enable_board_size_search": false,
+    "board_width_mm": 90.0,
+    "board_height_mm": 58.0
   },
-  "best_seed": 0,
-  "best_score": 89.91364267508644
+  "best_seed": 1291694567,
+  "best_score": 90.76438983799352
 }

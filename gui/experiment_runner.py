@@ -82,13 +82,15 @@ class ExperimentRunner:
                 f.write(json.dumps(program_data, indent=2))
                 f.write("\n```\n")
 
-        # Launch
+        # Launch — use start_new_session so we can kill the entire process
+        # group (autoexperiment + all its FreeRouting/worker children)
         self._process = subprocess.Popen(
             cmd,
             cwd=str(self.project_root),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            start_new_session=True,
         )
 
         # Save PID
@@ -101,11 +103,41 @@ class ExperimentRunner:
         stop_file.touch()
 
     def kill(self) -> None:
-        """Force kill the subprocess."""
+        """Force kill the subprocess and its entire process group."""
+        pid = None
         if self._process and self._process.poll() is None:
-            self._process.send_signal(signal.SIGTERM)
+            pid = self._process.pid
+        elif self._pid_file.exists():
             try:
-                self._process.wait(timeout=10)
+                pid = int(self._pid_file.read_text().strip())
+                os.kill(pid, 0)  # verify alive
+            except (ValueError, ProcessLookupError, PermissionError):
+                pid = None
+
+        if pid is not None:
+            try:
+                pgid = os.getpgid(pid)
+                os.killpg(pgid, signal.SIGTERM)
+            except OSError:
+                pass
+            # Wait briefly, then SIGKILL if still alive
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                try:
+                    os.kill(pid, 0)
+                    time.sleep(0.2)
+                except ProcessLookupError:
+                    break
+            else:
+                try:
+                    pgid = os.getpgid(pid)
+                    os.killpg(pgid, signal.SIGKILL)
+                except OSError:
+                    pass
+
+        if self._process:
+            try:
+                self._process.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 self._process.kill()
         self._pid_file.unlink(missing_ok=True)

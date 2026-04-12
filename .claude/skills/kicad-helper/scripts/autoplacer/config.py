@@ -56,6 +56,15 @@ DEFAULT_CONFIG = {
     # inside the board Edge.Cuts boundary.  Pads outside are unfabricatable.
     "pad_inset_margin_mm": 0.3,
 
+    # Edge jitter — maximum random displacement (mm) along the assigned edge
+    # for edge-pinned components (connectors, mounting holes).  Provides
+    # placement diversity across rounds while keeping components on edges.
+    "edge_jitter_mm": 5.0,
+
+    # Through-hole backside threshold — THT components with bounding-box area
+    # above this value (mm²) are placed on B.Cu so SMT parts can use F.Cu.
+    "tht_backside_min_area_mm2": 50.0,
+
     # Minimum placement score to proceed to routing.
     # Below this threshold routing is skipped (saves 15-30s on degenerate layouts).
     "min_placement_score": 30.0,
@@ -143,14 +152,18 @@ LLUPS_CONFIG = {
         "U5": "LDO 3.3V",
     },
 
+    # Board size search enabled — autoexperiment will vary board dimensions
+    # to find smallest board that still routes cleanly.
+    "enable_board_size_search": True,
+
     # Component zone constraints for the LLUPS board layout.
     # Signal flow: USB input (left) → charger → protection → boost → LDO → output (right)
     "component_zones": {
         "J1":  {"edge": "left"},           # USB-C input connector
         "J2":  {"edge": "right"},          # Output header
         "J3":  {"edge": "right"},          # Debug header
-        "BT1": {"zone": "center-bottom"},  # Battery holder
-        "BT2": {"zone": "center-bottom"},  # Battery holder
+        "BT1": {"zone": "bottom-left"},   # Battery holder
+        "BT2": {"zone": "bottom-right"},  # Battery holder
         "H4":  {"corner": "bottom-left"},
         "H86": {"corner": "bottom-right"},
     },

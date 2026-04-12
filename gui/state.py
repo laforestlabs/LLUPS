@@ -4,9 +4,12 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .db import Database
+
+if TYPE_CHECKING:
+    from .experiment_runner import ExperimentRunner
 
 
 # Default search dimension definitions
@@ -132,10 +135,20 @@ class AppState:
     # Runtime
     active_experiment_id: int | None = None
     runner_pid: int | None = None
+    _runner: ExperimentRunner | None = field(default=None, repr=False)
 
     def __post_init__(self):
         if self.db is None:
             self.db = Database()
+
+    @property
+    def runner(self) -> ExperimentRunner:
+        """Lazy-init singleton ExperimentRunner."""
+        if self._runner is None:
+            from .experiment_runner import ExperimentRunner
+            self._runner = ExperimentRunner(
+                self.project_root, self.scripts_dir, self.experiments_dir)
+        return self._runner
 
     @property
     def experiments_dir(self) -> Path:

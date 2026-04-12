@@ -185,8 +185,13 @@ class PlacementScorer:
         return (good / total) * 100
 
     def _score_board_containment(self) -> float:
-        """Score how well components and pads stay within the board outline."""
+        """Score how well components and pads stay within the board outline.
+
+        Uses pad_inset_margin_mm to enforce that pads are inset from the
+        board edge, not merely inside it.
+        """
         tl, br = self.state.board_outline
+        inset = self.cfg.get("pad_inset_margin_mm", 0.3)
 
         total_pads = 0
         pads_outside = 0
@@ -202,8 +207,8 @@ class PlacementScorer:
 
             for pad in comp.pads:
                 total_pads += 1
-                if (pad.pos.x < tl.x or pad.pos.x > br.x or
-                        pad.pos.y < tl.y or pad.pos.y > br.y):
+                if (pad.pos.x < tl.x + inset or pad.pos.x > br.x - inset or
+                        pad.pos.y < tl.y + inset or pad.pos.y > br.y - inset):
                     pads_outside += 1
 
         if total_pads == 0 and total_bodies == 0:
@@ -217,13 +222,19 @@ class PlacementScorer:
 
     def _score_courtyard_overlap(self) -> float:
         """Penalize overlapping component courtyards.
-        Uses bbox with clearance + courtyard_padding_mm as courtyard proxy."""
+        Uses bbox with clearance + courtyard_padding_mm as courtyard proxy.
+
+        Large components (area > 50mm²) incur a heavier per-overlap penalty
+        because their courtyard represents real physical space that cannot
+        be shared (e.g. battery holders)."""
         comps = list(self.state.components.values())
         base_clearance = 0.25  # mm courtyard margin
         padding = self.cfg.get("courtyard_padding_mm", 0.0)
         clearance = base_clearance + padding
+        large_area_threshold = 50.0  # mm²
         n = len(comps)
         overlaps = 0
+        large_overlaps = 0
         total_pairs = 0
 
         for i in range(n):
@@ -236,11 +247,16 @@ class PlacementScorer:
                 if (a_tl.x < b_br.x and a_br.x > b_tl.x and
                         a_tl.y < b_br.y and a_br.y > b_tl.y):
                     overlaps += 1
+                    a_area = a.width_mm * a.height_mm
+                    b_area = b.width_mm * b.height_mm
+                    if a_area > large_area_threshold or b_area > large_area_threshold:
+                        large_overlaps += 1
 
         if total_pairs == 0:
             return 100.0
-        # Each overlap costs 5 points
-        return max(0.0, min(100.0, 100.0 - overlaps * 5.0))
+        # Normal overlaps cost 5 points, large component overlaps cost 15
+        penalty = (overlaps - large_overlaps) * 5.0 + large_overlaps * 15.0
+        return max(0.0, min(100.0, 100.0 - penalty))
 
 
 class PlacementSolver:
@@ -287,6 +303,9 @@ class PlacementSolver:
 
         # Step 1: Pin edge components (connectors, mounting holes)
         self._pin_edge_components(comps)
+
+        # Step 1.1: Assign large through-hole components to back layer
+        self._assign_layers(comps)
 
         # Step 1.5: Use explicit IC groups to boost connectivity weights
         ic_groups = self.cfg.get("ic_groups", {})
@@ -434,6 +453,26 @@ class PlacementSolver:
         # Step 11: Ensure all pads are inside the board boundary
         self._clamp_pads_to_board(best_comps)
 
+        # Step 12: Validate pad containment — re-clamp if any pads still outside
+        for clamp_pass in range(3):
+            tl_v, br_v = self.state.board_outline
+            inset_v = self.cfg.get("pad_inset_margin_mm", 0.3)
+            any_outside = False
+            for comp in best_comps.values():
+                for pad in comp.pads:
+                    if (pad.pos.x < tl_v.x + inset_v or pad.pos.x > br_v.x - inset_v or
+                            pad.pos.y < tl_v.y + inset_v or pad.pos.y > br_v.y - inset_v):
+                        any_outside = True
+                        break
+                if any_outside:
+                    break
+            if not any_outside:
+                break
+            self._clamp_to_board(best_comps)
+            self._clamp_pads_to_board(best_comps)
+            if clamp_pass == 2:
+                print("  WARNING: some pads still outside board after 3 clamp passes")
+
         # Final score
         work_state.components = best_comps
         final = PlacementScorer(work_state, self.cfg).score()
@@ -494,6 +533,10 @@ class PlacementSolver:
         Connectors without explicit zone config fall back to nearest-edge heuristic.
         Mounting holes without config fall back to nearest-corner.
 
+        Positions are randomized along the assigned edge/zone each round
+        (controlled by self.rng and edge_jitter_mm config) so that placements
+        vary across experiment rounds.
+
         When unlock_all_footprints is True, initial positions are still set for
         edge/corner constraints but components are NOT locked — the force
         simulation can move them, and edge_compliance scoring incentivizes
@@ -503,48 +546,70 @@ class PlacementSolver:
         margin = self.edge_margin
         zones = self.cfg.get("component_zones", {})
         unlock_all = self.cfg.get("unlock_all_footprints", False)
+        jitter = self.cfg.get("edge_jitter_mm", 5.0)
+
+        def _random_along_edge(edge: str, comp: Component) -> Point:
+            """Return a randomized position pinned to the named edge."""
+            hw, hh = comp.width_mm / 2, comp.height_mm / 2
+            if edge in ("left", "right"):
+                fixed_x = tl.x + margin if edge == "left" else br.x - margin
+                # Randomize Y along the usable range of this edge
+                lo_y = tl.y + margin + hh
+                hi_y = br.y - margin - hh
+                new_y = self.rng.uniform(lo_y, max(lo_y, hi_y))
+                return Point(fixed_x, new_y)
+            else:  # top / bottom
+                fixed_y = tl.y + margin if edge == "top" else br.y - margin
+                lo_x = tl.x + margin + hw
+                hi_x = br.x - margin - hw
+                new_x = self.rng.uniform(lo_x, max(lo_x, hi_x))
+                return Point(new_x, fixed_y)
+
+        def _random_in_corner(corner: str, comp: Component) -> Point:
+            """Return a position near the named corner with small jitter."""
+            cx = tl.x + margin if "left" in corner else br.x - margin
+            cy = tl.y + margin if "top" in corner else br.y - margin
+            cx += self.rng.uniform(-jitter, jitter)
+            cy += self.rng.uniform(-jitter, jitter)
+            # Clamp to board
+            hw, hh = comp.width_mm / 2, comp.height_mm / 2
+            cx = max(tl.x + hw + 1, min(br.x - hw - 1, cx))
+            cy = max(tl.y + hh + 1, min(br.y - hh - 1, cy))
+            return Point(cx, cy)
 
         for ref, comp in comps.items():
             zone_cfg = zones.get(ref, {})
 
             if "edge" in zone_cfg:
-                # Explicit edge assignment
+                # Explicit edge assignment with randomized position along edge
                 old_pos = Point(comp.pos.x, comp.pos.y)
                 edge = zone_cfg["edge"]
-                if edge == "left":
-                    comp.pos.x = tl.x + margin
-                elif edge == "right":
-                    comp.pos.x = br.x - margin
-                elif edge == "top":
-                    comp.pos.y = tl.y + margin
-                elif edge == "bottom":
-                    comp.pos.y = br.y - margin
+                comp.pos = _random_along_edge(edge, comp)
                 _update_pad_positions(comp, old_pos, comp.rotation)
                 comp.locked = not unlock_all
 
             elif "corner" in zone_cfg:
-                # Explicit corner assignment
+                # Explicit corner assignment with small jitter
                 corner = zone_cfg["corner"]
-                if "left" in corner:
-                    cx = tl.x + margin
-                else:
-                    cx = br.x - margin
-                if "top" in corner:
-                    cy = tl.y + margin
-                else:
-                    cy = br.y - margin
                 old_pos = Point(comp.pos.x, comp.pos.y)
-                comp.pos = Point(cx, cy)
+                comp.pos = _random_in_corner(corner, comp)
                 _update_pad_positions(comp, old_pos, comp.rotation)
                 comp.locked = not unlock_all
 
             elif "zone" in zone_cfg:
-                # Zone constraint — don't lock, just set initial position.
-                # Actual confinement is enforced in _place_clusters and force sim.
-                pass  # handled later
+                # Zone constraint — randomize within zone bounds, don't lock.
+                zx0, zy0, zx1, zy1 = self._get_zone_bounds(zone_cfg["zone"])
+                hw, hh = comp.width_mm / 2, comp.height_mm / 2
+                old_pos = Point(comp.pos.x, comp.pos.y)
+                comp.pos = Point(
+                    self.rng.uniform(zx0 + hw, max(zx0 + hw + 1, zx1 - hw)),
+                    self.rng.uniform(zy0 + hh, max(zy0 + hh + 1, zy1 - hh)),
+                )
+                _update_pad_positions(comp, old_pos, comp.rotation)
+                # Zone components are NOT locked — force sim can refine position
 
             elif comp.kind == "connector":
-                # Fallback: snap connector to nearest edge
+                # Fallback: snap connector to nearest edge with random position
                 old_pos = Point(comp.pos.x, comp.pos.y)
                 x, y = comp.pos.x, comp.pos.y
                 distances = {
@@ -554,23 +619,18 @@ class PlacementSolver:
                     "bottom": br.y - y,
                 }
                 nearest = min(distances, key=distances.get)
-                if nearest == "left":
-                    comp.pos.x = tl.x + margin
-                elif nearest == "right":
-                    comp.pos.x = br.x - margin
-                elif nearest == "top":
-                    comp.pos.y = tl.y + margin
-                elif nearest == "bottom":
-                    comp.pos.y = br.y - margin
+                comp.pos = _random_along_edge(nearest, comp)
                 _update_pad_positions(comp, old_pos, comp.rotation)
                 comp.locked = not unlock_all
 
             elif comp.kind == "mounting_hole":
-                # Fallback: snap mounting hole to nearest corner
-                cx = tl.x + margin if comp.pos.x < (tl.x + br.x) / 2 else br.x - margin
-                cy = tl.y + margin if comp.pos.y < (tl.y + br.y) / 2 else br.y - margin
+                # Fallback: snap mounting hole to nearest corner with jitter
+                corner = ""
+                corner += "top" if comp.pos.y < (tl.y + br.y) / 2 else "bottom"
+                corner += "-"
+                corner += "left" if comp.pos.x < (tl.x + br.x) / 2 else "right"
                 old_pos = Point(comp.pos.x, comp.pos.y)
-                comp.pos = Point(cx, cy)
+                comp.pos = _random_in_corner(corner, comp)
                 _update_pad_positions(comp, old_pos, comp.rotation)
                 comp.locked = not unlock_all
 
@@ -1237,8 +1297,6 @@ class PlacementSolver:
                 a_tl, a_br = a.bbox(half_gap)
                 for j in range(i + 1, len(refs)):
                     b = comps[refs[j]]
-                    if a.locked and b.locked:
-                        continue
 
                     b_tl, b_br = b.bbox(half_gap)
                     ox = min(a_br.x, b_br.x) - max(a_tl.x, b_tl.x)
@@ -1246,7 +1304,20 @@ class PlacementSolver:
                     if ox <= 0 or oy <= 0:
                         continue
 
-                    if a.locked:
+                    if a.locked and b.locked:
+                        # Both locked — still must resolve physical overlap.
+                        # Temporarily move the smaller component.
+                        a_area = a.width_mm * a.height_mm
+                        b_area = b.width_mm * b.height_mm
+                        if a_area <= b_area:
+                            if _escape(a, b_tl, b_br):
+                                a_tl, a_br = a.bbox(half_gap)
+                                moved = True
+                        else:
+                            if _escape(b, a_tl, a_br):
+                                b_tl, b_br = b.bbox(half_gap)
+                                moved = True
+                    elif a.locked:
                         if _escape(b, a_tl, a_br):
                             b_tl, b_br = b.bbox(half_gap)
                             moved = True
@@ -1297,6 +1368,28 @@ class PlacementSolver:
             if comp.pos.x != old_pos.x or comp.pos.y != old_pos.y:
                 _update_pad_positions(comp, old_pos, comp.rotation)
 
+    def _assign_layers(self, comps: dict[str, Component]):
+        """Assign large through-hole components to B.Cu (back layer).
+
+        SMT components stay on F.Cu.  Small THT passives (e.g. axial
+        resistors) also stay on F.Cu.  Large THT parts (batteries,
+        large connectors) go to back so they don't block SMT placement
+        and routing on the front side.
+        """
+        min_area = self.cfg.get("tht_backside_min_area_mm2", 50.0)
+        moved = []
+        for ref, comp in comps.items():
+            if not comp.is_through_hole:
+                continue
+            if comp.area < min_area:
+                continue
+            if comp.layer != Layer.BACK:
+                comp.layer = Layer.BACK
+                moved.append(ref)
+        if moved:
+            print(f"  Assigned {len(moved)} large THT component(s) to back layer: "
+                  f"{', '.join(moved)}")
+
     def _clamp_pads_to_board(self, comps: dict[str, Component]):
         """Hard clamp: shift components inward so all pads are inside the board."""
         tl, br = self.state.board_outline
@@ -1307,21 +1400,27 @@ class PlacementSolver:
         max_y = br.y - inset
 
         for comp in comps.values():
-            if not comp.pads:
+            if comp.locked or not comp.pads:
                 continue
 
-            # Find max violation across all pads
-            shift_x = 0.0
-            shift_y = 0.0
+            # Track left/right and top/bottom violations separately
+            shift_left = 0.0   # positive = need to move right
+            shift_right = 0.0  # negative = need to move left
+            shift_up = 0.0     # positive = need to move down
+            shift_down = 0.0   # negative = need to move up
             for pad in comp.pads:
                 if pad.pos.x < min_x:
-                    shift_x = max(shift_x, min_x - pad.pos.x)
-                elif pad.pos.x > max_x:
-                    shift_x = min(shift_x, max_x - pad.pos.x)
+                    shift_left = max(shift_left, min_x - pad.pos.x)
+                if pad.pos.x > max_x:
+                    shift_right = min(shift_right, max_x - pad.pos.x)
                 if pad.pos.y < min_y:
-                    shift_y = max(shift_y, min_y - pad.pos.y)
-                elif pad.pos.y > max_y:
-                    shift_y = min(shift_y, max_y - pad.pos.y)
+                    shift_up = max(shift_up, min_y - pad.pos.y)
+                if pad.pos.y > max_y:
+                    shift_down = min(shift_down, max_y - pad.pos.y)
+
+            # Use the larger magnitude violation for each axis
+            shift_x = shift_left if abs(shift_left) >= abs(shift_right) else shift_right
+            shift_y = shift_up if abs(shift_up) >= abs(shift_down) else shift_down
 
             if abs(shift_x) > 0.001 or abs(shift_y) > 0.001:
                 old_pos = Point(comp.pos.x, comp.pos.y)

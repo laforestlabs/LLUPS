@@ -23,6 +23,7 @@ import multiprocessing as mp
 import os
 import random
 import re
+import signal
 import shutil
 import subprocess
 import sys
@@ -40,6 +41,13 @@ if _SCRIPT_DIR not in sys.path:
 from autoplacer.config import DEFAULT_CONFIG, LLUPS_CONFIG
 from autoplacer.pipeline import FullPipeline
 from autoplacer.brain.types import ExperimentScore
+
+# Group label support (silkscreen labels for IC groups)
+try:
+    from add_group_labels import add_group_labels as _add_group_labels
+    _GROUP_LABELS_AVAILABLE = True
+except ImportError:
+    _GROUP_LABELS_AVAILABLE = False
 
 # Optional logging support
 try:
@@ -253,19 +261,30 @@ def mutate_config_minor(base: dict, rng: random.Random,
     n_mutations = rng.randint(1, 3)
     keys = rng.sample(list(tunable.keys()), min(n_mutations, len(tunable)))
 
+    # When board size search is active, always include at least one
+    # board dimension in the mutation set so every round explores size.
+    if cfg.get("enable_board_size_search", False):
+        dim_keys = {"board_width_mm", "board_height_mm"}
+        if not dim_keys.intersection(keys):
+            keys.append(rng.choice(["board_width_mm", "board_height_mm"]))
+
     for key in keys:
         lo, hi, sigma_frac = tunable[key]
         current = cfg.get(key, (lo + hi) / 2)
         sigma = (hi - lo) * sigma_frac
         new_val = current + rng.gauss(0, sigma)
+        # Board dimensions: directional shrink bias — 70% chance of shrinking
+        if key in ("board_width_mm", "board_height_mm"):
+            if rng.random() < 0.7:
+                new_val = current - abs(new_val - current)
+            new_val = round(max(lo, min(hi, new_val)) / 5.0) * 5.0
+            cfg[key] = round(new_val, 4)
+            continue
         # Clamp
         new_val = max(lo, min(hi, new_val))
         # Integer params stay integer
         if isinstance(cfg.get(key), int):
             new_val = int(round(new_val))
-        # Board dimensions: round to 5mm steps
-        if key in ("board_width_mm", "board_height_mm"):
-            new_val = round(new_val / 5.0) * 5.0
         cfg[key] = round(new_val, 4)
 
     return cfg
@@ -554,8 +573,9 @@ def snapshot_pcb(pcb_path: str, output_png: str,
 
         subprocess.run(cmd, capture_output=True, check=True)
         os.remove(svg_path)
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass  # non-fatal — skip snapshot if tools missing
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"  Warning: snapshot failed for {output_png}: {e}",
+              file=sys.stderr, flush=True)
 
 
 def _parse_board_origin_from_pcb(pcb_path: str) -> tuple[float, float]:
@@ -949,6 +969,11 @@ def main():
 
     work_dir = Path(args.pcb).parent / ".experiments"
     work_dir.mkdir(exist_ok=True)
+
+    # Install SIGTERM handler so `kill -TERM` triggers graceful stop
+    def _sigterm_handler(signum, frame):
+        _request_stop(work_dir)
+    signal.signal(signal.SIGTERM, _sigterm_handler)
     
     # Initialize logging after work_dir is set
     global log
@@ -973,6 +998,13 @@ def main():
         for f in _glob.glob(str(frames_dir / "frame_*.png")):
             os.remove(f)
     frames_dir.mkdir(exist_ok=True)
+
+    # Pre-flight check: verify snapshot tools are available
+    for tool_name in ("kicad-cli", "magick"):
+        if shutil.which(tool_name) is None:
+            print(f"  WARNING: '{tool_name}' not found on PATH — "
+                  f"board progression frames will not be generated",
+                  file=sys.stderr, flush=True)
 
     # Per-worker scratch directories (avoid file conflicts in parallel mode)
     workers_dir = work_dir / "workers"
@@ -1140,6 +1172,16 @@ def main():
             # Check for graceful stop request
             if _check_stop_request(work_dir):
                 _log_event("stop_requested", round_num=round_num)
+                _write_live_status(
+                    status_json_path, status_txt_path,
+                    phase="stopping", args=args, start_ts=loop_t0,
+                    round_num=round_num, best_total=best_total,
+                    kept_count=kept_count, minor_stagnant=minor_stagnant,
+                    n_workers=n_workers, in_flight=0,
+                    completed_durations=completed_durations,
+                    last_completion_ts=last_completion_ts,
+                    latest_score=best_total, latest_marker="stop requested",
+                )
                 stop_file = work_dir / "stop.now"
                 if stop_file.exists():
                     stop_file.unlink()
@@ -1298,7 +1340,15 @@ def main():
                 )
 
                 results = []
+                stop_mid_batch = False
                 for future in as_completed(futures):
+                    # Check for stop request between worker completions
+                    if not stop_mid_batch and _check_stop_request(work_dir):
+                        stop_mid_batch = True
+                        _log_event("stop_mid_batch", round_num=round_num)
+                        # Cancel futures that haven't started yet
+                        for f in futures:
+                            f.cancel()
                     i = futures[future]
                     mode, candidate_cfg, candidate_seed, delta = batch[i]
                     work_pcb = str(workers_dir / f"w{i}" / "experiment.kicad_pcb")
@@ -1326,7 +1376,6 @@ def main():
             remaining_in_batch = len(results)
             for (score, duration, work_pcb, drc, mode,
                  candidate_cfg, candidate_seed, delta) in results:
-                round_num_local = round_num if n_workers == 1 else (round_num + 1)
                 if n_workers > 1:
                     round_num += 1
 
@@ -1459,6 +1508,13 @@ def main():
                         quiet=True,
                     )
 
+            # Break out of the main loop if stop was requested mid-batch
+            if stop_mid_batch:
+                stop_file = work_dir / "stop.now"
+                if stop_file.exists():
+                    stop_file.unlink()
+                break
+
     # Assemble progress GIF from frames
     gif_path = str(work_dir / "progress.gif")
     assemble_gif(frames_dir, gif_path)
@@ -1481,6 +1537,23 @@ def main():
     best_pcb = str(best_dir / "best.kicad_pcb")
     if os.path.exists(best_pcb):
         shutil.copy2(best_pcb, output_path)
+
+    # Regenerate silkscreen group labels at final component positions
+    if _GROUP_LABELS_AVAILABLE and os.path.exists(output_path):
+        ic_groups = BASE_CONFIG.get("ic_groups", {})
+        group_labels = BASE_CONFIG.get("group_labels", {})
+        if ic_groups and group_labels:
+            try:
+                _add_group_labels(
+                    pcb_path=output_path,
+                    ic_groups=ic_groups,
+                    group_labels=group_labels,
+                    in_place=True,
+                )
+                print(f"  Group labels updated on {output_path}")
+            except Exception as e:
+                print(f"  Warning: group label update failed: {e}",
+                      file=sys.stderr, flush=True)
 
     print()
     print(f"=== Done: {len(experiments)} experiments ===")

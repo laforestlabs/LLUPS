@@ -13,6 +13,7 @@ from ..components.param_sensitivity import (
     build_sensitivity_figure,
     build_correlation_matrix,
 )
+from ..components.progression_viewer import create_progression_viewer
 
 
 def analysis_page():
@@ -20,7 +21,23 @@ def analysis_page():
 
     ui.label("Experiment Analysis").classes("text-2xl font-bold mb-4")
 
-    # ── Experiment selector ──
+    # ── Top-level tabs: per-experiment analysis vs global progression ──
+    with ui.tabs().classes("w-full") as top_tabs:
+        exp_tab = ui.tab("Experiment Data", icon="analytics")
+        prog_tab = ui.tab("Board Progression", icon="slideshow")
+
+    with ui.tab_panels(top_tabs, value=exp_tab).classes("w-full"):
+        # ── Experiment Data panel ──
+        with ui.tab_panel(exp_tab):
+            _experiment_data_panel(state)
+
+        # ── Board Progression panel (always available) ──
+        with ui.tab_panel(prog_tab):
+            create_progression_viewer(state.experiments_dir)
+
+
+def _experiment_data_panel(state):
+    """Experiment-specific analysis with auto-refresh."""
     experiments = state.db.get_experiments()
     if not experiments:
         ui.label("No experiments found. Import JSONL data or run an experiment."
@@ -39,13 +56,19 @@ def analysis_page():
                   on_click=_import)
         return
 
-    exp_options = {
-        exp.id: f"#{exp.id} — {exp.name} ({exp.completed_rounds}r, "
-                f"best={exp.best_score:.1f})"
-        for exp in experiments
-    }
+    def _build_exp_options():
+        exps = state.db.get_experiments()
+        return {
+            exp.id: f"#{exp.id} — {exp.name} ({exp.completed_rounds}r, "
+                    f"best={exp.best_score:.1f})"
+            for exp in exps
+        }
 
-    selected_exp = {"id": experiments[0].id if experiments else None}
+    exp_options = _build_exp_options()
+
+    # Pick the experiment with the most rounds as default
+    best_default = max(experiments, key=lambda e: e.completed_rounds or 0)
+    selected_exp = {"id": best_default.id}
 
     # Content containers
     content = ui.column().classes("w-full")
@@ -57,8 +80,20 @@ def analysis_page():
 
         if not rounds:
             with content:
-                ui.label("No round data for this experiment").classes(
+                ui.label("No round data for this experiment.").classes(
                     "text-gray-500 italic")
+                # Offer to sync from JSONL
+                async def _sync():
+                    from ..migrations.init_db import import_all_jsonl
+                    ids = import_all_jsonl(state.db, state.experiments_dir)
+                    if ids:
+                        ui.notify(f"Re-imported {len(ids)} experiments",
+                                  type="positive")
+                        ui.navigate.reload()
+                    else:
+                        ui.notify("No new data to import", type="info")
+                ui.button("Sync from disk", icon="sync",
+                          on_click=_sync).classes("mt-2")
             return
 
         with content:
@@ -129,7 +164,7 @@ def analysis_page():
                     _export_panel(rounds, exp_id)
 
     with ui.row().classes("w-full items-center gap-4 mb-4"):
-        ui.select(
+        exp_select = ui.select(
             options=exp_options,
             value=selected_exp["id"],
             label="Select Experiment",
@@ -147,6 +182,29 @@ def analysis_page():
 
         ui.button("Import JSONL", icon="upload", on_click=_import
                   ).props("flat")
+
+        def _refresh():
+            """Refresh experiment list and reload current experiment."""
+            new_options = _build_exp_options()
+            exp_select.options = new_options
+            exp_select.update()
+            if selected_exp["id"]:
+                _load_experiment(selected_exp["id"])
+
+        ui.button("Refresh", icon="refresh", on_click=_refresh
+                  ).props("flat")
+
+    # Auto-refresh: reload data every 10s if an experiment is running
+    def _auto_refresh():
+        if selected_exp["id"]:
+            exp = state.db.get_experiment(selected_exp["id"])
+            if exp and exp.status == "running":
+                new_options = _build_exp_options()
+                exp_select.options = new_options
+                exp_select.update()
+                _load_experiment(selected_exp["id"])
+
+    ui.timer(10.0, _auto_refresh)
 
     # Load initial
     if selected_exp["id"]:

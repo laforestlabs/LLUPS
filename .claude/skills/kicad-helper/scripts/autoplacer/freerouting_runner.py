@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
 import tempfile
 
@@ -152,7 +153,11 @@ def run_freerouting(dsn_path: str, ses_path: str,
                     jar_path: str, timeout_s: int = 120,
                     max_passes: int = 40,
                     work_dir: str | None = None) -> dict:
-    """Run FreeRouting CLI and return result metadata."""
+    """Run FreeRouting CLI and return result metadata.
+
+    Uses start_new_session so the Java process gets its own process group,
+    allowing clean kill via os.killpg() on timeout or stop request.
+    """
     cmd = [
         "java",
         "-jar", jar_path,
@@ -165,13 +170,22 @@ def run_freerouting(dsn_path: str, ses_path: str,
 
     cwd = work_dir or os.path.dirname(dsn_path)
 
-    result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=timeout_s, cwd=cwd,
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, cwd=cwd, start_new_session=True,
     )
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        # Kill entire process group (Java + any children)
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except OSError:
+            pass
+        stdout, stderr = proc.communicate(timeout=5)
+        return parse_freerouting_output(stdout, stderr, -1)
 
-    return parse_freerouting_output(
-        result.stdout, result.stderr, result.returncode,
-    )
+    return parse_freerouting_output(stdout, stderr, proc.returncode)
 
 
 def import_ses(kicad_pcb_path: str, ses_path: str,

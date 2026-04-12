@@ -7,14 +7,12 @@ from pathlib import Path
 from nicegui import ui
 
 from ..state import get_state
-from ..experiment_runner import ExperimentRunner
 from ..components.score_chart import create_score_chart, build_score_figure
 
 
 def monitor_page():
     state = get_state()
-    runner = ExperimentRunner(state.project_root, state.scripts_dir,
-                              state.experiments_dir)
+    runner = state.runner
 
     ui.label("Experiment Monitor").classes("text-2xl font-bold mb-4")
 
@@ -24,6 +22,13 @@ def monitor_page():
                               color="green")
         stop_btn = ui.button("Stop", icon="stop", color="red")
         stop_btn.set_visibility(False)
+        force_kill_btn = ui.button("Force Kill", icon="dangerous",
+                                   color="deep-orange")
+        force_kill_btn.set_visibility(False)
+        stopping_spinner = ui.spinner(size="sm")
+        stopping_spinner.set_visibility(False)
+        stopping_label = ui.label("Stopping…")
+        stopping_label.set_visibility(False)
 
     # ── Status cards ──
     with ui.row().classes("w-full gap-4 mb-4"):
@@ -82,6 +87,7 @@ def monitor_page():
     # ── State tracking ──
     live_rounds: list[dict] = []
     last_round_seen = {"value": 0}
+    prev_phase = {"value": "idle"}
 
     def _format_time(seconds: float) -> str:
         s = max(0, int(seconds))
@@ -95,7 +101,7 @@ def monitor_page():
         # Status badge
         badge_colors = {
             "idle": "gray", "running": "blue",
-            "done": "green", "error": "red",
+            "stopping": "orange", "done": "green", "error": "red",
         }
         status_badge.set_text(phase.upper())
         status_badge._props["color"] = badge_colors.get(phase, "gray")
@@ -149,10 +155,15 @@ def monitor_page():
             health_label.set_text("—")
             health_label.classes(replace="")
 
-        # Button visibility
+        # Button visibility — state machine
         is_running = phase == "running" or runner.is_running
-        start_btn.set_visibility(not is_running)
-        stop_btn.set_visibility(is_running)
+        is_stopping = phase == "stopping"
+
+        start_btn.set_visibility(not is_running and not is_stopping)
+        stop_btn.set_visibility(is_running and not is_stopping)
+        force_kill_btn.set_visibility(is_stopping)
+        stopping_spinner.set_visibility(is_stopping)
+        stopping_label.set_visibility(is_stopping)
 
         # New rounds
         new_rounds = runner.read_latest_rounds(last_round_seen["value"])
@@ -161,10 +172,37 @@ def monitor_page():
             last_round_seen["value"] = max(
                 r.get("round_num", 0) for r in new_rounds
             )
+            # Persist to DB
+            if state.active_experiment_id:
+                for nr in new_rounds:
+                    state.db.add_round(state.active_experiment_id, nr)
+                best_so_far = max(
+                    (r.get("score", 0) for r in live_rounds), default=0
+                )
+                state.db.update_experiment(
+                    state.active_experiment_id,
+                    completed_rounds=len(live_rounds),
+                    best_score=best_so_far,
+                )
             # Update chart
             chart_container.clear()
             with chart_container:
                 create_score_chart(live_rounds, "Live Score")
+
+        # Detect experiment completion
+        if prev_phase["value"] in ("running", "stopping") and phase in ("done", "idle"):
+            if state.active_experiment_id:
+                best_so_far = max(
+                    (r.get("score", 0) for r in live_rounds), default=0
+                )
+                state.db.update_experiment(
+                    state.active_experiment_id,
+                    status="done",
+                    completed_rounds=len(live_rounds),
+                    best_score=best_so_far,
+                )
+                ui.notify("Experiment finished!", type="positive")
+        prev_phase["value"] = phase
 
         # Board preview
         best_png = state.experiments_dir / "best_preview.png"
@@ -211,5 +249,14 @@ def monitor_page():
             state.db.update_experiment(state.active_experiment_id,
                                        status="stopping")
 
+    def _force_kill():
+        runner.kill()
+        ui.notify("Force killed experiment and all child processes",
+                  type="warning")
+        if state.active_experiment_id:
+            state.db.update_experiment(state.active_experiment_id,
+                                       status="done")
+
     start_btn.on_click(_start)
     stop_btn.on_click(_stop)
+    force_kill_btn.on_click(_force_kill)
