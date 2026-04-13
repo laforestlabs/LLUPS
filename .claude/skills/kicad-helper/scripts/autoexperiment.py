@@ -442,15 +442,25 @@ def snapshot_pcb(pcb_path: str, output_png: str,
     """
     try:
         with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp:
-            svg_path = tmp.name
-        # Use --fit-page-to-board so SVG viewBox = exact board outline.
-        # We'll then rescale at fixed mm-to-pixel ratio in magick.
+            svg_front = tmp.name
+        with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp:
+            svg_back = tmp.name
+        # Render front and back layers as separate SVGs so we can composite
+        # them with alpha — prevents the opaque B.Cu ground plane from
+        # hiding all F.Cu detail.
         subprocess.run([
             "kicad-cli", "pcb", "export", "svg",
-            "--layers", "F.Cu,B.Cu,F.SilkS,Edge.Cuts",
+            "--layers", "F.Cu,F.SilkS,Edge.Cuts",
             "--mode-single", "--fit-page-to-board",
             "--exclude-drawing-sheet", "--drill-shape-opt", "2",
-            "-o", svg_path, pcb_path,
+            "-o", svg_front, pcb_path,
+        ], capture_output=True, check=True)
+        subprocess.run([
+            "kicad-cli", "pcb", "export", "svg",
+            "--layers", "B.Cu,Edge.Cuts",
+            "--mode-single", "--fit-page-to-board",
+            "--exclude-drawing-sheet", "--drill-shape-opt", "2",
+            "-o", svg_back, pcb_path,
         ], capture_output=True, check=True)
 
         # Fixed scale: canvas is canvas_px square, board occupies 80%.
@@ -459,16 +469,25 @@ def snapshot_pcb(pcb_path: str, output_png: str,
         target_w = int(round(bw * scale))
         target_h = int(round(bh * scale))
 
-        # Build ImageMagick command for rendering + optional text overlay
+        # Composite: white base → B.Cu at 30% opacity → F.Cu on top
         cmd = [
             "magick",
             "-density", "300",
-            "-background", "white",
-            svg_path,
-            "-flatten",
-            "-resize", f"{target_w}x{target_h}!",
+            # B.Cu layer at reduced opacity
+            "(", "-background", "none", svg_back,
+                 "-resize", f"{target_w}x{target_h}!",
+                 "-channel", "A", "-evaluate", "multiply", "0.30",
+                 "+channel", ")",
+            # F.Cu layer at full opacity
+            "(", "-background", "none", svg_front,
+                 "-resize", f"{target_w}x{target_h}!", ")",
+            # White canvas as base, composite B.Cu then F.Cu
             "-gravity", "center",
-            "-extent", f"{canvas_px}x{canvas_px}",
+            "(", "-size", f"{canvas_px}x{canvas_px}",
+                 "xc:white", ")",
+            # Stack: canvas, back, front — composite over
+            "-reverse",
+            "-compose", "over", "-flatten",
         ]
 
         if frame_info:
@@ -594,7 +613,8 @@ def snapshot_pcb(pcb_path: str, output_png: str,
         cmd.append(output_png)
 
         subprocess.run(cmd, capture_output=True, check=True)
-        os.remove(svg_path)
+        os.remove(svg_front)
+        os.remove(svg_back)
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         print(f"  Warning: snapshot failed for {output_png}: {e}",
               file=sys.stderr, flush=True)
