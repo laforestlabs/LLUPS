@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "timestamp": 1776060169.0127733,
+  "timestamp": 1776083869.0071278,
   "best_cfg": {
     "signal_width_mm": 0.127,
     "power_width_mm": 0.127,
     "via_drill_mm": 0.3,
     "via_size_mm": 0.6,
-    "placement_clearance_mm": 2.2262,
+    "placement_clearance_mm": 1.8181,
     "power_nets": [
       "+3V3",
       "+5V",
@@ -27,8 +27,8 @@
     ],
     "placement_grid_mm": 1.0,
     "edge_margin_mm": 5.7888,
-    "force_attract_k": 0.0331,
-    "force_repel_k": 255.0005,
+    "force_attract_k": 0.0337,
+    "force_repel_k": 176.1883,
     "cooling_factor": 0.9821,
     "max_placement_iterations": 100,
     "placement_convergence_threshold": 1.5,
@@ -41,9 +41,9 @@
     "pad_inset_margin_mm": 0.3,
     "edge_jitter_mm": 5.0,
     "connector_gap_mm": 2.0,
-    "orderedness": 0.0,
+    "connector_edge_inset_mm": 0.7568,
+    "orderedness": 0.1387,
     "tht_backside_min_area_mm2": 50.0,
-    "smt_backside_with_tht": true,
     "min_placement_score": 20.0,
     "component_zones": {
       "J1": {
@@ -153,8 +153,11 @@
     "unlock_all_footprints": false,
     "enable_board_size_search": false,
     "board_width_mm": 90.0,
-    "board_height_mm": 58.0
+    "board_height_mm": 58.0,
+    "board_size_overhead_factor": 2.5,
+    "_min_board_width_mm": 125.0,
+    "_min_board_height_mm": 80.0
   },
-  "best_seed": 721621819,
-  "best_score": 92.08661324681594
+  "best_seed": 1924014660,
+  "best_score": 93.75696737561222
 }

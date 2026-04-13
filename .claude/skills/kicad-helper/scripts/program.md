@@ -15,6 +15,10 @@
       0.9,
       0.995
     ],
+    "max_placement_iterations": [
+      100,
+      500
+    ],
     "edge_margin_mm": [
       4.0,
       10.0
@@ -22,6 +26,14 @@
     "placement_clearance_mm": [
       1.0,
       5.0
+    ],
+    "orderedness": [
+      0.0,
+      1.0
+    ],
+    "connector_edge_inset_mm": [
+      0.0,
+      3.0
     ],
     "board_width_mm": [
       50.0,
@@ -33,11 +45,12 @@
     ]
   },
   "score_weights": {
-    "placement": 0.5,
-    "route_completion": 0.85,
-    "via_penalty": 0.05,
-    "containment": 0.5,
-    "drc": 0.5
+    "placement": 0.15,
+    "route_completion": 0.5,
+    "via_penalty": 0.1,
+    "containment": 0.05,
+    "drc": 0.2,
+    "area": 0.15
   }
 }
 ```

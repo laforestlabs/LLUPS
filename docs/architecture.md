@@ -82,8 +82,14 @@ Configs are merged via `{**DEFAULT_CONFIG, **LLUPS_CONFIG, **(user_overrides or 
 | `courtyard_padding_mm` | Extra padding added to courtyard overlap scoring |
 | `min_placement_score` | Minimum placement score to proceed to routing |
 | `connector_gap_mm` | Gap between same-edge connectors (default 2.0mm) |
+| `connector_edge_inset_mm` | Distance from board edge to connector body (default 1.0mm) |
 | `orderedness` | Passive alignment strength 0.0-1.0 (organic → grid) |
 | `pad_inset_margin_mm` | Minimum pad-to-board-edge distance (default 0.3mm) |
+| `max_placement_iterations` | Force sim iteration limit (default 300, searchable 100-500) |
+| `placement_convergence_threshold` | Displacement threshold to declare convergence (default 0.5mm) |
+| `tht_backside_min_area_mm2` | THT area threshold for back-layer assignment (default 50mm²) |
+| `board_size_overhead_factor` | Min board area = component area × factor (default 2.5) |
+| `enable_board_size_search` | Enable board dimension search in autoexperiment |
 
 ## Rotation & Flip Conventions
 

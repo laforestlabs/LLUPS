@@ -62,6 +62,7 @@ class Component:
     locked: bool = False
     kind: str = ""        # "connector", "mounting_hole", "ic", "passive", "misc"
     is_through_hole: bool = False  # True if footprint has PTH pads
+    body_center: Point | None = None  # courtyard/body bbox center (absolute coords)
 
     @property
     def area(self) -> float:
@@ -172,8 +173,8 @@ class PlacementScore:
     def compute_total(self, weights: Optional[dict] = None) -> float:
         w = weights or {
             "net_distance": 0.25,        # connected parts close together
-            "crossover_score": 0.24,     # fewer crossings = easier routing
-            "compactness": 0.08,         # tighter layouts = smaller boards
+            "crossover_score": 0.20,     # fewer crossings = easier routing
+            "compactness": 0.12,         # tighter layouts = smaller boards
             "edge_compliance": 0.10,
             "rotation_score": 0.03,
             "board_containment": 0.15,
@@ -289,9 +290,16 @@ class ExperimentScore:
 
         # Area bonus: reward smaller boards (only when board size search is active)
         if board_area_mm2 is not None:
+            import math as _math
+            # Nonlinear area scoring: exponential decay rewards being closer
+            # to the minimum viable area.  A board at min_area scores ~85,
+            # at 2x min_area scores ~35, at max_area scores ~10.
             max_area = 120.0 * 80.0  # generous upper bound
-            area_score = max(0.0, min(100.0, 100.0 * (1.0 - board_area_mm2 / max_area)))
-            w_area = w.get("area", 0.10)
+            # Use a reference area proportional to a reasonable min (40% of max)
+            ref_area = max_area * 0.4
+            area_score = max(0.0, min(100.0,
+                100.0 * _math.exp(-board_area_mm2 / (1.8 * ref_area))))
+            w_area = w.get("area", 0.15)
             # Scale other weights down proportionally
             scale = 1.0 - w_area
             self.total = self.total * scale + w_area * area_score

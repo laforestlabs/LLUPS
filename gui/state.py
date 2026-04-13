@@ -46,6 +46,16 @@ SEARCH_DIMENSIONS = [
         "group": "Placement Physics",
     },
     {
+        "key": "max_placement_iterations",
+        "label": "Max Placement Iterations",
+        "default": 300,
+        "min": 100,
+        "max": 500,
+        "step": 10,
+        "enabled": True,
+        "group": "Placement Physics",
+    },
+    {
         "key": "edge_margin_mm",
         "label": "Edge Margin (mm)",
         "default": 6.0,
@@ -62,6 +72,26 @@ SEARCH_DIMENSIONS = [
         "min": 1.0,
         "max": 5.0,
         "step": 0.1,
+        "enabled": True,
+        "group": "Board Layout",
+    },
+    {
+        "key": "orderedness",
+        "label": "Orderedness (passive alignment)",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0,
+        "step": 0.05,
+        "enabled": True,
+        "group": "Board Layout",
+    },
+    {
+        "key": "connector_edge_inset_mm",
+        "label": "Connector Edge Inset (mm)",
+        "default": 1.0,
+        "min": 0.0,
+        "max": 3.0,
+        "step": 0.5,
         "enabled": True,
         "group": "Board Layout",
     },
@@ -101,11 +131,11 @@ DEFAULT_SCORE_WEIGHTS = {
     "via_penalty": 0.10,
     "containment": 0.05,
     "drc": 0.20,
+    "area": 0.15,
 }
 
 DEFAULT_TOGGLES = {
     "unlock_all_footprints": False,
-    "enable_backside_placement": False,
     "enable_board_size_search": False,
 }
 

@@ -253,11 +253,17 @@ def mutate_config_minor(base: dict, rng: random.Random,
         "edge_margin_mm":  (4.0, 10.0, 0.1),
         "placement_clearance_mm": (1.0, 3.0, 0.15),
         "orderedness":             (0.0, 1.0, 0.2),
+        "connector_edge_inset_mm": (0.0, 3.0, 0.15),
+        "max_placement_iterations": (100, 500, 0.15),
     }
-    # Board size search — 5mm steps
+    # Board size search — 5mm steps, dynamic lower bounds
     if cfg.get("enable_board_size_search", False):
-        tunable["board_width_mm"] = (60.0, 120.0, 0.1)
-        tunable["board_height_mm"] = (40.0, 80.0, 0.1)
+        min_w = cfg.get("_min_board_width_mm", 45.0)
+        min_h = cfg.get("_min_board_height_mm", 35.0)
+        max_w = max(min_w + 10, min_w * 2.0)
+        max_h = max(min_h + 10, min_h * 2.0)
+        tunable["board_width_mm"] = (min_w, max_w, 0.1)
+        tunable["board_height_mm"] = (min_h, max_h, 0.1)
 
     # Override with program.md ranges if provided
     for k, v in ranges.items():
@@ -313,10 +319,15 @@ def mutate_config_major(base: dict, rng: random.Random,
         "cooling_factor":  (0.90, 0.995),
         "placement_clearance_mm": (1.5, 5.0),
         "orderedness":             (0.0, 1.0),
+        "max_placement_iterations": (100, 500),
     }
     if cfg.get("enable_board_size_search", False):
-        aggressive_tunable["board_width_mm"] = (60.0, 120.0)
-        aggressive_tunable["board_height_mm"] = (40.0, 80.0)
+        min_w = cfg.get("_min_board_width_mm", 45.0)
+        min_h = cfg.get("_min_board_height_mm", 35.0)
+        max_w = max(min_w + 10, min_w * 2.0)
+        max_h = max(min_h + 10, min_h * 2.0)
+        aggressive_tunable["board_width_mm"] = (min_w, max_w)
+        aggressive_tunable["board_height_mm"] = (min_h, max_h)
 
     keys = rng.sample(list(aggressive_tunable.keys()),
                       rng.randint(1, len(aggressive_tunable)))
@@ -326,6 +337,9 @@ def mutate_config_major(base: dict, rng: random.Random,
         # Board dimensions: round to 5mm steps
         if key in ("board_width_mm", "board_height_mm"):
             new_val = round(new_val / 5.0) * 5.0
+        # Integer params stay integer
+        if isinstance(cfg.get(key), int):
+            new_val = int(round(new_val))
         cfg[key] = round(new_val, 4)
 
     # MAJOR mode: enable aggressive layout diversity
@@ -1133,6 +1147,26 @@ def main():
         BASE_CONFIG["unlock_all_footprints"] = True
     if args.board_size_search:
         BASE_CONFIG["enable_board_size_search"] = True
+
+    # Compute minimum viable board size from component area (for search bounds)
+    if BASE_CONFIG.get("enable_board_size_search", False):
+        try:
+            from autoplacer.hardware.adapter import KiCadAdapter
+            from autoplacer.brain.placement import compute_min_board_size
+            _tmp_adapter = KiCadAdapter(args.pcb, config=BASE_CONFIG)
+            _tmp_state = _tmp_adapter.load()
+            _overhead = BASE_CONFIG.get("board_size_overhead_factor", 2.5)
+            _min_w, _min_h = compute_min_board_size(_tmp_state, _overhead)
+            BASE_CONFIG["_min_board_width_mm"] = _min_w
+            BASE_CONFIG["_min_board_height_mm"] = _min_h
+            print(f"Min viable board: {_min_w:.0f} x {_min_h:.0f} mm "
+                  f"(search range: {_min_w:.0f}-{max(_min_w+10, _min_w*2):.0f} x "
+                  f"{_min_h:.0f}-{max(_min_h+10, _min_h*2):.0f})")
+            del _tmp_adapter, _tmp_state
+        except Exception as e:
+            print(f"  WARNING: could not compute min board size: {e}")
+            BASE_CONFIG["_min_board_width_mm"] = 45.0
+            BASE_CONFIG["_min_board_height_mm"] = 35.0
 
     # Run baseline or resume from checkpoint
     best_cfg = dict(BASE_CONFIG)

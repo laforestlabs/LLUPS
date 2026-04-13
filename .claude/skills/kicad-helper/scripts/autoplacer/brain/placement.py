@@ -44,9 +44,6 @@ def _bbox_overlap_amount(a: Component, b: Component) -> float:
 def _swap_pad_positions(a: Component, b: Component):
     """After swapping a.pos and b.pos, update pad positions accordingly."""
     # Pads are at absolute positions. After swap, shift by the delta.
-    dx_a = a.pos.x - b.pos.x  # a moved from b's old pos to a's new pos...
-    # Actually: a now has b's old position, b now has a's old position.
-    # But we already swapped .pos. So shift pads by the same delta.
     # a's pads need to move by (a.pos - old_a_pos) = (b_old - a_old)
     # But .pos was already swapped so a.pos = b_old, b.pos = a_old
     # So a's old pos was b.pos (current), a's new pos is a.pos (current)
@@ -56,10 +53,14 @@ def _swap_pad_positions(a: Component, b: Component):
         p.pos = Point(p.pos.x + delta_ax, p.pos.y + delta_ay)
     for p in b.pads:
         p.pos = Point(p.pos.x - delta_ax, p.pos.y - delta_ay)
+    if a.body_center is not None:
+        a.body_center = Point(a.body_center.x + delta_ax, a.body_center.y + delta_ay)
+    if b.body_center is not None:
+        b.body_center = Point(b.body_center.x - delta_ax, b.body_center.y - delta_ay)
 
 
 def _update_pad_positions(comp: Component, old_pos: Point, old_rot: float):
-    """Update pad absolute positions after component move/rotate.
+    """Update pad and body_center absolute positions after component move/rotate.
 
     Uses KiCad's rotation convention:
         x' = x·cos θ + y·sin θ
@@ -70,20 +71,47 @@ def _update_pad_positions(comp: Component, old_pos: Point, old_rot: float):
     dy = comp.pos.y - old_pos.y
     rot_delta = math.radians(comp.rotation - old_rot)
 
-    for pad in comp.pads:
+    def _transform(pt: Point) -> Point:
         if abs(rot_delta) < 0.001:
-            # Translation only
-            pad.pos = Point(pad.pos.x + dx, pad.pos.y + dy)
-        else:
-            # Rotate around new component center (KiCad CW convention)
-            rx = pad.pos.x - old_pos.x
-            ry = pad.pos.y - old_pos.y
-            cos_r = math.cos(rot_delta)
-            sin_r = math.sin(rot_delta)
-            pad.pos = Point(
-                comp.pos.x + rx * cos_r + ry * sin_r,
-                comp.pos.y - rx * sin_r + ry * cos_r,
-            )
+            return Point(pt.x + dx, pt.y + dy)
+        rx = pt.x - old_pos.x
+        ry = pt.y - old_pos.y
+        cos_r = math.cos(rot_delta)
+        sin_r = math.sin(rot_delta)
+        return Point(
+            comp.pos.x + rx * cos_r + ry * sin_r,
+            comp.pos.y - rx * sin_r + ry * cos_r,
+        )
+
+    for pad in comp.pads:
+        pad.pos = _transform(pad.pos)
+    if comp.body_center is not None:
+        comp.body_center = _transform(comp.body_center)
+
+
+def compute_min_board_size(state: BoardState, overhead_factor: float = 2.5
+                           ) -> tuple[float, float]:
+    """Estimate the minimum viable board dimensions from component area.
+
+    Returns (min_width_mm, min_height_mm) based on total component area
+    scaled by overhead_factor (to leave room for routing and clearances).
+    Preserves the aspect ratio of the current board outline.
+    """
+    total_area = sum(c.area for c in state.components.values())
+    min_area = total_area * overhead_factor
+    if min_area <= 0:
+        return (40.0, 30.0)  # fallback
+    # Preserve current board aspect ratio
+    bw = max(1.0, state.board_width)
+    bh = max(1.0, state.board_height)
+    aspect = bw / bh
+    # min_area = min_w * min_h = min_w * (min_w / aspect)
+    min_w = math.sqrt(min_area * aspect)
+    min_h = min_w / aspect
+    # Round up to nearest 5mm
+    min_w = math.ceil(min_w / 5.0) * 5.0
+    min_h = math.ceil(min_h / 5.0) * 5.0
+    return (max(30.0, min_w), max(20.0, min_h))
 
 
 class PlacementScorer:
@@ -233,42 +261,41 @@ class PlacementScorer:
         return max(0.0, min(100.0, score))
 
     def _score_courtyard_overlap(self) -> float:
-        """Penalize overlapping component courtyards.
-        Uses bbox with clearance + courtyard_padding_mm as courtyard proxy.
+        """Penalize overlapping component courtyards using area-proportional scoring.
 
-        Large components (area > 50mm²) incur a heavier per-overlap penalty
-        because their courtyard represents real physical space that cannot
-        be shared (e.g. battery holders)."""
+        Instead of a fixed penalty per overlap pair (which creates a cliff
+        at high overlap counts), this measures the total overlap area as a
+        fraction of total courtyard area.  Provides a smooth gradient so
+        partial improvements are always rewarded."""
         comps = list(self.state.components.values())
         base_clearance = 0.25  # mm courtyard margin
         padding = self.cfg.get("courtyard_padding_mm", 0.0)
         clearance = base_clearance + padding
-        large_area_threshold = 50.0  # mm²
         n = len(comps)
-        overlaps = 0
-        large_overlaps = 0
-        total_pairs = 0
+
+        total_courtyard_area = 0.0
+        total_overlap_area = 0.0
 
         for i in range(n):
             a = comps[i]
+            a_tl, a_br = a.bbox(clearance)
+            total_courtyard_area += (a_br.x - a_tl.x) * (a_br.y - a_tl.y)
             for j in range(i + 1, n):
                 b = comps[j]
-                total_pairs += 1
-                a_tl, a_br = a.bbox(clearance)
                 b_tl, b_br = b.bbox(clearance)
-                if (a_tl.x < b_br.x and a_br.x > b_tl.x and
-                        a_tl.y < b_br.y and a_br.y > b_tl.y):
-                    overlaps += 1
-                    a_area = a.width_mm * a.height_mm
-                    b_area = b.width_mm * b.height_mm
-                    if a_area > large_area_threshold or b_area > large_area_threshold:
-                        large_overlaps += 1
+                # Compute overlap rectangle
+                ox = max(0.0, min(a_br.x, b_br.x) - max(a_tl.x, b_tl.x))
+                oy = max(0.0, min(a_br.y, b_br.y) - max(a_tl.y, b_tl.y))
+                total_overlap_area += ox * oy
 
-        if total_pairs == 0:
+        if total_courtyard_area <= 0:
             return 100.0
-        # Normal overlaps cost 5 points, large component overlaps cost 15
-        penalty = (overlaps - large_overlaps) * 5.0 + large_overlaps * 15.0
-        return max(0.0, min(100.0, 100.0 - penalty))
+        # Overlap ratio: 0 = no overlaps, 1 = total overlap equals total courtyard
+        overlap_ratio = total_overlap_area / total_courtyard_area
+        # Smooth penalty: ratio of 0.1 (10% overlap) → score ~70
+        #                  ratio of 0.3 (30% overlap) → score ~30
+        #                  ratio of 0.0 → score 100
+        return max(0.0, min(100.0, 100.0 * (1.0 - overlap_ratio * 3.0)))
 
 
 class PlacementSolver:
@@ -284,13 +311,13 @@ class PlacementSolver:
         self.cfg = config or {}
         self.seed = seed
         self.rng = random.Random(seed)
-        self.k_attract = self.cfg.get("force_attract_k", 0.08)
-        self.k_repel = self.cfg.get("force_repel_k", 40.0)
-        self.cooling = self.cfg.get("cooling_factor", 0.97)
-        self.edge_margin = self.cfg.get("edge_margin_mm", 2.0)
+        self.k_attract = max(0.001, min(1.0, self.cfg.get("force_attract_k", 0.08)))
+        self.k_repel = max(1.0, min(5000.0, self.cfg.get("force_repel_k", 40.0)))
+        self.cooling = max(0.5, min(0.999, self.cfg.get("cooling_factor", 0.97)))
+        self.edge_margin = max(0.5, min(30.0, self.cfg.get("edge_margin_mm", 2.0)))
         self.grid_snap = self.cfg.get("placement_grid_mm", 0.5)
-        self.max_iterations = self.cfg.get("max_placement_iterations", 100)
-        self.convergence_threshold = self.cfg.get("placement_convergence_threshold", 1.5)
+        self.max_iterations = max(10, min(2000, int(self.cfg.get("max_placement_iterations", 300))))
+        self.convergence_threshold = self.cfg.get("placement_convergence_threshold", 0.5)
         self.score_every_n = self.cfg.get("placement_score_every_n", 1)
         self.intra_cluster_iters = self.cfg.get("intra_cluster_iters", 80)
         # placement_clearance_mm is the min gap between component bboxes.
@@ -424,7 +451,7 @@ class PlacementSolver:
                     if stagnant >= 3 and stagnant % 3 == 0:
                         comps = {r: copy.deepcopy(c) for r, c in best_comps.items()}
 
-                if stagnant >= 10:
+                if stagnant >= 20:
                     print(f"  Converged at iteration {iteration+1}")
                     break
 
@@ -571,19 +598,28 @@ class PlacementSolver:
 
     @staticmethod
     def _best_rotation_for_edge(comp: Component, edge: str) -> float:
-        """Find the rotation (0/90/180/270) that orients the pad centroid
-        toward the board center relative to the named edge.
+        """Find the rotation (0/90/180/270) that orients a connector flush
+        against the named edge with pads facing inward.
 
-        For left edge: pads should be to the right of center (centroid.x > 0).
-        For right edge: pads should be to the left (centroid.x < 0).
-        For top edge: pads should be below center (centroid.y > 0).
-        For bottom edge: pads should be above center (centroid.y < 0).
+        Strategy:
+        1. Compute the pad centroid offset from the body center (not the
+           footprint origin, which may be at a corner pad).
+        2. If the offset is significant, rotate so the centroid points
+           inward (toward board center).
+        3. If pads are symmetric around the body center, use the
+           component aspect ratio: orient the long axis PARALLEL to the
+           edge so the connector sits naturally against it.
         """
         if not comp.pads:
             return comp.rotation
 
-        # Compute pad centroid offset from component center at current rotation
-        cx, cy = comp.pos.x, comp.pos.y
+        # Use body_center as reference point; fall back to footprint origin.
+        # Body center (courtyard bbox center) accounts for connectors whose
+        # origin is at a corner pad rather than the geometric center.
+        if comp.body_center is not None:
+            cx, cy = comp.body_center.x, comp.body_center.y
+        else:
+            cx, cy = comp.pos.x, comp.pos.y
         pad_cx = sum(p.pos.x for p in comp.pads) / len(comp.pads) - cx
         pad_cy = sum(p.pos.y for p in comp.pads) / len(comp.pads) - cy
 
@@ -592,14 +628,31 @@ class PlacementSolver:
         desired_angle_deg = {"left": 0, "right": 180, "top": 90, "bottom": 270}
         desired = math.radians(desired_angle_deg[edge])
 
-        # Current angle of pad centroid offset
-        if abs(pad_cx) < 0.001 and abs(pad_cy) < 0.001:
-            return comp.rotation  # symmetric footprint, no preference
+        # For symmetric footprints (centroid ~= body center), use aspect ratio
+        # to orient the long axis parallel to the edge.
+        centroid_mag = math.hypot(pad_cx, pad_cy)
+        if centroid_mag < 0.5:
+            # Symmetric: use body shape to decide orientation.
+            # For left/right edges: long axis should be vertical (height > width)
+            # For top/bottom edges: long axis should be horizontal (width > height)
+            w, h = comp.width_mm, comp.height_mm
+            if edge in ("left", "right"):
+                # We want height >= width at the final rotation.
+                # If currently wider than tall, rotate 90°.
+                if w > h * 1.1:
+                    return (comp.rotation + 90) % 360
+                return comp.rotation
+            else:
+                # top/bottom: want width >= height
+                if h > w * 1.1:
+                    return (comp.rotation + 90) % 360
+                return comp.rotation
+
         current = math.atan2(pad_cy, pad_cx)
 
-        # Rotation needed to align current centroid with desired direction.
-        # KiCad rotation by +δ moves vectors from angle α to α-δ,
-        # so δ = current - desired.
+        # Rotation needed to move pad centroid from its current angle to
+        # the desired angle.  Applying rotation +δ to the component
+        # rotates feature angles from α to α−δ, so δ = current − desired.
         delta = current - desired
         # Snap to nearest 90°
         delta_deg = math.degrees(delta) % 360
@@ -643,6 +696,7 @@ class PlacementSolver:
         jitter = self.cfg.get("edge_jitter_mm", 5.0)
         pad_inset = self.cfg.get("pad_inset_margin_mm", 0.3)
         connector_gap = self.cfg.get("connector_gap_mm", 2.0)
+        connector_inset = self.cfg.get("connector_edge_inset_mm", 1.0)
 
         def _random_in_corner(corner: str, comp: Component) -> Point:
             """Return a position near the named corner with small jitter."""
@@ -656,27 +710,68 @@ class PlacementSolver:
             cy = max(tl.y + hh + 1, min(br.y - hh - 1, cy))
             return Point(cx, cy)
 
-        def _shift_pads_inside(comp: Component):
-            """Shift component so ALL pads are inside the board boundary."""
+        def _shift_pads_inside(comp: Component, assigned_edge: str = None):
+            """Shift component so ALL pads are inside the board boundary.
+
+            If assigned_edge is set, skip shifting on the axis perpendicular
+            to the edge — don't pull an edge-pinned connector away from its
+            assigned edge.  Only enforce containment on the other 3 sides.
+            """
             if not comp.pads:
                 return
             pad_xs = [p.pos.x for p in comp.pads]
             pad_ys = [p.pos.y for p in comp.pads]
             shift_x = shift_y = 0.0
-            if min(pad_xs) < tl.x + pad_inset:
+
+            # X axis shifts (skip the assigned-edge side)
+            if min(pad_xs) < tl.x + pad_inset and assigned_edge != "left":
                 shift_x = tl.x + pad_inset - min(pad_xs)
-            elif max(pad_xs) > br.x - pad_inset:
+            elif max(pad_xs) > br.x - pad_inset and assigned_edge != "right":
                 shift_x = br.x - pad_inset - max(pad_xs)
-            if min(pad_ys) < tl.y + pad_inset:
+
+            # Y axis shifts (skip the assigned-edge side)
+            if min(pad_ys) < tl.y + pad_inset and assigned_edge != "top":
                 shift_y = tl.y + pad_inset - min(pad_ys)
-            elif max(pad_ys) > br.y - pad_inset:
+            elif max(pad_ys) > br.y - pad_inset and assigned_edge != "bottom":
                 shift_y = br.y - pad_inset - max(pad_ys)
+
             if abs(shift_x) > 0.01 or abs(shift_y) > 0.01:
                 comp.pos.x += shift_x
                 comp.pos.y += shift_y
                 for pad in comp.pads:
                     pad.pos.x += shift_x
                     pad.pos.y += shift_y
+                if comp.body_center is not None:
+                    comp.body_center = Point(
+                        comp.body_center.x + shift_x,
+                        comp.body_center.y + shift_y,
+                    )
+
+        def _connector_edge_x(comp: Component, edge: str) -> float:
+            """Compute X position so connector body edge is flush with the
+            board edge (plus connector_inset_mm offset).
+
+            For left edge: body left edge at tl.x + connector_inset
+            For right edge: body right edge at br.x - connector_inset
+            """
+            hw = comp.width_mm / 2
+            if edge == "left":
+                return tl.x + connector_inset + hw
+            else:  # right
+                return br.x - connector_inset - hw
+
+        def _connector_edge_y(comp: Component, edge: str) -> float:
+            """Compute Y position so connector body edge is flush with the
+            board edge (plus connector_inset_mm offset).
+
+            For top edge: body top edge at tl.y + connector_inset
+            For bottom edge: body bottom edge at br.y - connector_inset
+            """
+            hh = comp.height_mm / 2
+            if edge == "top":
+                return tl.y + connector_inset + hh
+            else:  # bottom
+                return br.y - connector_inset - hh
 
         def _orient_and_place(comp: Component, edge: str, pos: Point):
             """Orient connector to face inward and move to position."""
@@ -690,7 +785,7 @@ class PlacementSolver:
                 comp.rotation = self._best_rotation_for_edge(comp, edge)
             comp.pos = pos
             _update_pad_positions(comp, old_pos, old_rot)
-            _shift_pads_inside(comp)
+            _shift_pads_inside(comp, assigned_edge=edge)
 
         # --- Collect edge-pinned connectors by edge for grouped placement ---
         edge_groups: dict[str, list[str]] = {}  # edge -> [ref, ...]
@@ -716,8 +811,7 @@ class PlacementSolver:
             order = sorted(range(len(refs)), key=lambda i: group_comps[i].area, reverse=True)
 
             if edge in ("left", "right"):
-                # Column along Y axis
-                fixed_x = tl.x + margin if edge == "left" else br.x - margin
+                # Column along Y axis — body edge flush with board edge
                 # Total height needed for the group
                 sizes = [group_comps[i].height_mm for i in order]
                 total_h = sum(sizes) + connector_gap * (len(sizes) - 1)
@@ -733,14 +827,15 @@ class PlacementSolver:
                 cursor_y = start_y
                 for idx in order:
                     comp = group_comps[idx]
+                    # Place connector body flush to board edge
+                    fixed_x = _connector_edge_x(comp, edge)
                     pos = Point(fixed_x, cursor_y)
                     _orient_and_place(comp, edge, pos)
                     self._pinned_targets[refs[idx]] = Point(comp.pos.x, comp.pos.y)
                     comp.locked = not unlock_all
                     cursor_y += comp.height_mm + connector_gap
             else:
-                # Row along X axis
-                fixed_y = tl.y + margin if edge == "top" else br.y - margin
+                # Row along X axis — body edge flush with board edge
                 sizes = [group_comps[i].width_mm for i in order]
                 total_w = sum(sizes) + connector_gap * (len(sizes) - 1)
                 usable_left = tl.x + margin + sizes[0] / 2
@@ -753,6 +848,8 @@ class PlacementSolver:
                 cursor_x = start_x
                 for idx in order:
                     comp = group_comps[idx]
+                    # Place connector body flush to board edge
+                    fixed_y = _connector_edge_y(comp, edge)
                     pos = Point(cursor_x, fixed_y)
                     _orient_and_place(comp, edge, pos)
                     self._pinned_targets[refs[idx]] = Point(comp.pos.x, comp.pos.y)
@@ -1577,13 +1674,14 @@ class PlacementSolver:
     def _assign_layers(self, comps: dict[str, Component]):
         """Assign large through-hole components to B.Cu (back layer).
 
-        SMT components stay on F.Cu.  Small THT passives (e.g. axial
+        SMT components always stay on F.Cu.  Small THT passives (e.g. axial
         resistors) also stay on F.Cu.  Large THT parts (batteries,
         large connectors) go to back so they don't block SMT placement
         and routing on the front side.
 
-        When smt_backside_with_tht is True, SMT passives from the same
-        ic_group as a back-layer THT component are also moved to B.Cu.
+        SMT passives stay on F.Cu even when their IC group contains a
+        back-layer THT component — IC group connectivity forces keep them
+        nearby in the same XY region, achieving dual-sided board usage.
         """
         min_area = self.cfg.get("tht_backside_min_area_mm2", 50.0)
         moved = []
@@ -1602,29 +1700,6 @@ class PlacementSolver:
         if moved:
             print(f"  Assigned {len(moved)} large THT component(s) to back layer: "
                   f"{', '.join(moved)}")
-
-        # Move SMT passives in the same ic_group as back-layer THT to B.Cu
-        if self.cfg.get("smt_backside_with_tht", True):
-            ic_groups = self.cfg.get("ic_groups", {})
-            back_groups = set()
-            for ic_ref, members in ic_groups.items():
-                all_refs = [ic_ref] + list(members)
-                if any(comps.get(r) and comps[r].layer == Layer.BACK for r in all_refs):
-                    back_groups.update(all_refs)
-            smt_moved = []
-            for ref in back_groups:
-                comp = comps.get(ref)
-                if (comp and not comp.is_through_hole and
-                        comp.layer != Layer.BACK and
-                        comp.kind == "passive"):
-                    # Mirror pad X offsets to match KiCad Flip()
-                    for pad in comp.pads:
-                        pad.pos.x = 2 * comp.pos.x - pad.pos.x
-                    comp.layer = Layer.BACK
-                    smt_moved.append(ref)
-            if smt_moved:
-                print(f"  Moved {len(smt_moved)} SMT passive(s) to back with THT group: "
-                      f"{', '.join(smt_moved)}")
 
     def _clamp_pads_to_board(self, comps: dict[str, Component]):
         """Hard clamp: shift components inward so all pads are inside the board."""

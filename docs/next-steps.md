@@ -2,7 +2,7 @@
 
 > Updated: 2026-04-13
 > Current best: **92.7** (seed bank). 26/26 nets routed, 0 shorts, 0 pads outside board. Placement score ~85.
-> Recent fixes: rotation convention (CW), layer flip pad mirroring, hard pad-containment gate, connector grouping, orderedness parameter.
+> Recent fixes: connector body-edge alignment, SMT/THT dual-sided layout, dynamic board sizing, area-proportional courtyard scoring, placement iteration increase.
 
 ---
 
@@ -11,11 +11,17 @@
 - **Rotation convention fixed**: Model now uses KiCad's CW rotation formula (`x'=x·cos+y·sin, y'=-x·sin+y·cos`). Previously used CCW (standard math), causing model-vs-KiCad pad position divergence — the root cause of pads-outside-board issues.
 - **Layer flip mirroring fixed**: `_assign_layers()` now mirrors pad X offsets when flipping components to B.Cu, matching KiCad's `Flip()` behavior. Layer assignment runs before edge pinning so connector positions account for flipped geometry.
 - **Hard pad-containment gate**: Pipeline rejects placement if ANY pad is outside board boundary (zero tolerance). Previously used a percentage-based check that let ~5 outlier pads through.
+- **Connector body-edge alignment** (NEW): Edge-pinned connectors now positioned with body edge flush to board edge (configurable via `connector_edge_inset_mm`, default 1.0mm). Previously used center+margin which placed connectors 6mm inward. `_shift_pads_inside()` now respects edge assignments — won't pull connectors away from their assigned edge. `_best_rotation_for_edge()` uses aspect ratio for symmetric footprints (e.g. USB-C) instead of failing on near-zero pad centroid.
+- **SMT stays on F.Cu** (NEW): Removed `smt_backside_with_tht` logic that moved SMT passives to B.Cu with THT group partners. SMT components always stay on F.Cu; IC group connectivity forces keep them in the same XY region as back-side THT components, achieving true dual-sided board usage.
+- **Dynamic board sizing** (NEW): Minimum viable board size computed from total component area × overhead factor (default 2.5×). Board size search range dynamically bounded [min_viable, 2×min_viable] instead of hardcoded [60-120, 40-80]. Area bonus weight increased from 10% → 15% with nonlinear (exponential) scoring.
+- **Courtyard scoring gradient** (NEW): Replaced cliff penalty (5pts/pair, floors at 4+ overlaps) with area-proportional scoring. Total overlap area as fraction of total courtyard area provides smooth gradient so partial improvements are always rewarded.
+- **Placement iterations increased** (NEW): `max_placement_iterations` 100→300, `convergence_threshold` 1.5→0.5, stagnation limit 10→20. `max_placement_iterations` added to search space (100-500). Parameter bounds clamped in `__init__` to prevent degenerate configs.
+- **Placement=0 fallback** (NEW): Pipeline retries with default force parameters if initial placement scores 0. Eliminates ~6% failure rate from extreme configs.
+- **Compactness weight increased**: PlacementScore compactness 0.08→0.12 (crossover_score 0.24→0.20 to compensate). Stronger signal for tighter layouts.
 - **Connector grouping**: Same-edge connectors placed in compact rows/columns with configurable gap. Auto-orientation faces pads toward board center.
 - **Orderedness parameter**: Configurable 0.0-1.0 strength for aligning passives into neat rows/columns near their IC group leaders.
 - **FreeRouting v1.9.0** is the sole router. Routing time ~10-15 sec/round.
 - **22 parallel workers** using ProcessPoolExecutor with spawn context.
-- **Placement converges early**: Force sim typically converges at iteration 10-12 out of 100 max. Most placement time is in the post-sim steps (overlap resolution, clamping, validation).
 
 ### Current Scoring Weights
 
@@ -23,8 +29,8 @@
 | Component | Weight |
 |-----------|--------|
 | net_distance | 0.25 |
-| crossover_score | 0.30 |
-| compactness | 0.02 |
+| crossover_score | 0.20 |
+| compactness | 0.12 |
 | edge_compliance | 0.10 |
 | rotation_score | 0.03 |
 | board_containment | 0.15 |
@@ -38,54 +44,53 @@
 | via_penalty | 0.10 |
 | containment | 0.05 |
 | drc | 0.20 |
+| area (when board size search active) | 0.15 |
+
+---
+
+## Completed (this session)
+
+### ~~1. Increase placement iterations~~ ✅
+- `max_placement_iterations`: 100 → 300
+- `placement_convergence_threshold`: 1.5 → 0.5
+- Stagnation limit: 10 → 20
+- Added to minor tunable search space (100-500, sigma 0.15)
+
+### ~~3. Fix courtyard overlap scoring~~ ✅
+- Switched from fixed-points-per-pair cliff to area-proportional scoring
+- overlap_ratio = total_overlap_area / total_courtyard_area
+- Smooth gradient: 10% overlap → score ~70, 30% → ~30
+
+### ~~4. Eliminate placement=0 failures~~ ✅
+- Parameter bounds validation in `PlacementSolver.__init__()` (clamp to safe ranges)
+- Fallback retry in pipeline with default force params when score < 1.0
 
 ---
 
 ## High Priority
 
-### 1. Increase placement iterations
-
-The force-directed sim converges at iteration 10-12 of 100 max (`max_placement_iterations`). This is too early — the solver barely explores the placement landscape before declaring convergence. The early convergence is driven by aggressive `convergence_threshold` (1.5mm displacement) and stagnation detection (10 stagnant scores).
-
-**Actions:**
-- Increase `max_placement_iterations` from 100 to 300 in DEFAULT_CONFIG
-- Lower `placement_convergence_threshold` from 1.5 to 0.5 to require tighter convergence
-- Increase stagnation limit from 10 to 20 (or scale with max_iterations)
-- Add `max_placement_iterations` to the minor tunable search space (range 100-500, sigma 0.15) so the experiment loop can discover the optimal iteration count per config
-- Consider a multi-restart approach: run placement N times with different random seeds, keep the best — trades time for quality
-
-### 2. Reduce DRC clearance violations
+### 1. Reduce DRC clearance violations
 
 Clearance violations remain the largest DRC category (~80-160 per round). Likely causes:
 - FreeRouting trace-to-pad clearance doesn't match KiCad design rules
 - Placement clearance and trace width settings may be misaligned
 - **Action**: Compare KiCad net class clearance rules with FreeRouting DSN clearance values. Increase `SIGNAL_WIDTH_MM` / `POWER_WIDTH_MM` if violations are predominantly narrow traces.
 
-### 3. Fix courtyard overlap scoring
-
-Courtyard overlap scores are bimodal (0% or 100%) with no gradient. The `_score_courtyard_overlap()` function penalizes 5 points per overlap pair — with 20+ overlaps it immediately floors to 0%.
-- **Action**: Switch to area-proportional scoring or use a log-scale penalty so partial improvements are rewarded. The overlap resolution step should produce a gradient, not a cliff.
-
-### 4. Eliminate placement=0 failures
-
-~6% of rounds produce `placement_score=0`. These are elite/explore rounds with extreme parameters.
-- **Action**: Add parameter bounds validation. Consider a fallback placement (re-run with default config) if primary placement returns score=0.
-
 ---
 
 ## Medium Priority
 
-### 5. Tune force balance for better spread
+### 2. Tune force balance for better spread
 
 Components still tend to cluster tightly rather than using available board area. The force balance (attract ~0.04, repel ~200) may be too attraction-dominant for the LLUPS board size.
 - **Action**: Add `force_attract_k` and `force_repel_k` to the major tunable space with wider ranges. Consider adding a "spread" force that pushes components toward the board center-of-mass to improve area utilization.
 
-### 6. Reduce FreeRouting crash rate (~6%)
+### 3. Reduce FreeRouting crash rate (~6%)
 
 FreeRouting crashes with "no SES output (rc=-1)" in ~6% of rounds.
 - **Action**: Add pre-routing DSN sanity check. Reduce timeout from 60s to 30s to fail faster on stuck runs.
 
-### 7. Deduplicate force simulation code
+### 4. Deduplicate force simulation code
 
 `_force_step()` and `_force_step_numpy()` share ~180 lines of duplicated logic.
 - **Action**: Extract shared force computation to a helper function.
@@ -94,7 +99,7 @@ FreeRouting crashes with "no SES output (rc=-1)" in ~6% of rounds.
 
 ## Low Priority / Future
 
-### 8. USB-PD header for future revision
+### 5. USB-PD header for future revision
 
 Verify the current layout leaves space and traces for CC1/CC2 routing to a future PD controller header.
 

@@ -80,24 +80,51 @@ class OrientationCheck(LayoutCheck):
             max_dist = rule["max_edge_distance_mm"]
             edge_ok = edge_dist <= max_dist
 
-            # Check facing direction (rotation should point toward nearest edge)
+            # Check facing direction using pad centroid vs body center
             facing_ok = True
             if rule.get("check_facing") and edge_ok:
-                # Expected rotation to face the nearest edge:
-                # left edge -> 270° (pointing left)
-                # right edge -> 90° (pointing right)
-                # top edge -> 0° (pointing up)
-                # bottom edge -> 180° (pointing down)
-                expected_rots = {
-                    "left": [270],
-                    "right": [90],
-                    "top": [0, 360],
-                    "bottom": [180],
-                }
-                expected = expected_rots[nearest_edge]
-                # Allow ±15° tolerance
-                facing_ok = any(abs(rot - e) <= 15 or abs(rot - e - 360) <= 15
-                                or abs(rot - e + 360) <= 15 for e in expected)
+                # Compute pad centroid relative to body center (courtyard bbox
+                # center).  This handles connectors whose footprint origin is
+                # at a corner pad rather than the geometric center.
+                try:
+                    cy_shape = fp.GetCourtyard(
+                        pcbnew.F_CrtYd if fp.GetLayer() == pcbnew.F_Cu
+                        else pcbnew.B_CrtYd)
+                    cbox = cy_shape.BBox()
+                    if cbox.GetWidth() > 0 and cbox.GetHeight() > 0:
+                        cc = cbox.GetCenter()
+                        bcx = pcbnew.ToMM(cc.x)
+                        bcy = pcbnew.ToMM(cc.y)
+                    else:
+                        bcx, bcy = px, py
+                except Exception:
+                    bcx, bcy = px, py
+
+                # Pad centroid in absolute coords (connected pads only)
+                connected_pads = [
+                    p for p in fp.Pads()
+                    if p.GetNetname() and not p.GetNetname().startswith("unconnected-")
+                ]
+                if connected_pads:
+                    avg_x = sum(pcbnew.ToMM(p.GetPosition().x) for p in connected_pads) / len(connected_pads)
+                    avg_y = sum(pcbnew.ToMM(p.GetPosition().y) for p in connected_pads) / len(connected_pads)
+                    offset_x = avg_x - bcx
+                    offset_y = avg_y - bcy
+
+                    # The pad centroid should point toward the board center
+                    # (away from the nearest edge).
+                    # desired direction: left->0°(right), right->180°(left),
+                    #                    top->90°(down), bottom->270°(up)
+                    desired_angle = {"left": 0, "right": 180, "top": 90, "bottom": 270}
+                    desired = math.radians(desired_angle[nearest_edge])
+
+                    centroid_mag = math.hypot(offset_x, offset_y)
+                    if centroid_mag >= 0.3:
+                        actual = math.atan2(offset_y, offset_x)
+                        angle_err = abs(math.degrees(actual - desired)) % 360
+                        if angle_err > 180:
+                            angle_err = 360 - angle_err
+                        facing_ok = angle_err <= 50  # generous tolerance
 
             if edge_ok and facing_ok:
                 passed += 1

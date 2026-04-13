@@ -9,7 +9,7 @@ import time
 from typing import Any
 
 from .brain.types import BoardState, PlacementScore, ExperimentScore, DRCScore
-from .brain.placement import PlacementSolver, PlacementScorer
+from .brain.placement import PlacementSolver, PlacementScorer, compute_min_board_size
 from .freerouting_runner import route_with_freerouting, count_board_tracks
 from .hardware.adapter import KiCadAdapter
 from .config import DEFAULT_CONFIG, LLUPS_CONFIG
@@ -38,16 +38,44 @@ class PlacementEngine:
 
         print(f"Loaded {len(state.components)} components, {len(state.nets)} nets")
 
+        # Compute minimum viable board size for search bounds
+        overhead = cfg.get("board_size_overhead_factor", 2.5)
+        min_w, min_h = compute_min_board_size(state, overhead)
+        print(f"  Min viable board: {min_w:.0f} x {min_h:.0f} mm "
+              f"(overhead={overhead:.1f}x)")
+
         solver = PlacementSolver(state, cfg, seed=seed)
         new_comps = solver.solve()
 
-        out = output_path or pcb_path
-        adapter.apply_placement(new_comps, out)
-
-        # Score final placement
+        # Score placement; if degenerate (score=0), retry once with defaults
         state.components = new_comps
         scorer = PlacementScorer(state, cfg)
         score = scorer.score()
+        if score.total < 1.0:
+            print("  Placement degenerate (score=0), retrying with default config...")
+            fallback_cfg = {**cfg}
+            for k in ("force_attract_k", "force_repel_k", "cooling_factor",
+                       "placement_clearance_mm", "orderedness"):
+                if k in DEFAULT_CONFIG:
+                    fallback_cfg[k] = DEFAULT_CONFIG[k]
+            state2 = adapter.load()
+            if cfg.get("enable_board_size_search", False):
+                from .brain.types import Point
+                w2 = cfg.get("board_width_mm", 90.0)
+                h2 = cfg.get("board_height_mm", 58.0)
+                cx2 = (state2.board_outline[0].x + state2.board_outline[1].x) / 2
+                cy2 = (state2.board_outline[0].y + state2.board_outline[1].y) / 2
+                state2.board_outline = (
+                    Point(cx2 - w2 / 2, cy2 - h2 / 2),
+                    Point(cx2 + w2 / 2, cy2 + h2 / 2),
+                )
+            solver2 = PlacementSolver(state2, fallback_cfg, seed=seed + 1)
+            new_comps = solver2.solve()
+            state.components = new_comps
+            score = PlacementScorer(state, cfg).score()
+
+        out = output_path or pcb_path
+        adapter.apply_placement(new_comps, out)
 
         # Count pads outside board boundary (hard metric, not percentage)
         tl, br = state.board_outline
@@ -71,6 +99,8 @@ class PlacementEngine:
             "board_containment": score.board_containment,
             "courtyard_overlap": score.courtyard_overlap,
             "pads_outside_board": pads_outside,
+            "min_board_width_mm": min_w,
+            "min_board_height_mm": min_h,
         }
 
 

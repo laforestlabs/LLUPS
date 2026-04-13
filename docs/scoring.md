@@ -16,8 +16,8 @@ They are related but not identical.
 ```text
 placement_total =
   0.25*net_distance +
-  0.30*crossover_score +
-  0.02*compactness +
+  0.20*crossover_score +
+  0.12*compactness +
   0.10*edge_compliance +
   0.03*rotation_score +
   0.15*board_containment +
@@ -25,6 +25,17 @@ placement_total =
 ```
 
 All terms are normalized to a 0-100 range by scorer functions.
+
+### Courtyard Overlap Scoring
+
+Uses area-proportional scoring instead of per-pair penalties:
+
+```text
+overlap_ratio = total_overlap_area / total_courtyard_area
+courtyard_score = clamp(100 * (1 - overlap_ratio * 3), 0..100)
+```
+
+This provides a smooth gradient — partial improvements always improve the score. A 10% overlap ratio → score ~70; 30% → ~30; 0% → 100.
 
 ## Placement Validation Gate
 
@@ -34,28 +45,53 @@ Before routing, the pipeline applies zero-tolerance checks:
 - `board_containment < min_board_containment` → rejected
 - `courtyard_overlap < min_courtyard_overlap_score` → rejected
 
+If placement scores 0, the pipeline retries once with default force parameters before giving up.
+
 ## Final ExperimentScore Formula (optimizer objective)
 
 `ExperimentScore.compute()` currently computes:
 
 ```text
-route_pct = ((total_nets - failed_nets) / total_nets) * 100    # if total_nets > 0 else 100
-via_score = clamp(100 - (via_count / routed_nets)*20, 0..100)  # if routed_nets > 0 else 50
+route_pct = ((total_nets - failed_nets) / total_nets) * 100
+via_score = clamp(100 - (via_count / routed_nets) * 20, 0..100)
+
+drc_score = DRCScore.from_counts(drc_dict)  # log-weighted per-category
 
 raw =
-  0.15*placement_total +
-  0.65*route_pct +
-  0.10*via_score +
-  0.10*50
+  0.15 * placement_total +
+  0.50 * route_pct +
+  0.10 * via_score +
+  0.05 * board_containment +
+  0.20 * drc_score
 
-final = raw * (board_containment / 100)
+# Hard gates: cap score based on route completion
+if route_pct <= 50%: raw = min(raw, 40)
+if route_pct < 90%: raw = min(raw, 70)
+
+# Area bonus (when board size search active):
+area_score = 100 * exp(-board_area / (1.8 * ref_area))  # nonlinear
+final = raw * 0.85 + 0.15 * area_score
 ```
 
 Then `autoexperiment.py` applies extra shorts penalty:
 
 ```text
 if shorts > 0:
-  final *= 1 / (1 + log10(1 + shorts))
+  final -= min(15, shorts * 0.5)
+```
+
+## DRC Scoring
+
+DRC violations are scored per-category with log-weighted penalties:
+
+```text
+score(count, weight) = weight * (1 - log10(1 + count) / log10(100))
+
+shorts_score    = score(shorts, 40)     # heaviest weight
+unconnected     = score(unconnected, 30)
+clearance       = score(clearance, 20)
+courtyard       = score(courtyard, 10)
+drc_total = sum of all above  # 0-100 scale
 ```
 
 ## Detailed Scoring Flow Diagram
@@ -68,13 +104,15 @@ flowchart TD
   placeTotal --> rawScore[raw objective]
   routePct --> rawScore
   viaScore --> rawScore
-  rawScore --> containMult[Multiply by board_containment fraction]
-  containMult --> postContainment[experiment_score.total]
-  postContainment --> drcShorts{shorts > 0}
-  drcShorts -->|yes| shortsPenalty[Multiply by 1 over 1 plus log10 1 plus shorts]
-  drcShorts -->|no| noPenalty[Keep score]
-  shortsPenalty --> finalScore[final candidate score]
-  noPenalty --> finalScore
+  drcDict[DRC counts] --> drcScore[DRCScore.from_counts]
+  drcScore --> rawScore
+  rawScore --> hardGates{route_pct gates}
+  hardGates --> gated[gated score]
+  gated --> areaCheck{board size search?}
+  areaCheck -->|yes| areaBonus[Apply nonlinear area bonus 15% weight]
+  areaCheck -->|no| noArea[Keep score]
+  areaBonus --> finalScore[final candidate score]
+  noArea --> finalScore
   finalScore --> keepDecision{score > best_total}
   keepDecision -->|yes| kept[Update best board and config]
   keepDecision -->|no| dropped[Discard candidate]

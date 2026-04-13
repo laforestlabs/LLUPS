@@ -1,5 +1,24 @@
 # LLUPS Engineering Changelog
 
+## 2026-04-13: Connector Orientation Fix — Body Center Reference
+
+### Bug Fix
+- **`_best_rotation_for_edge()` used wrong reference point**: The function measured pad centroid direction from the footprint origin (`comp.pos`), which for connectors like USB-C (GCT USB4085) is at corner pad A1. The pad centroid from origin was at ~22.7° — close enough to snap to 0° delta — so the connector was left at 0° (opening downward instead of toward the board edge). Fix: use body center (courtyard bbox center) as reference. From body center, the pad centroid is at 270° (perpendicular to opening face), which correctly produces rotation 270° for a left-edge connector.
+
+### Data Model
+- **Added `body_center: Point | None` to `Component`**: Populated from courtyard bbox center during PCB load. Transformed alongside pads in `_update_pad_positions()`, `_swap_pad_positions()`, and `_shift_pads_inside()`.
+
+### Orientation Validation
+- **`orientation_check.py` rewritten**: Replaced hard-coded expected rotation table (`left→270°`, `right→90°`, etc.) with dynamic pad-centroid-vs-body-center check. Now correctly validates any connector footprint regardless of internal geometry.
+
+### Files Changed
+- `autoplacer/brain/types.py` — `body_center` field on Component
+- `autoplacer/hardware/adapter.py` — populate body_center from courtyard/bbox center
+- `autoplacer/brain/placement.py` — body_center in rotation calc, transform on move/rotate/swap/shift
+- `scoring/orientation_check.py` — dynamic facing validation
+
+---
+
 ## 2026-04-13: Rotation Convention Fix + Pad Containment + Connector Grouping
 
 ### Critical Bug Fixes

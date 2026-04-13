@@ -90,21 +90,13 @@ def setup_page():
                 "They prefer edges via scoring but can be moved freely."
             )
 
-            ui.switch("Enable back-side placement",
-                      value=state.toggles["enable_backside_placement"],
-                      on_change=lambda e: state.toggles.update(
-                          {"enable_backside_placement": e.value}
-                      )).tooltip(
-                "Allow through-hole components to be placed on the back (B.Cu). "
-                "SMT components stay on front."
-            )
-
             ui.switch("Enable board size search",
                       value=state.toggles["enable_board_size_search"],
                       on_change=lambda e: _toggle_board_size(state, e.value),
                       ).tooltip(
                 "Add board width and height as search dimensions. "
-                "Uses discrete 5mm steps with feasibility gating."
+                "Uses discrete 5mm steps with dynamic minimum bounds "
+                "computed from total component area."
             )
 
         # ── Presets ──
@@ -130,6 +122,7 @@ def _score_weights_panel(state):
         "via_penalty": "Via Penalty",
         "containment": "Board Containment",
         "drc": "DRC Score",
+        "area": "Board Area (smaller = better)",
     }
 
     norm_label = ui.label("").classes("text-sm text-green-400 mt-2")

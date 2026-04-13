@@ -90,6 +90,7 @@ class KiCadAdapter:
             # Use courtyard bbox for physical size — it represents the keep-out
             # area on the PCB plane (excludes battery tube space above board).
             # Fall back to copper bounding box if no courtyard is defined.
+            body_ctr = None
             try:
                 cy = fp.GetCourtyard(
                     pcbnew.F_CrtYd if fp.GetLayer() == pcbnew.F_Cu
@@ -98,12 +99,16 @@ class KiCadAdapter:
                 if cbox.GetWidth() > 0 and cbox.GetHeight() > 0:
                     w_mm = pcbnew.ToMM(cbox.GetWidth())
                     h_mm = pcbnew.ToMM(cbox.GetHeight())
+                    cc = cbox.GetCenter()
+                    body_ctr = Point(pcbnew.ToMM(cc.x), pcbnew.ToMM(cc.y))
                 else:
                     raise ValueError("empty courtyard")
             except Exception:
                 fp_bbox = fp.GetBoundingBox(False, False)
                 w_mm = pcbnew.ToMM(fp_bbox.GetWidth())
                 h_mm = pcbnew.ToMM(fp_bbox.GetHeight())
+                fc = fp_bbox.GetCenter()
+                body_ctr = Point(pcbnew.ToMM(fc.x), pcbnew.ToMM(fc.y))
             # Sanity cap at board size — prevents degenerate courtyard bboxes
             w_mm = min(w_mm, 150.0)
             h_mm = min(h_mm, 150.0)
@@ -132,6 +137,7 @@ class KiCadAdapter:
                 locked=is_locked,
                 kind=kind,
                 is_through_hole=has_pth,
+                body_center=body_ctr,
             )
 
             for pad in fp.Pads():

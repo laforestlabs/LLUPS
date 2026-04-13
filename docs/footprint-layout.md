@@ -68,14 +68,26 @@ Connectors assigned to the same edge (via `component_zones` or nearest-edge heur
 - Placed in a column (left/right edges) or row (top/bottom edges)
 - Spaced by `connector_gap_mm` (default 2.0mm)
 - Auto-oriented via `_best_rotation_for_edge()` so pads face the board center
+- For symmetric footprints (e.g. USB-C), uses body aspect ratio: long axis parallel to the edge
 - Edge-pinned connectors are excluded from `_optimize_rotations()` to preserve their orientation
+
+#### Body-Edge-Flush Positioning
+
+Connectors are positioned so their body edge is flush with the board edge (plus a configurable `connector_edge_inset_mm` offset, default 1.0mm). Unlike general components which use `edge_margin_mm` from center, connectors compute position from their body extent:
+
+- Left edge: `x = board_left + connector_inset + body_width/2`
+- Right edge: `x = board_right - connector_inset - body_width/2`
+- Top/bottom edges: same pattern for Y axis
+
+`_shift_pads_inside()` respects the assigned edge — it only shifts the component on the 3 non-assigned sides, so connectors aren't pulled away from their edge.
 
 ### Layer Assignment
 
 Large through-hole components (area > `tht_backside_min_area_mm2`, default 50mm²) are assigned to B.Cu. When flipping:
 - Pad X offsets are mirrored: `pad.x = 2·comp.x - pad.x`
-- SMT passives in the same `ic_group` optionally move to B.Cu too (`smt_backside_with_tht=True`)
 - Layer assignment runs BEFORE edge pinning so connector positions account for flipped geometry
+
+SMT components always stay on F.Cu, even when their IC group contains back-layer THT parts. The IC group connectivity edges (weight 2.0) in the force simulation keep SMT passives near their THT group leaders in the same XY region, achieving dual-sided board usage without flipping SMT to the back.
 
 ### Orderedness
 

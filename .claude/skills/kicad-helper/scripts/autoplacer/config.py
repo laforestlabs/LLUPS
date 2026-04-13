@@ -33,8 +33,8 @@ DEFAULT_CONFIG = {
     "cooling_factor": 0.97,
 
     # Placement solver iterations
-    "max_placement_iterations": 100,
-    "placement_convergence_threshold": 1.5,
+    "max_placement_iterations": 300,
+    "placement_convergence_threshold": 0.5,
     "placement_score_every_n": 1,
     "intra_cluster_iters": 80,
 
@@ -67,6 +67,11 @@ DEFAULT_CONFIG = {
     # Connector gap — spacing (mm) between connectors grouped on the same edge.
     "connector_gap_mm": 2.0,
 
+    # Connector edge inset — distance (mm) from board edge to the nearest
+    # edge of the connector body.  0 = flush, positive = inset, negative =
+    # overhang.  Only applies to edge-pinned connectors.
+    "connector_edge_inset_mm": 1.0,
+
     # Orderedness — how strongly passives are snapped into neat rows/columns.
     # 0.0 = organic/force-directed layout, 1.0 = full grid alignment.
     # Intermediate values blend proportionally.  Searchable by autoexperiment.
@@ -74,11 +79,9 @@ DEFAULT_CONFIG = {
 
     # Through-hole backside threshold — THT components with bounding-box area
     # above this value (mm²) are placed on B.Cu so SMT parts can use F.Cu.
+    # SMT passives always stay on F.Cu — IC group connectivity forces keep
+    # them near their THT group leaders, achieving dual-sided board usage.
     "tht_backside_min_area_mm2": 50.0,
-
-    # Move SMT passives from the same IC group as a back-layer THT component
-    # to B.Cu, so they can be placed under/around the large THT footprint.
-    "smt_backside_with_tht": True,
 
     # Minimum placement score to proceed to routing.
     # Below this threshold routing is skipped (saves 15-30s on degenerate layouts).
@@ -140,6 +143,10 @@ DEFAULT_CONFIG = {
     # Default board dimensions (mm) — overridden per-round when board size search is active.
     "board_width_mm": 90.0,
     "board_height_mm": 58.0,
+
+    # Board size overhead factor — minimum board area is estimated as
+    # total_component_area * overhead_factor.  Larger = more routing room.
+    "board_size_overhead_factor": 2.5,
 }
 
 
