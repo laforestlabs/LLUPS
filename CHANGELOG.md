@@ -1,5 +1,27 @@
 # LLUPS Engineering Changelog
 
+## 2026-04-13: Rotation Convention Fix + Pad Containment + Connector Grouping
+
+### Critical Bug Fixes
+- **Rotation convention**: `_update_pad_positions()` and all rotation code fixed from CCW (standard math) to KiCad's CW convention (`x'=x·cos+y·sin, y'=-x·sin+y·cos`). This was the root cause of pads appearing outside the board — model computed pad positions on the wrong side vs where KiCad actually placed them.
+- **Layer flip pad mirroring**: `_assign_layers()` now mirrors pad X offsets when flipping components to B.Cu, matching KiCad's `Flip()` behavior.
+- **Step reordering**: Layer assignment now runs before edge pinning so connector positions account for flipped pad geometry.
+- **`_best_rotation_for_edge`**: Rotation delta fixed from `desired - current` to `current - desired` (CW direction).
+
+### Pipeline Hardening
+- **Hard pad-containment gate**: Zero-tolerance rejection — any pad outside board boundary blocks routing. `pads_outside_board` count added to PlacementEngine output.
+- **Post-restore clamp**: `_clamp_pads_to_board()` runs after `_restore_pinned_positions()` as defense in depth.
+
+### New Features
+- **Connector edge grouping**: Same-edge connectors placed in compact rows/columns with `connector_gap_mm` spacing. Auto-oriented via `_best_rotation_for_edge()` so pads face board center.
+- **Orderedness parameter**: 0.0-1.0 strength for aligning passives into grid near IC group leaders. Added to minor/major mutation search space.
+- **Edge-pinned rotation skip**: `_optimize_rotations()` skips components in `_pinned_targets` to preserve edge orientation.
+
+### Results
+- Best score: 92.7 (up from 91.1), 0 pads outside board (verified by KiCad reload)
+
+---
+
 ## 2026-04-11: Codebase Cleanup — Old Python Router Removed
 
 Removed all remnants of the custom Python A*/RRR autorouter. FreeRouting is now the sole routing engine.

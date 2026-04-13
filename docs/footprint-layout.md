@@ -6,21 +6,27 @@ This page documents how footprint placement currently works in `autoplacer/brain
 
 ```mermaid
 flowchart TD
-  start[PlacementSolver.solve] --> splitComps[Split components into movable and fixed]
-  splitComps --> edgePin[_pin_edge_components]
+  start[PlacementSolver.solve] --> assignLayers[_assign_layers — flip THT to B.Cu]
+  assignLayers --> edgePin[_pin_edge_components — group connectors by edge]
   edgePin --> graphBuild[build_connectivity_graph]
   graphBuild --> communities[find_communities]
   communities --> clusterPlace[_place_clusters]
   clusterPlace --> intraCluster[_optimize_intra_cluster]
-  intraCluster --> rotationPass[_optimize_rotations]
+  intraCluster --> rotationPass[_optimize_rotations — skip edge-pinned]
   rotationPass --> annealLoop[Iterative force loop]
   annealLoop --> forceStep[_force_step]
   forceStep --> overlapFix[_resolve_overlaps]
-  overlapFix --> maybeContinue{Converged or max iterations}
+  overlapFix --> padClamp[_clamp_pads_to_board]
+  padClamp --> maybeContinue{Converged or max iterations}
   maybeContinue -->|no| annealLoop
   maybeContinue -->|yes| snap[_snap_to_grid]
-  snap --> clamp[_clamp_to_board]
-  clamp --> finalScore[PlacementScorer.score]
+  snap --> orderedness[_apply_orderedness — align passives]
+  orderedness --> finalOverlap[_resolve_overlaps — post-snap]
+  finalOverlap --> clamp[_clamp_to_board + _clamp_pads_to_board]
+  clamp --> validate[Validate pad containment — 3 passes]
+  validate --> restore[_restore_pinned_positions]
+  restore --> finalClamp[_clamp_pads_to_board — post-restore]
+  finalClamp --> finalScore[PlacementScorer.score]
   finalScore --> result[Placed components + PlacementScore]
 ```
 
@@ -53,6 +59,31 @@ Unassigned connectors and mounting holes fall back to heuristic edge/corner plac
 ### Decoupling Cap Proximity
 
 Capacitors listed in `ic_groups` (e.g., `{"refs": ["U1", "C1", "C2"]}`) are placed at 1.5× clearance radius from their parent IC, maintaining close decoupling.
+
+### Connector Edge Grouping
+
+Connectors assigned to the same edge (via `component_zones` or nearest-edge heuristic) are placed as a compact group:
+
+- Sorted by descending size (largest connector first)
+- Placed in a column (left/right edges) or row (top/bottom edges)
+- Spaced by `connector_gap_mm` (default 2.0mm)
+- Auto-oriented via `_best_rotation_for_edge()` so pads face the board center
+- Edge-pinned connectors are excluded from `_optimize_rotations()` to preserve their orientation
+
+### Layer Assignment
+
+Large through-hole components (area > `tht_backside_min_area_mm2`, default 50mm²) are assigned to B.Cu. When flipping:
+- Pad X offsets are mirrored: `pad.x = 2·comp.x - pad.x`
+- SMT passives in the same `ic_group` optionally move to B.Cu too (`smt_backside_with_tht=True`)
+- Layer assignment runs BEFORE edge pinning so connector positions account for flipped geometry
+
+### Orderedness
+
+`config["orderedness"]` (0.0-1.0) controls passive alignment strength:
+- 0.0 = organic placement (default)
+- 1.0 = full grid alignment near IC group leaders
+- Intermediate values blend organic position with grid position
+- Passives are grouped by their IC group leader, sorted by size class, and arranged into rows
 
 ## Scatter Mode
 

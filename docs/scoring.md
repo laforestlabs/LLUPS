@@ -18,13 +18,21 @@ placement_total =
   0.25*net_distance +
   0.30*crossover_score +
   0.02*compactness +
-  0.05*edge_compliance +
+  0.10*edge_compliance +
   0.03*rotation_score +
-  0.20*board_containment +
+  0.15*board_containment +
   0.15*courtyard_overlap
 ```
 
 All terms are normalized to a 0-100 range by scorer functions.
+
+## Placement Validation Gate
+
+Before routing, the pipeline applies zero-tolerance checks:
+- `pads_outside_board > 0` → **rejected** (any pad outside board boundary)
+- `score < min_placement_score` → rejected
+- `board_containment < min_board_containment` → rejected
+- `courtyard_overlap < min_courtyard_overlap_score` → rejected
 
 ## Final ExperimentScore Formula (optimizer objective)
 

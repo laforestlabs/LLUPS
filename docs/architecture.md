@@ -81,6 +81,22 @@ Configs are merged via `{**DEFAULT_CONFIG, **LLUPS_CONFIG, **(user_overrides or 
 | `randomize_group_layout` | Enables variable cluster radii (0.3-1.8× vs 0.8-1.2×) |
 | `courtyard_padding_mm` | Extra padding added to courtyard overlap scoring |
 | `min_placement_score` | Minimum placement score to proceed to routing |
+| `connector_gap_mm` | Gap between same-edge connectors (default 2.0mm) |
+| `orderedness` | Passive alignment strength 0.0-1.0 (organic → grid) |
+| `pad_inset_margin_mm` | Minimum pad-to-board-edge distance (default 0.3mm) |
+
+## Rotation & Flip Conventions
+
+KiCad uses a clockwise rotation convention for `SetOrientationDegrees()`:
+
+```
+x' = lx·cos(θ) + ly·sin(θ) + cx
+y' = -lx·sin(θ) + ly·cos(θ) + cy
+```
+
+where `(lx, ly)` are local pad offsets and `(cx, cy)` is the component center. The model's `_update_pad_positions()` must use this formula (not the standard CCW math convention).
+
+KiCad's `Flip()` negates pad X offsets relative to the component center. When `_assign_layers()` moves a component to B.Cu, it must mirror pad positions: `pad.x = 2·comp.x - pad.x`.
 
 ## Evolutionary Optimization
 
@@ -92,4 +108,8 @@ Configs are merged via `{**DEFAULT_CONFIG, **LLUPS_CONFIG, **(user_overrides or 
 
 Cross-run learning via **elite archive**: top-5 configs saved to `elite_configs.json`, seeded into 30% of early batches in subsequent runs.
 
-A **placement validation gate** skips routing when placement score falls below `min_placement_score`, saving routing time on degenerate layouts.
+A **placement validation gate** skips routing when:
+- Any pads are outside the board boundary (zero tolerance)
+- Placement score falls below `min_placement_score`
+- Board containment below `min_board_containment`
+- Courtyard overlap score below `min_courtyard_overlap_score`
