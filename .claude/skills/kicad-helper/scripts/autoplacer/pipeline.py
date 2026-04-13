@@ -55,6 +55,7 @@ class PlacementEngine:
             "net_distance": score.net_distance,
             "crossovers": score.crossover_count,
             "crossover_score": score.crossover_score,
+            "compactness": score.compactness,
             "edge_compliance": score.edge_compliance,
             "rotation_score": score.rotation_score,
             "board_containment": score.board_containment,
@@ -124,25 +125,45 @@ class FullPipeline:
         placement_ms = (time.monotonic() - placement_t0) * 1000.0
 
         # Placement validation gate: skip routing if placement is degenerate
-        min_score = cfg.get("min_placement_score", 30.0)
-        if placement.get("score", 0) < min_score:
-            print(f"  Placement score {placement.get('score', 0):.1f} < {min_score} — "
-                  f"skipping routing (degenerate layout)")
+        min_score = cfg.get("min_placement_score", 20.0)
+        min_containment = cfg.get("min_board_containment", 90.0)
+        min_courtyard = cfg.get("min_courtyard_overlap_score", 10.0)
+
+        skip_reason = None
+        p_score = placement.get("score", 0)
+        p_contain = placement.get("board_containment", 100)
+        p_courtyard = placement.get("courtyard_overlap", 100)
+
+        if p_score < min_score:
+            skip_reason = (f"total score {p_score:.1f} < {min_score}")
+        elif p_contain < min_containment:
+            skip_reason = (f"board containment {p_contain:.1f}% < {min_containment}% "
+                           f"(pads/bodies outside board)")
+        elif p_courtyard < min_courtyard:
+            skip_reason = (f"courtyard overlap score {p_courtyard:.1f} < {min_courtyard} "
+                           f"(major component overlaps)")
+
+        if skip_reason:
+            print(f"  Placement REJECTED: {skip_reason} — skipping routing")
             exp_score = ExperimentScore(
                 placement_ms=placement_ms,
+                skipped_routing=True,
             )
             exp_score.placement = PlacementScore(
                 total=placement.get("score", 0),
                 net_distance=placement.get("net_distance", 0),
                 crossover_count=placement.get("crossovers", 0),
                 crossover_score=placement.get("crossover_score", 0),
+                compactness=placement.get("compactness", 0),
                 edge_compliance=placement.get("edge_compliance", 0),
                 rotation_score=placement.get("rotation_score", 0),
                 board_containment=placement.get("board_containment", 0),
                 courtyard_overlap=placement.get("courtyard_overlap", 0),
             )
-            exp_score.compute(drc_dict={"shorts": 0, "unconnected": 0,
-                                        "clearance": 0, "courtyard": 0, "total": 0},
+            _skip_drc = {"shorts": 0, "unconnected": 0,
+                         "clearance": 0, "courtyard": 0, "total": 0}
+            exp_score.pipeline_drc = _skip_drc
+            exp_score.compute(drc_dict=_skip_drc,
                              board_area_mm2=cfg.get("board_width_mm", 90.0) * cfg.get("board_height_mm", 58.0)
                                             if cfg.get("enable_board_size_search") else None)
             return {
@@ -159,8 +180,18 @@ class FullPipeline:
         print("=" * 50)
         print("Phase 1+2: FreeRouting Autorouter")
         print("=" * 50)
+        # Strip pre-existing zones from source PCB, then add fresh GND zone.
+        # Both run in subprocesses to avoid pcbnew SWIG corruption.
+        strip_adapter = KiCadAdapter(out, config=cfg)
+        strip_adapter.strip_zones()
+        _ensure_gnd_zone_subprocess(out, cfg)
+
         re = RoutingEngine()
         routing = re.run(out, out, cfg)
+
+        # Re-fill zones after routing so zone clearances are computed against
+        # the final trace geometry (prevents stale zone-fill DRC violations).
+        _refill_zones(out)
 
         # Phase 3: DRC analysis
         print()
@@ -194,11 +225,13 @@ class FullPipeline:
             net_distance=placement.get("net_distance", 0),
             crossover_count=placement.get("crossovers", 0),
             crossover_score=placement.get("crossover_score", 0),
+            compactness=placement.get("compactness", 0),
             edge_compliance=placement.get("edge_compliance", 0),
             rotation_score=placement.get("rotation_score", 0),
             board_containment=placement.get("board_containment", 0),
             courtyard_overlap=placement.get("courtyard_overlap", 0),
         )
+        exp_score.pipeline_drc = drc
         exp_score.compute(drc_dict=drc,
                          board_area_mm2=cfg.get("board_width_mm", 90.0) * cfg.get("board_height_mm", 58.0)
                                         if cfg.get("enable_board_size_search") else None)
@@ -209,6 +242,74 @@ class FullPipeline:
             "drc": drc,
             "experiment_score": exp_score,
         }
+
+
+def _ensure_gnd_zone_subprocess(pcb_path: str, cfg: dict) -> None:
+    """Create/update GND zone in a subprocess to avoid pcbnew SWIG corruption."""
+    import subprocess
+    zone_net = cfg.get("gnd_zone_net", "GND")
+    if not zone_net:
+        return
+    layer = cfg.get("gnd_zone_layer", "B.Cu")
+    margin_mm = cfg.get("gnd_zone_margin_mm", 0.5)
+    target_layer = "pcbnew.B_Cu" if layer == "B.Cu" else "pcbnew.F_Cu"
+    subprocess.run(
+        ["python3", "-c",
+         "import pcbnew\n"
+         f"board = pcbnew.LoadBoard({pcb_path!r})\n"
+         f"zone_net_name = {zone_net!r}\n"
+         f"target_layer = {target_layer}\n"
+         f"margin = pcbnew.FromMM({margin_mm})\n"
+         "gnd_net = board.GetNetInfo().GetNetItem(zone_net_name)\n"
+         "if not gnd_net or gnd_net.GetNetCode() == 0:\n"
+         "    print(f'WARNING: Net {zone_net_name!r} not found')\n"
+         "    raise SystemExit(0)\n"
+         "rect = board.GetBoardEdgesBoundingBox()\n"
+         "x1 = rect.GetX() + margin\n"
+         "y1 = rect.GetY() + margin\n"
+         "x2 = x1 + rect.GetWidth() - 2 * margin\n"
+         "y2 = y1 + rect.GetHeight() - 2 * margin\n"
+         "existing = None\n"
+         "for z in board.Zones():\n"
+         "    if z.GetLayer() == target_layer and z.GetNetname() == zone_net_name and not z.GetIsRuleArea():\n"
+         "        existing = z; break\n"
+         "if existing:\n"
+         "    ol = existing.Outline(); ol.RemoveAllContours(); ol.NewOutline()\n"
+         "    ol.Append(x1,y1); ol.Append(x2,y1); ol.Append(x2,y2); ol.Append(x1,y2)\n"
+         "else:\n"
+         "    z = pcbnew.ZONE(board); z.SetNet(gnd_net); z.SetLayer(target_layer)\n"
+         "    z.SetIsRuleArea(False); z.SetDoNotAllowTracks(False); z.SetDoNotAllowVias(False)\n"
+         "    z.SetDoNotAllowPads(False); z.SetDoNotAllowCopperPour(False)\n"
+         "    z.SetLocalClearance(pcbnew.FromMM(0.3))\n"
+         "    z.SetMinThickness(pcbnew.FromMM(0.25))\n"
+         "    z.SetPadConnection(pcbnew.ZONE_CONNECTION_THERMAL)\n"
+         "    z.SetThermalReliefGap(pcbnew.FromMM(0.5))\n"
+         "    z.SetThermalReliefSpokeWidth(pcbnew.FromMM(0.5))\n"
+         "    z.SetAssignedPriority(0)\n"
+         "    ol = z.Outline(); ol.NewOutline()\n"
+         "    ol.Append(x1,y1); ol.Append(x2,y1); ol.Append(x2,y2); ol.Append(x1,y2)\n"
+         "    board.Add(z)\n"
+         "filler = pcbnew.ZONE_FILLER(board)\n"
+         "filler.Fill(board.Zones())\n"
+         f"board.Save({pcb_path!r})\n"
+         f"print('GND zone on {layer}: ensured and filled')\n"],
+        capture_output=True, text=True, timeout=60,
+    )
+
+
+def _refill_zones(pcb_path: str) -> None:
+    """Re-fill copper zones so they respect the final trace layout."""
+    import subprocess
+    subprocess.run(
+        ["python3", "-c",
+         "import pcbnew\n"
+         f"board = pcbnew.LoadBoard({pcb_path!r})\n"
+         "board.BuildConnectivity()\n"
+         "filler = pcbnew.ZONE_FILLER(board)\n"
+         "filler.Fill(board.Zones())\n"
+         f"board.Save({pcb_path!r})\n"],
+        capture_output=True, text=True, timeout=60,
+    )
 
 
 def _run_kicad_cli_drc(pcb_path: str) -> dict:

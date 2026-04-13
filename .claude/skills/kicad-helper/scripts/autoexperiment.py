@@ -107,6 +107,12 @@ class Experiment:
     # Routing detail
     nets_routed: int = 0
     failed_net_names: list = field(default_factory=list)
+    # Extended fields
+    skipped_routing: bool = False
+    edge_compliance: float = 0.0
+    trace_count: int = 0
+    via_count: int = 0
+    total_length_mm: float = 0.0
 
 
 def _format_mmss(seconds: float) -> str:
@@ -804,6 +810,51 @@ def load_elite_archive(work_dir: Path) -> list[dict]:
         return []
 
 
+def save_seed_bank(work_dir: Path, cfg: dict, seed: int, score: float,
+                   max_seeds: int = 10) -> None:
+    """Save config to persistent seed bank (survives across experiment runs).
+
+    Unlike elite_configs.json (purged each run), the seed bank accumulates
+    top configs across ALL runs. New experiments can draw from the bank as
+    high-quality starting points.
+    """
+    bank_path = work_dir / "seed_bank.json"
+    bank = []
+    if bank_path.exists():
+        try:
+            with open(bank_path) as f:
+                bank = json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            bank = []
+
+    entry = {"score": score, "seed": seed, "config": cfg,
+             "timestamp": time.time()}
+    bank.append(entry)
+    # Keep top-N by score, deduplicated by seed
+    seen = set()
+    unique = []
+    for e in sorted(bank, key=lambda x: x["score"], reverse=True):
+        if e["seed"] not in seen:
+            seen.add(e["seed"])
+            unique.append(e)
+    bank = unique[:max_seeds]
+
+    with open(bank_path, "w") as f:
+        json.dump(bank, f, indent=2, default=_json_default)
+
+
+def load_seed_bank(work_dir: Path) -> list[dict]:
+    """Load persistent seed bank for cross-run learning."""
+    bank_path = work_dir / "seed_bank.json"
+    if not bank_path.exists():
+        return []
+    try:
+        with open(bank_path) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, ValueError):
+        return []
+
+
 def _log_and_record(exp: Experiment, experiments: list, log_path: Path) -> None:
     experiments.append(exp)
     with open(log_path, 'a') as f:
@@ -904,7 +955,7 @@ def _score_sub_fields(score: ExperimentScore) -> tuple[float, float, float]:
     if score.total_nets > 0:
         route_pct = ((score.total_nets - score.failed_nets) / score.total_nets) * 100
     else:
-        route_pct = 100.0
+        route_pct = 0.0  # No nets counted = routing skipped/failed
     if score.total_trace_length_mm > 0 and score.total_nets > 0:
         avg_per_net = score.total_trace_length_mm / max(1, score.routed_nets)
         trace_eff = max(0, min(100, 100 - avg_per_net))
@@ -951,6 +1002,12 @@ def main():
                         help="Unlock all footprints (batteries, connectors, mounting holes)")
     parser.add_argument("--board-size-search", action="store_true",
                         help="Include board width/height in the parameter search space")
+    parser.add_argument("--phased", action="store_true",
+                        help="Use phased optimization: placement-only → routing → board size")
+    parser.add_argument("--population", type=int, default=1,
+                        help="Population size for evolutionary search (default: 1 = single-best)")
+    parser.add_argument("--save-all", action="store_true",
+                        help="Save every round's PCB to .experiments/rounds/ for analysis")
     args = parser.parse_args()
 
     if args.verbose:
@@ -1153,13 +1210,25 @@ def main():
         latest_marker="baseline complete",
     )
 
-    # Seed from elite archive (cross-run learning)
+    # Seed from elite archive + seed bank (cross-run learning)
     elite_archive = load_elite_archive(work_dir)
+    seed_bank = load_seed_bank(work_dir)
     elite_cfgs = []
-    for entry in elite_archive:
+    for entry in elite_archive + seed_bank:
         ecfg = dict(BASE_CONFIG)
         ecfg.update(entry.get("config", {}))
+        # Don't let stale gate values from older runs block routing
+        ecfg["min_placement_score"] = BASE_CONFIG.get("min_placement_score", 20.0)
         elite_cfgs.append(ecfg)
+    # Deduplicate by seed
+    seen_seeds = set()
+    unique_elites = []
+    for ecfg in elite_cfgs:
+        s = id(ecfg)  # fallback for unhashable configs
+        if s not in seen_seeds:
+            seen_seeds.add(s)
+            unique_elites.append(ecfg)
+    elite_cfgs = unique_elites
     if elite_cfgs:
         _log_event("elite_archive_loaded", n_elites=len(elite_cfgs))
 
@@ -1167,8 +1236,66 @@ def main():
     # fork deadlocks because wx holds mutexes at fork time that children can't release.
     ctx = mp.get_context("spawn")
 
+    # Phased optimization: split rounds into phases with different configs.
+    # Phase A: placement-only (skip routing, fast ~1s/round)
+    # Phase B: placement + routing (full pipeline ~15s/round)
+    # Phase C: board size optimization (preserve placement, vary board dims)
+    if args.phased:
+        total = args.rounds
+        phase_a_rounds = max(3, total // 5)  # 20% for placement exploration
+        phase_b_rounds = max(5, total * 3 // 5)  # 60% for full pipeline
+        phase_c_rounds = total - phase_a_rounds - phase_b_rounds  # remaining for board size
+        print(f"  PHASED MODE: A={phase_a_rounds} placement-only, "
+              f"B={phase_b_rounds} full pipeline, C={phase_c_rounds} board size")
+        # Phase A: lower placement gates to explore more freely, skip routing
+        best_cfg["min_placement_score"] = 10.0
+        # We'll use the existing loop but track phase transitions
+        phase_transitions = {
+            phase_a_rounds: "B",
+            phase_a_rounds + phase_b_rounds: "C",
+        }
+        current_phase = "A"
+    else:
+        phase_transitions = {}
+        current_phase = "B"  # default: full pipeline
+
     with ProcessPoolExecutor(max_workers=n_workers, mp_context=ctx) as pool:
         while round_num < args.rounds:
+            # Phase transitions
+            if round_num in phase_transitions:
+                new_phase = phase_transitions[round_num]
+                if new_phase == "B" and current_phase == "A":
+                    # Gate: only proceed if placement quality is adequate
+                    if best_score.placement.total < 40.0:
+                        print(f"  Phase A->B gate: placement_score "
+                              f"{best_score.placement.total:.1f} < 40 — "
+                              f"extending Phase A by 3 rounds")
+                        # Shift transitions forward
+                        phase_transitions = {
+                            round_num + 3: "B",
+                            round_num + 3 + (args.rounds - round_num - 3) * 3 // 4: "C",
+                        }
+                        continue
+                    best_cfg["min_placement_score"] = 20.0  # restore normal gate
+                    print(f"  Entering Phase B: full pipeline "
+                          f"(placement_score={best_score.placement.total:.1f})")
+                    minor_stagnant = 0
+                    current_phase = "B"
+                elif new_phase == "C" and current_phase == "B":
+                    # Gate: only optimize board size if routing works
+                    r_pct = 0.0
+                    if best_score.total_nets > 0:
+                        r_pct = ((best_score.total_nets - best_score.failed_nets)
+                                 / best_score.total_nets) * 100
+                    if r_pct < 80.0:
+                        print(f"  Phase B->C gate: route_completion "
+                              f"{r_pct:.1f}% < 80% — skipping board size phase")
+                    else:
+                        print(f"  Entering Phase C: board size optimization "
+                              f"(route_completion={r_pct:.1f}%)")
+                        best_cfg["enable_board_size_search"] = True
+                        minor_stagnant = 0
+                    current_phase = "C"
             # Check for graceful stop request
             if _check_stop_request(work_dir):
                 _log_event("stop_requested", round_num=round_num)
@@ -1292,13 +1419,12 @@ def main():
                 score, duration = run_experiment(
                     args.pcb, work_pcb, candidate_cfg, candidate_seed,
                     quiet=args.quiet)
-                drc = quick_drc(work_pcb)
+                drc = score.pipeline_drc or quick_drc(work_pcb)
                 if score_weights:
-                    score.compute(score_weights, drc_dict=drc,
+                    score.compute(score_weights,
                                   board_area_mm2=_board_area(candidate_cfg))
                 else:
-                    score.compute(drc_dict=drc,
-                                  board_area_mm2=_board_area(candidate_cfg))
+                    score.compute(board_area_mm2=_board_area(candidate_cfg))
                 results = [(score, duration, work_pcb, drc, mode, candidate_cfg,
                             candidate_seed, delta)]
             else:
@@ -1359,16 +1485,15 @@ def main():
                         score = ExperimentScore()
                         score.total = -1.0
                         duration = 0.0
-                    drc = quick_drc(work_pcb)
+                    drc = score.pipeline_drc or quick_drc(work_pcb)
                     if score.total == -1.0:
                         err_msg = getattr(score, '_error', 'unknown error')
                         print(f"  Worker {i} CRASHED: {err_msg[:200]}", flush=True)
                     if score_weights:
-                        score.compute(score_weights, drc_dict=drc,
+                        score.compute(score_weights,
                                       board_area_mm2=_board_area(candidate_cfg))
                     else:
-                        score.compute(drc_dict=drc,
-                                      board_area_mm2=_board_area(candidate_cfg))
+                        score.compute(board_area_mm2=_board_area(candidate_cfg))
                     results.append((score, duration, work_pcb, drc, mode,
                                     candidate_cfg, candidate_seed, delta))
 
@@ -1380,6 +1505,13 @@ def main():
                     round_num += 1
 
                 kept = score.total > best_total
+                # Gate: reject rounds where routing was skipped or mostly failed
+                if getattr(score, 'skipped_routing', False):
+                    kept = False
+                elif score.total_nets > 0:
+                    r_pct = ((score.total_nets - score.failed_nets) / score.total_nets) * 100
+                    if r_pct < 10.0:
+                        kept = False
                 if kept:
                     improvement = score.total - best_total
                     best_total = score.total
@@ -1391,6 +1523,7 @@ def main():
                     shutil.copy2(work_pcb, str(best_dir / "best.kicad_pcb"))
                     save_elite_config(work_dir, best_cfg, best_seed, best_total)
                     save_elite_archive(work_dir, best_cfg, best_seed, best_total)
+                    save_seed_bank(work_dir, best_cfg, best_seed, best_total)
                     marker = f"NEW BEST +{improvement:.2f}"
                     _log_event("new_best",
                                round_num=round_num,
@@ -1441,6 +1574,11 @@ def main():
                     routing_ms=round(score.routing_ms, 1),
                     nets_routed=score.routed_nets,
                     failed_net_names=score.failed_net_names,
+                    skipped_routing=getattr(score, 'skipped_routing', False),
+                    edge_compliance=round(score.placement.edge_compliance, 1),
+                    trace_count=score.trace_count,
+                    via_count=score.via_count,
+                    total_length_mm=round(score.total_trace_length_mm, 1),
                 )
                 # Track per-net failure rates
                 for net_name in score.failed_net_names:
@@ -1484,6 +1622,9 @@ def main():
                 # Snapshot the current round's layout (not just the best),
                 # so the GIF shows what each round actually tried.
                 frame_pcb = work_pcb if os.path.exists(work_pcb) else str(best_dir / "best.kicad_pcb")
+                # Save round PCB for post-hoc analysis when --save-all is set
+                if getattr(args, 'save_all', False) and os.path.exists(work_pcb):
+                    shutil.copy2(work_pcb, str(rounds_dir / f"round_{round_num:04d}.kicad_pcb"))
                 snapshot_pcb(frame_pcb, frame_png,
                              board_mm=board_mm,
                              frame_info={"round_num": round_num, "score": score.total,

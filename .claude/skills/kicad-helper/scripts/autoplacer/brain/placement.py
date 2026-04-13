@@ -140,9 +140,15 @@ class PlacementScorer:
         return min(100, fill * 150 + 25)
 
     def _score_edge_compliance(self) -> float:
-        """Check connectors and mounting holes are near board edges."""
+        """Check connectors and mounting holes are near board edges.
+
+        Uses the placement edge_margin from config (default 6mm) plus a
+        tolerance buffer, so components placed at the edge margin are
+        correctly recognised as edge-compliant.
+        """
         tl, br = self.state.board_outline
-        margin = 3.0  # mm from edge
+        # Match the placement edge margin so pinned components always score
+        margin = self.cfg.get("edge_margin_mm", 6.0) + 2.0
         total = 0
         compliant = 0
         for comp in self.state.components.values():
@@ -322,6 +328,28 @@ class PlacementSolver:
             clusters = find_communities(conn_graph, seed=self.seed)
             print(f"  Found {len(clusters)} component clusters")
 
+        # Step 1.6: Sibling grouping — components with the same kind and
+        # similar dimensions should be placed adjacent to conserve space.
+        # Detects siblings by kind+value or kind+similar area.
+        sibling_pairs = []
+        comp_list = list(comps.values())
+        for i, a in enumerate(comp_list):
+            for b in comp_list[i + 1:]:
+                if a.locked or b.locked:
+                    continue
+                same_kind = (a.kind == b.kind and a.kind not in ("", "misc", "passive"))
+                similar_size = (a.area > 0 and b.area > 0 and
+                                min(a.area, b.area) / max(a.area, b.area) > 0.7)
+                if same_kind and similar_size:
+                    # Weight proportional to component area — larger siblings
+                    # benefit more from adjacency (saves more board space)
+                    weight = min(3.0, 1.0 + (a.area + b.area) / 200.0)
+                    conn_graph.add_edge(a.ref, b.ref, weight)
+                    sibling_pairs.append((a.ref, b.ref))
+        if sibling_pairs:
+            print(f"  Sibling grouping: {len(sibling_pairs)} pair(s) "
+                  f"({', '.join(f'{a}+{b}' for a, b in sibling_pairs)})")
+
         # Step 3: Initial cluster placement (with seeded jitter)
         self._place_clusters(comps, clusters, conn_graph)
 
@@ -473,6 +501,10 @@ class PlacementSolver:
             if clamp_pass == 2:
                 print("  WARNING: some pads still outside board after 3 clamp passes")
 
+        # Step 13: Re-pin edge/corner components that may have drifted
+        # during overlap resolution (both-locked case can push pinned parts)
+        self._restore_pinned_positions(best_comps)
+
         # Final score
         work_state.components = best_comps
         final = PlacementScorer(work_state, self.cfg).score()
@@ -541,7 +573,11 @@ class PlacementSolver:
         edge/corner constraints but components are NOT locked — the force
         simulation can move them, and edge_compliance scoring incentivizes
         keeping them near edges.
+
+        Saves target positions in self._pinned_targets for later restoration
+        by _restore_pinned_positions().
         """
+        self._pinned_targets: dict[str, Point] = {}
         tl, br = self.state.board_outline
         margin = self.edge_margin
         zones = self.cfg.get("component_zones", {})
@@ -581,11 +617,37 @@ class PlacementSolver:
             zone_cfg = zones.get(ref, {})
 
             if "edge" in zone_cfg:
-                # Explicit edge assignment with randomized position along edge
+                # Explicit edge assignment with randomized position along edge.
+                # Keep original rotation — connector footprints are already
+                # oriented correctly in the schematic/PCB.
                 old_pos = Point(comp.pos.x, comp.pos.y)
                 edge = zone_cfg["edge"]
+                # Set explicit rotation only if config specifies one
+                old_rot = comp.rotation
+                if "rotation" in zone_cfg:
+                    comp.rotation = zone_cfg["rotation"]
                 comp.pos = _random_along_edge(edge, comp)
-                _update_pad_positions(comp, old_pos, comp.rotation)
+                _update_pad_positions(comp, old_pos, old_rot)
+                # Shift inward so ALL pads are inside the board boundary
+                if comp.pads:
+                    pad_xs = [p.pos.x for p in comp.pads]
+                    pad_ys = [p.pos.y for p in comp.pads]
+                    shift_x = shift_y = 0.0
+                    if min(pad_xs) < tl.x + 0.3:
+                        shift_x = tl.x + 0.3 - min(pad_xs)
+                    elif max(pad_xs) > br.x - 0.3:
+                        shift_x = br.x - 0.3 - max(pad_xs)
+                    if min(pad_ys) < tl.y + 0.3:
+                        shift_y = tl.y + 0.3 - min(pad_ys)
+                    elif max(pad_ys) > br.y - 0.3:
+                        shift_y = br.y - 0.3 - max(pad_ys)
+                    if abs(shift_x) > 0.01 or abs(shift_y) > 0.01:
+                        comp.pos.x += shift_x
+                        comp.pos.y += shift_y
+                        for pad in comp.pads:
+                            pad.pos.x += shift_x
+                            pad.pos.y += shift_y
+                self._pinned_targets[ref] = Point(comp.pos.x, comp.pos.y)
                 comp.locked = not unlock_all
 
             elif "corner" in zone_cfg:
@@ -594,6 +656,7 @@ class PlacementSolver:
                 old_pos = Point(comp.pos.x, comp.pos.y)
                 comp.pos = _random_in_corner(corner, comp)
                 _update_pad_positions(comp, old_pos, comp.rotation)
+                self._pinned_targets[ref] = Point(comp.pos.x, comp.pos.y)
                 comp.locked = not unlock_all
 
             elif "zone" in zone_cfg:
@@ -621,6 +684,7 @@ class PlacementSolver:
                 nearest = min(distances, key=distances.get)
                 comp.pos = _random_along_edge(nearest, comp)
                 _update_pad_positions(comp, old_pos, comp.rotation)
+                self._pinned_targets[ref] = Point(comp.pos.x, comp.pos.y)
                 comp.locked = not unlock_all
 
             elif comp.kind == "mounting_hole":
@@ -632,7 +696,29 @@ class PlacementSolver:
                 old_pos = Point(comp.pos.x, comp.pos.y)
                 comp.pos = _random_in_corner(corner, comp)
                 _update_pad_positions(comp, old_pos, comp.rotation)
+                self._pinned_targets[ref] = Point(comp.pos.x, comp.pos.y)
                 comp.locked = not unlock_all
+
+    def _restore_pinned_positions(self, comps: dict[str, Component]):
+        """Restore edge/corner-pinned components to their target positions.
+
+        Called after overlap resolution as a safety net: the both-locked
+        branch can still push pinned components if both are edge/corner
+        pinned.  This snaps them back to the positions recorded during
+        _pin_edge_components.
+        """
+        for ref, target in self._pinned_targets.items():
+            comp = comps.get(ref)
+            if comp is None:
+                continue
+            dx = target.x - comp.pos.x
+            dy = target.y - comp.pos.y
+            if abs(dx) < 0.01 and abs(dy) < 0.01:
+                continue
+            old_pos = Point(comp.pos.x, comp.pos.y)
+            comp.pos.x = target.x
+            comp.pos.y = target.y
+            _update_pad_positions(comp, old_pos, comp.rotation)
 
     def _get_zone_bounds(self, zone_name: str) -> tuple[float, float, float, float]:
         """Return (x_min, y_min, x_max, y_max) for a named board zone."""
@@ -643,6 +729,10 @@ class PlacementSolver:
 
         zone_map = {
             "center":        (tl.x + margin, tl.y + margin, br.x - margin, br.y - margin),
+            "top":           (tl.x + margin, tl.y + margin, br.x - margin, mid_y),
+            "bottom":        (tl.x + margin, mid_y, br.x - margin, br.y - margin),
+            "left":          (tl.x + margin, tl.y + margin, mid_x, br.y - margin),
+            "right":         (mid_x, tl.y + margin, br.x - margin, br.y - margin),
             "center-top":    (tl.x + margin, tl.y + margin, br.x - margin, mid_y),
             "center-bottom": (tl.x + margin, mid_y, br.x - margin, br.y - margin),
             "center-left":   (tl.x + margin, tl.y + margin, mid_x, br.y - margin),
@@ -1306,17 +1396,33 @@ class PlacementSolver:
 
                     if a.locked and b.locked:
                         # Both locked — still must resolve physical overlap.
-                        # Temporarily move the smaller component.
-                        a_area = a.width_mm * a.height_mm
-                        b_area = b.width_mm * b.height_mm
-                        if a_area <= b_area:
+                        # Prefer moving the component that is NOT edge/corner
+                        # pinned, so connectors and mounting holes stay put.
+                        zones = self.cfg.get("component_zones", {})
+                        a_pinned = refs[i] in zones and (
+                            "edge" in zones[refs[i]] or "corner" in zones[refs[i]])
+                        b_pinned = refs[j] in zones and (
+                            "edge" in zones[refs[j]] or "corner" in zones[refs[j]])
+                        if a_pinned and not b_pinned:
+                            if _escape(b, a_tl, a_br):
+                                b_tl, b_br = b.bbox(half_gap)
+                                moved = True
+                        elif b_pinned and not a_pinned:
                             if _escape(a, b_tl, b_br):
                                 a_tl, a_br = a.bbox(half_gap)
                                 moved = True
                         else:
-                            if _escape(b, a_tl, a_br):
-                                b_tl, b_br = b.bbox(half_gap)
-                                moved = True
+                            # Both pinned or neither — move the smaller one
+                            a_area = a.width_mm * a.height_mm
+                            b_area = b.width_mm * b.height_mm
+                            if a_area <= b_area:
+                                if _escape(a, b_tl, b_br):
+                                    a_tl, a_br = a.bbox(half_gap)
+                                    moved = True
+                            else:
+                                if _escape(b, a_tl, a_br):
+                                    b_tl, b_br = b.bbox(half_gap)
+                                    moved = True
                     elif a.locked:
                         if _escape(b, a_tl, a_br):
                             b_tl, b_br = b.bbox(half_gap)
@@ -1375,6 +1481,9 @@ class PlacementSolver:
         resistors) also stay on F.Cu.  Large THT parts (batteries,
         large connectors) go to back so they don't block SMT placement
         and routing on the front side.
+
+        When smt_backside_with_tht is True, SMT passives from the same
+        ic_group as a back-layer THT component are also moved to B.Cu.
         """
         min_area = self.cfg.get("tht_backside_min_area_mm2", 50.0)
         moved = []
@@ -1390,6 +1499,26 @@ class PlacementSolver:
             print(f"  Assigned {len(moved)} large THT component(s) to back layer: "
                   f"{', '.join(moved)}")
 
+        # Move SMT passives in the same ic_group as back-layer THT to B.Cu
+        if self.cfg.get("smt_backside_with_tht", True):
+            ic_groups = self.cfg.get("ic_groups", {})
+            back_groups = set()
+            for ic_ref, members in ic_groups.items():
+                all_refs = [ic_ref] + list(members)
+                if any(comps.get(r) and comps[r].layer == Layer.BACK for r in all_refs):
+                    back_groups.update(all_refs)
+            smt_moved = []
+            for ref in back_groups:
+                comp = comps.get(ref)
+                if (comp and not comp.is_through_hole and
+                        comp.layer != Layer.BACK and
+                        comp.kind == "passive"):
+                    comp.layer = Layer.BACK
+                    smt_moved.append(ref)
+            if smt_moved:
+                print(f"  Moved {len(smt_moved)} SMT passive(s) to back with THT group: "
+                      f"{', '.join(smt_moved)}")
+
     def _clamp_pads_to_board(self, comps: dict[str, Component]):
         """Hard clamp: shift components inward so all pads are inside the board."""
         tl, br = self.state.board_outline
@@ -1400,7 +1529,7 @@ class PlacementSolver:
         max_y = br.y - inset
 
         for comp in comps.values():
-            if comp.locked or not comp.pads:
+            if not comp.pads:
                 continue
 
             # Track left/right and top/bottom violations separately

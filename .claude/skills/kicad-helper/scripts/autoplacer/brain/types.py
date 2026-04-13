@@ -172,11 +172,11 @@ class PlacementScore:
     def compute_total(self, weights: Optional[dict] = None) -> float:
         w = weights or {
             "net_distance": 0.25,        # connected parts close together
-            "crossover_score": 0.30,     # fewer crossings = easier routing
-            "compactness": 0.02,
-            "edge_compliance": 0.05,
+            "crossover_score": 0.24,     # fewer crossings = easier routing
+            "compactness": 0.08,         # tighter layouts = smaller boards
+            "edge_compliance": 0.10,
             "rotation_score": 0.03,
-            "board_containment": 0.20,
+            "board_containment": 0.15,
             "courtyard_overlap": 0.15,
         }
         self.total = sum(
@@ -230,6 +230,8 @@ class ExperimentScore:
     routing_ms: float = 0.0
     failed_net_names: list[str] = field(default_factory=list)
     drc_score: DRCScore = field(default_factory=DRCScore)
+    pipeline_drc: dict = field(default_factory=dict)
+    skipped_routing: bool = False
 
     def compute(self, weights: Optional[dict] = None,
                 drc_dict: Optional[dict] = None,
@@ -251,19 +253,25 @@ class ExperimentScore:
             route_pct = ((self.total_nets - self.failed_nets)
                          / self.total_nets) * 100
         else:
-            route_pct = 100.0
+            # No nets counted = routing was skipped or failed. Score 0, not 100.
+            route_pct = 0.0
 
         # Via penalty: fewer vias per routed net = better
         if self.routed_nets > 0:
             vias_per_net = self.via_count / self.routed_nets
             via_score = max(0, min(100, 100 - vias_per_net * 20))
+        elif self.skipped_routing:
+            via_score = 0.0  # No routing = no via credit
         else:
             via_score = 50.0
 
-        # DRC score
+        # DRC score — no credit when routing was skipped
         if drc_dict:
             self.drc_score = DRCScore.from_counts(drc_dict)
-        drc_val = self.drc_score.total
+        if self.skipped_routing:
+            drc_val = 0.0
+        else:
+            drc_val = self.drc_score.total
 
         self.total = (
             w_placement * self.placement.total +
@@ -272,6 +280,12 @@ class ExperimentScore:
             w_contain * self.placement.board_containment +
             w_drc * drc_val
         )
+
+        # Hard score gates: cap score based on route completion
+        if route_pct <= 50.0:
+            self.total = min(self.total, 40.0)
+        elif route_pct < 90.0:
+            self.total = min(self.total, 70.0)
 
         # Area bonus: reward smaller boards (only when board size search is active)
         if board_area_mm2 is not None:

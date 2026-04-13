@@ -90,12 +90,44 @@ def count_board_tracks(kicad_pcb_path: str) -> dict:
 
 
 def export_dsn(kicad_pcb_path: str, dsn_path: str) -> None:
-    """Export Specctra DSN from a KiCad PCB file using pcbnew API."""
+    """Export Specctra DSN from a KiCad PCB file using pcbnew API.
+
+    Refills copper zones first so FreeRouting sees up-to-date zone geometry
+    after components have been moved by the placement engine.
+    """
     _run_pcbnew_script(
         "import pcbnew\n"
         f"board = pcbnew.LoadBoard({kicad_pcb_path!r})\n"
+        "board.BuildConnectivity()\n"
+        "filler = pcbnew.ZONE_FILLER(board)\n"
+        "filler.Fill(board.Zones())\n"
+        f"board.Save({kicad_pcb_path!r})\n"
         f"pcbnew.ExportSpecctraDSN(board, {dsn_path!r})\n"
     )
+    # Post-process DSN: raise smd_smd clearance to match the global clearance.
+    # KiCad exports (clearance 50 (type smd_smd)) which is only 0.05mm,
+    # leading to DRC violations when KiCad checks with its 0.2mm rule.
+    _patch_dsn_clearance(dsn_path)
+
+
+def _patch_dsn_clearance(dsn_path: str) -> None:
+    """Raise the smd_smd clearance in a DSN file to match the global clearance."""
+    with open(dsn_path) as f:
+        content = f.read()
+    # Find global clearance value (first bare clearance line)
+    m = re.search(r'\(clearance\s+(\d+)\)', content)
+    if not m:
+        return
+    global_clearance = m.group(1)
+    # Replace smd_smd clearance with the global value
+    patched = re.sub(
+        r'\(clearance\s+\d+\s+\(type smd_smd\)\)',
+        f'(clearance {global_clearance} (type smd_smd))',
+        content,
+    )
+    if patched != content:
+        with open(dsn_path, 'w') as f:
+            f.write(patched)
 
 
 def parse_freerouting_output(stdout: str, stderr: str,
@@ -201,7 +233,11 @@ def import_ses(kicad_pcb_path: str, ses_path: str,
 
 def route_with_freerouting(kicad_pcb_path: str, output_path: str,
                            jar_path: str, config: dict) -> dict:
-    """Full DSN → FreeRouting → SES pipeline. Returns routing stats."""
+    """Full DSN → FreeRouting → SES pipeline. Returns routing stats.
+
+    Retries once on crash (rc != 0 and no SES output) with reduced
+    max_passes to work around FreeRouting v1.9.0 intermittent failures.
+    """
     # Clear existing traces so FreeRouting starts fresh (preserve thermal vias)
     clear_traces(
         kicad_pcb_path,
@@ -210,24 +246,36 @@ def route_with_freerouting(kicad_pcb_path: str, output_path: str,
         thermal_radius_mm=config.get("thermal_radius_mm", 3.0),
     )
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        dsn_path = os.path.join(tmpdir, "board.dsn")
-        ses_path = os.path.join(tmpdir, "board.ses")
+    max_passes = config.get("freerouting_max_passes", 40)
+    timeout_s = config.get("freerouting_timeout_s", 120)
 
-        export_dsn(kicad_pcb_path, dsn_path)
+    for attempt in range(2):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dsn_path = os.path.join(tmpdir, "board.dsn")
+            ses_path = os.path.join(tmpdir, "board.ses")
 
-        stats = run_freerouting(
-            dsn_path, ses_path, jar_path,
-            timeout_s=config.get("freerouting_timeout_s", 120),
-            max_passes=config.get("freerouting_max_passes", 40),
-        )
+            export_dsn(kicad_pcb_path, dsn_path)
 
-        # Import SES if routing produced output
-        if os.path.exists(ses_path):
-            import_ses(kicad_pcb_path, ses_path, output_path)
-        else:
-            raise RuntimeError(
-                f"FreeRouting produced no SES output (rc={stats.get('returncode', '?')})"
+            passes = max_passes if attempt == 0 else max(10, max_passes // 2)
+            stats = run_freerouting(
+                dsn_path, ses_path, jar_path,
+                timeout_s=timeout_s,
+                max_passes=passes,
             )
 
-    return stats
+            # Import SES if routing produced output
+            if os.path.exists(ses_path):
+                import_ses(kicad_pcb_path, ses_path, output_path)
+                return stats
+
+            # No SES output — retry once with reduced passes
+            if attempt == 0:
+                print(f"  FreeRouting crash (rc={stats.get('returncode', '?')}), retrying with {max(10, max_passes // 2)} passes...")
+                continue
+
+            raise RuntimeError(
+                f"FreeRouting produced no SES output after 2 attempts (rc={stats.get('returncode', '?')})"
+            )
+
+    # Should not reach here
+    raise RuntimeError("FreeRouting routing failed")

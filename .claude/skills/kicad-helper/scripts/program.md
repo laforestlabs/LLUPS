@@ -33,11 +33,11 @@
     ]
   },
   "score_weights": {
-    "placement": 0.15,
-    "route_completion": 0.5,
-    "via_penalty": 0.1,
-    "containment": 0.05,
-    "drc": 0.2
+    "placement": 0.5,
+    "route_completion": 0.85,
+    "via_penalty": 0.05,
+    "containment": 0.5,
+    "drc": 0.5
   }
 }
 ```

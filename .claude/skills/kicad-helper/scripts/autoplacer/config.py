@@ -1,10 +1,13 @@
 """Default configuration — project-agnostic placement/routing engine defaults.
 
 Project-specific overrides (ic_groups, component_zones, etc.) should be
-passed as config dict at runtime.  See LLUPS_CONFIG below for an example.
+passed as config dict at runtime.  See LLUPS_CONFIG below for an example,
+or load from a JSON file with load_project_config().
 """
 
+import json
 import os
+from pathlib import Path
 
 DEFAULT_CONFIG = {
     # Trace widths (5 mil = 0.127mm)
@@ -65,9 +68,13 @@ DEFAULT_CONFIG = {
     # above this value (mm²) are placed on B.Cu so SMT parts can use F.Cu.
     "tht_backside_min_area_mm2": 50.0,
 
+    # Move SMT passives from the same IC group as a back-layer THT component
+    # to B.Cu, so they can be placed under/around the large THT footprint.
+    "smt_backside_with_tht": True,
+
     # Minimum placement score to proceed to routing.
     # Below this threshold routing is skipped (saves 15-30s on degenerate layouts).
-    "min_placement_score": 30.0,
+    "min_placement_score": 20.0,
 
     # Component zone constraints — per-reference placement rules.
     # Each key is a component reference; value is a dict with one of:
@@ -101,6 +108,12 @@ DEFAULT_CONFIG = {
     # spurious "unconnected" DRC violations.
     "freerouting_ignore_nets": ["GND"],
 
+    # GND zone pour — automatically created/updated to cover full board.
+    # Set gnd_zone_net to "" to disable automatic zone creation.
+    "gnd_zone_net": "GND",
+    "gnd_zone_layer": "B.Cu",
+    "gnd_zone_margin_mm": 0.5,
+
     # Explicit IC groups (IC + supporting components that should stay together).
     # Each key is the group leader (typically an IC reference), value is a list
     # of supporting component references.
@@ -112,10 +125,10 @@ DEFAULT_CONFIG = {
     # --- Search space flags ---
     # When True, batteries/connectors/mounting holes are NOT auto-locked;
     # edge_compliance scoring still incentivizes edge placement.
-    "unlock_all_footprints": False,
+    "unlock_all_footprints": True,
 
     # When True, the autoexperiment loop can vary board_width_mm / board_height_mm.
-    "enable_board_size_search": False,
+    "enable_board_size_search": True,
     # Default board dimensions (mm) — overridden per-round when board size search is active.
     "board_width_mm": 90.0,
     "board_height_mm": 58.0,
@@ -159,15 +172,41 @@ LLUPS_CONFIG = {
     # Component zone constraints for the LLUPS board layout.
     # Signal flow: USB input (left) → charger → protection → boost → LDO → output (right)
     "component_zones": {
-        "J1":  {"edge": "left"},           # USB-C input connector
+        "J1":  {"edge": "left"},            # USB-C input connector
         "J2":  {"edge": "right"},          # Output header
         "J3":  {"edge": "right"},          # Debug header
-        "BT1": {"zone": "bottom-left"},   # Battery holder
-        "BT2": {"zone": "bottom-right"},  # Battery holder
-        "H4":  {"corner": "bottom-left"},
+        "BT1": {"zone": "bottom"},        # Battery holders — shared zone, sibling
+        "BT2": {"zone": "bottom"},        # grouping pulls them adjacent
+        "H4":  {"corner": "top-left"},
         "H86": {"corner": "bottom-right"},
     },
 
     # Signal flow left-to-right: USB → charger → protection → boost → LDO
     "signal_flow_order": ["U1", "U2", "U3", "U4", "U5"],
 }
+
+
+def load_project_config(config_path: str = None) -> dict:
+    """Load a project config from a JSON file.
+
+    If config_path is None, looks for a *_config.json in the autoplacer
+    directory. Returns empty dict if no file found.
+
+    JSON values are converted: lists of strings in "power_nets" become sets.
+    """
+    if config_path is None:
+        # Auto-discover config file next to this module
+        module_dir = Path(__file__).parent
+        candidates = sorted(module_dir.glob("*_config.json"))
+        if not candidates:
+            return {}
+        config_path = str(candidates[0])
+
+    with open(config_path) as f:
+        cfg = json.load(f)
+
+    # Convert power_nets list to set for efficient lookup
+    if "power_nets" in cfg and isinstance(cfg["power_nets"], list):
+        cfg["power_nets"] = set(cfg["power_nets"])
+
+    return cfg

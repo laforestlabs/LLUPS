@@ -155,13 +155,20 @@ def plot_experiments(experiments, output_path):
         all_keys = set()
         for e in kept_exps:
             all_keys.update(e.get("config_delta", {}).keys())
-        all_keys = sorted(all_keys)
+        # Filter to numeric-only keys (skip lists, dicts, strings, bools)
+        all_keys = sorted(k for k in all_keys if any(
+            isinstance(e.get("config_delta", {}).get(k), (int, float))
+            for e in kept_exps
+        ))
 
         if all_keys:
             data = []
             labels = []
             for e in kept_exps:
-                row = [e["config_delta"].get(k, 0) for k in all_keys]
+                row = [float(e["config_delta"].get(k, 0))
+                       if isinstance(e["config_delta"].get(k, 0), (int, float))
+                       else 0.0
+                       for k in all_keys]
                 data.append(row)
                 kept_idx = next(i for i, exp in enumerate(experiments) if exp is e) + 1
                 labels.append(f"#{kept_idx}")

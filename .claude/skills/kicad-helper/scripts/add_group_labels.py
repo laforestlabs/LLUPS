@@ -173,20 +173,50 @@ def make_gr_text(label: str, x: float, y: float, layer: str,
     )
 
 
+def _label_rect(x: float, y: float, text: str, font_h: float, font_w: float):
+    """Return (x_min, y_min, x_max, y_max) bounding box of a label."""
+    text_w = len(text) * font_w * 0.7  # approximate glyph width ratio
+    return (x - 0.2, y - font_h / 2, x + text_w + 0.2, y + font_h / 2)
+
+
+def _rects_overlap(r1, r2) -> bool:
+    """Check if two (x_min, y_min, x_max, y_max) rectangles overlap."""
+    return not (r1[2] < r2[0] or r2[2] < r1[0] or r1[3] < r2[1] or r2[3] < r1[1])
+
+
+def _component_rects(footprints: dict, ic_groups: dict, ic_ref: str) -> list:
+    """Get approximate bounding boxes for all components in a group."""
+    rects = []
+    members = [ic_ref] + list(ic_groups.get(ic_ref, []))
+    for ref in members:
+        fp = footprints.get(ref)
+        if not fp:
+            continue
+        # Approximate component as 3mm x 2mm rect centered at its position
+        hw, hh = 1.5, 1.0
+        rects.append((fp["x"] - hw, fp["y"] - hh, fp["x"] + hw, fp["y"] + hh))
+    return rects
+
+
 def add_group_labels(pcb_path: str, ic_groups: dict, group_labels: dict,
-                     font_height: float = 1.0, font_width: float = 1.0,
+                     font_height: float = 0.0, font_width: float = 0.0,
                      font_thickness: float = 0.15, offset_y: float = 1.5,
                      in_place: bool = False, dry_run: bool = False) -> str:
     """Add silkscreen group labels to a KiCad PCB file.
+
+    Labels are placed near each IC group with collision detection:
+    tries above, below, left, right, and diagonal positions to avoid
+    overlapping components. Font size auto-scales to group width when
+    font_height/font_width are 0 (default).
 
     Args:
         pcb_path: Path to .kicad_pcb file
         ic_groups: {ic_ref: [member_refs]} — component grouping
         group_labels: {ic_ref: "Label Text"} — display names
-        font_height: Text height in mm
-        font_width: Text width in mm
+        font_height: Text height in mm (0 = auto-scale to group size)
+        font_width: Text width in mm (0 = auto-scale to group size)
         font_thickness: Stroke thickness in mm
-        offset_y: Vertical offset above group top edge in mm
+        offset_y: Vertical offset from group edge in mm
         in_place: Overwrite input file if True
         dry_run: Only print positions, don't modify
 
@@ -208,6 +238,9 @@ def add_group_labels(pcb_path: str, ic_groups: dict, group_labels: dict,
     # Compute group bounding boxes
     bounds = compute_group_bounds(footprints, ic_groups)
 
+    # Collect all placed label rects for inter-label collision
+    placed_rects = []
+
     # Generate label texts
     labels_to_add = []
     for ic_ref in sorted(bounds.keys()):
@@ -216,10 +249,51 @@ def add_group_labels(pcb_path: str, ic_groups: dict, group_labels: dict,
         b = bounds[ic_ref]
         label_text = group_labels[ic_ref]
         silk = silk_layer_for(b["layer"])
-        # Position: centered horizontally on group, offset above top edge
-        lx = b["cx"]
-        ly = b["min_y"] - offset_y
+
+        # Auto-scale font to group width
+        group_w = b["max_x"] - b["min_x"]
+        if font_height <= 0 or font_width <= 0:
+            auto_h = max(0.6, min(1.5, group_w / 8.0))
+            fh = auto_h
+            fw = auto_h
+        else:
+            fh = font_height
+            fw = font_width
+
+        # Try candidate positions: above, below, left, right, diagonal offsets
+        cx, cy = b["cx"], b["cy"]
+        candidates = [
+            (cx, b["min_y"] - offset_y),                          # above center
+            (cx, b["max_y"] + offset_y + fh),                     # below center
+            (b["min_x"] - offset_y - len(label_text) * fw * 0.7, cy),  # left
+            (b["max_x"] + offset_y, cy),                          # right
+            (b["min_x"], b["min_y"] - offset_y),                  # above-left
+            (b["max_x"], b["min_y"] - offset_y),                  # above-right
+            (b["min_x"], b["max_y"] + offset_y + fh),             # below-left
+        ]
+
+        comp_rects = _component_rects(footprints, ic_groups, ic_ref)
+
+        best_pos = candidates[0]  # fallback to above-center
+        for cx_try, cy_try in candidates:
+            lr = _label_rect(cx_try, cy_try, label_text, fh, fw)
+            collision = False
+            for cr in comp_rects:
+                if _rects_overlap(lr, cr):
+                    collision = True
+                    break
+            if not collision:
+                for pr in placed_rects:
+                    if _rects_overlap(lr, pr):
+                        collision = True
+                        break
+            if not collision:
+                best_pos = (cx_try, cy_try)
+                break
+
+        lx, ly = best_pos
         uid = f"{GROUP_LABEL_MARKER}{ic_ref.lower()}_{uuid.uuid4().hex[:8]}"
+        placed_rects.append(_label_rect(lx, ly, label_text, fh, fw))
 
         labels_to_add.append({
             "ic_ref": ic_ref,
@@ -228,6 +302,8 @@ def add_group_labels(pcb_path: str, ic_groups: dict, group_labels: dict,
             "y": ly,
             "layer": silk,
             "uid": uid,
+            "font_h": fh,
+            "font_w": fw,
         })
 
     # Print summary
@@ -243,7 +319,7 @@ def add_group_labels(pcb_path: str, ic_groups: dict, group_labels: dict,
     for lbl in labels_to_add:
         gr_texts += make_gr_text(
             lbl["text"], lbl["x"], lbl["y"], lbl["layer"],
-            font_height, font_width, font_thickness, lbl["uid"]
+            lbl["font_h"], lbl["font_w"], font_thickness, lbl["uid"]
         )
 
     # Insert before the final closing paren

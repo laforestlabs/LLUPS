@@ -154,7 +154,8 @@ class KiCadAdapter:
         # --- Nets ---
         nets: dict[str, Net] = {}
         for net_name, pads in net_pads.items():
-            is_power = net_name in POWER_NETS or net_name.lstrip("/") in POWER_NETS
+            power_nets = self.cfg.get("power_nets", set())
+            is_power = net_name in power_nets or net_name.lstrip("/") in power_nets
             nets[net_name] = Net(
                 name=net_name,
                 pad_refs=pads,
@@ -273,3 +274,115 @@ class KiCadAdapter:
             seg.SetStart(pcbnew.VECTOR2I(x1, y1))
             seg.SetEnd(pcbnew.VECTOR2I(x2, y2))
             board.Add(seg)
+
+    def strip_zones(self):
+        """Remove all non-rule-area copper zones from the board.
+
+        Called before routing to remove pre-existing zones (e.g. F.Cu GND
+        zone from the source PCB) that would interfere with the autoplacer's
+        zone management.  Rule areas are preserved.
+
+        Runs in a subprocess to avoid pcbnew SWIG corruption.
+        """
+        import subprocess
+        result = subprocess.run(
+            ["python3", "-c",
+             "import pcbnew\n"
+             f"board = pcbnew.LoadBoard({self.pcb_path!r})\n"
+             "to_remove = [z for z in board.Zones() if not z.GetIsRuleArea()]\n"
+             "for z in to_remove:\n"
+             "    board.Remove(z)\n"
+             f"board.Save({self.pcb_path!r})\n"
+             "print(len(to_remove))\n"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode == 0:
+            # Take first line only — SWIG may print memory leak warnings after
+            n = result.stdout.strip().split('\n')[0].strip()
+            if n and n.isdigit() and int(n) > 0:
+                print(f"  Stripped {n} pre-existing copper zone(s)")
+        # Force reload on next access since file changed
+        self.board = None
+
+    def ensure_gnd_zone(self):
+        """Create or update a GND copper pour zone covering the full board.
+
+        Idempotent: if a zone already exists on the target layer with the
+        target net, its outline is updated to match the current board
+        dimensions. Otherwise a new zone is created.
+
+        Controlled by config keys:
+          gnd_zone_net (str): Net name, e.g. "GND". Empty string disables.
+          gnd_zone_layer (str): "B.Cu" or "F.Cu".
+          gnd_zone_margin_mm (float): Inset from board edge.
+        """
+        self._ensure_loaded()
+        board = self.board
+
+        zone_net_name = self.cfg.get("gnd_zone_net", "GND")
+        if not zone_net_name:
+            return  # Disabled
+
+        layer_name = self.cfg.get("gnd_zone_layer", "B.Cu")
+        target_layer = pcbnew.B_Cu if layer_name == "B.Cu" else pcbnew.F_Cu
+        margin = pcbnew.FromMM(self.cfg.get("gnd_zone_margin_mm", 0.5))
+
+        # Find the net
+        gnd_net = board.GetNetInfo().GetNetItem(zone_net_name)
+        if not gnd_net or gnd_net.GetNetCode() == 0:
+            print(f"  WARNING: Net '{zone_net_name}' not found — skipping zone creation")
+            return
+
+        # Compute board outline rectangle
+        rect = board.GetBoardEdgesBoundingBox()
+        x1 = rect.GetX() + margin
+        y1 = rect.GetY() + margin
+        x2 = x1 + rect.GetWidth() - 2 * margin
+        y2 = y1 + rect.GetHeight() - 2 * margin
+
+        # Look for existing zone on target layer with matching net
+        existing_zone = None
+        for zone in board.Zones():
+            if (zone.GetLayer() == target_layer and
+                    zone.GetNetname() == zone_net_name and
+                    not zone.GetIsRuleArea()):
+                existing_zone = zone
+                break
+
+        if existing_zone:
+            # Update outline to match current board size
+            outline = existing_zone.Outline()
+            outline.RemoveAllContours()
+            outline.NewOutline()
+            outline.Append(x1, y1)
+            outline.Append(x2, y1)
+            outline.Append(x2, y2)
+            outline.Append(x1, y2)
+        else:
+            # Create new zone
+            zone = pcbnew.ZONE(board)
+            zone.SetNet(gnd_net)
+            zone.SetLayer(target_layer)
+            zone.SetIsRuleArea(False)
+            zone.SetDoNotAllowTracks(False)
+            zone.SetDoNotAllowVias(False)
+            zone.SetDoNotAllowPads(False)
+            zone.SetDoNotAllowCopperPour(False)
+            zone.SetLocalClearance(pcbnew.FromMM(0.3))
+            zone.SetMinThickness(pcbnew.FromMM(0.25))
+            zone.SetPadConnection(pcbnew.ZONE_CONNECTION_THERMAL)
+            zone.SetThermalReliefGap(pcbnew.FromMM(0.5))
+            zone.SetThermalReliefSpokeWidth(pcbnew.FromMM(0.5))
+            zone.SetAssignedPriority(0)
+            outline = zone.Outline()
+            outline.NewOutline()
+            outline.Append(x1, y1)
+            outline.Append(x2, y1)
+            outline.Append(x2, y2)
+            outline.Append(x1, y2)
+            board.Add(zone)
+
+        # Fill all zones
+        filler = pcbnew.ZONE_FILLER(board)
+        filler.Fill(board.Zones())
+        print(f"  GND zone on {layer_name}: ensured and filled")
