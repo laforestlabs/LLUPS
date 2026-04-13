@@ -49,6 +49,16 @@ class PlacementEngine:
         scorer = PlacementScorer(state, cfg)
         score = scorer.score()
 
+        # Count pads outside board boundary (hard metric, not percentage)
+        tl, br = state.board_outline
+        inset = cfg.get("pad_inset_margin_mm", 0.3)
+        pads_outside = 0
+        for comp in new_comps.values():
+            for pad in comp.pads:
+                if (pad.pos.x < tl.x + inset or pad.pos.x > br.x - inset or
+                        pad.pos.y < tl.y + inset or pad.pos.y > br.y - inset):
+                    pads_outside += 1
+
         return {
             "components_placed": len(new_comps),
             "score": score.total,
@@ -60,6 +70,7 @@ class PlacementEngine:
             "rotation_score": score.rotation_score,
             "board_containment": score.board_containment,
             "courtyard_overlap": score.courtyard_overlap,
+            "pads_outside_board": pads_outside,
         }
 
 
@@ -133,8 +144,12 @@ class FullPipeline:
         p_score = placement.get("score", 0)
         p_contain = placement.get("board_containment", 100)
         p_courtyard = placement.get("courtyard_overlap", 100)
+        p_pads_out = placement.get("pads_outside_board", 0)
 
-        if p_score < min_score:
+        if p_pads_out > 0:
+            skip_reason = (f"{p_pads_out} pads outside board boundary — "
+                           f"placement invalid")
+        elif p_score < min_score:
             skip_reason = (f"total score {p_score:.1f} < {min_score}")
         elif p_contain < min_containment:
             skip_reason = (f"board containment {p_contain:.1f}% < {min_containment}% "

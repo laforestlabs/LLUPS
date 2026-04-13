@@ -64,6 +64,14 @@ DEFAULT_CONFIG = {
     # placement diversity across rounds while keeping components on edges.
     "edge_jitter_mm": 5.0,
 
+    # Connector gap — spacing (mm) between connectors grouped on the same edge.
+    "connector_gap_mm": 2.0,
+
+    # Orderedness — how strongly passives are snapped into neat rows/columns.
+    # 0.0 = organic/force-directed layout, 1.0 = full grid alignment.
+    # Intermediate values blend proportionally.  Searchable by autoexperiment.
+    "orderedness": 0.0,
+
     # Through-hole backside threshold — THT components with bounding-box area
     # above this value (mm²) are placed on B.Cu so SMT parts can use F.Cu.
     "tht_backside_min_area_mm2": 50.0,

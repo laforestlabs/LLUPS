@@ -252,6 +252,7 @@ def mutate_config_minor(base: dict, rng: random.Random,
         "cooling_factor":  (0.90, 0.995, 0.05),
         "edge_margin_mm":  (4.0, 10.0, 0.1),
         "placement_clearance_mm": (1.0, 3.0, 0.15),
+        "orderedness":             (0.0, 1.0, 0.2),
     }
     # Board size search — 5mm steps
     if cfg.get("enable_board_size_search", False):
@@ -311,6 +312,7 @@ def mutate_config_major(base: dict, rng: random.Random,
         "force_repel_k":   (100.0, 500.0),
         "cooling_factor":  (0.90, 0.995),
         "placement_clearance_mm": (1.5, 5.0),
+        "orderedness":             (0.0, 1.0),
     }
     if cfg.get("enable_board_size_search", False):
         aggressive_tunable["board_width_mm"] = (60.0, 120.0)

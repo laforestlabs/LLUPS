@@ -59,7 +59,13 @@ def _swap_pad_positions(a: Component, b: Component):
 
 
 def _update_pad_positions(comp: Component, old_pos: Point, old_rot: float):
-    """Update pad absolute positions after component move/rotate."""
+    """Update pad absolute positions after component move/rotate.
+
+    Uses KiCad's rotation convention:
+        x' = x·cos θ + y·sin θ
+        y' = -x·sin θ + y·cos θ
+    where θ is the rotation delta in radians.
+    """
     dx = comp.pos.x - old_pos.x
     dy = comp.pos.y - old_pos.y
     rot_delta = math.radians(comp.rotation - old_rot)
@@ -69,14 +75,14 @@ def _update_pad_positions(comp: Component, old_pos: Point, old_rot: float):
             # Translation only
             pad.pos = Point(pad.pos.x + dx, pad.pos.y + dy)
         else:
-            # Rotate around new component center
+            # Rotate around new component center (KiCad CW convention)
             rx = pad.pos.x - old_pos.x
             ry = pad.pos.y - old_pos.y
             cos_r = math.cos(rot_delta)
             sin_r = math.sin(rot_delta)
             pad.pos = Point(
-                comp.pos.x + rx * cos_r - ry * sin_r,
-                comp.pos.y + rx * sin_r + ry * cos_r,
+                comp.pos.x + rx * cos_r + ry * sin_r,
+                comp.pos.y - rx * sin_r + ry * cos_r,
             )
 
 
@@ -307,11 +313,12 @@ class PlacementSolver:
         # Build connectivity graph
         conn_graph = build_connectivity_graph(self.state.nets)
 
+        # Step 0.5: Assign layers BEFORE edge pinning so pad positions
+        # reflect the flip when computing connector placement
+        self._assign_layers(comps)
+
         # Step 1: Pin edge components (connectors, mounting holes)
         self._pin_edge_components(comps)
-
-        # Step 1.1: Assign large through-hole components to back layer
-        self._assign_layers(comps)
 
         # Step 1.5: Use explicit IC groups to boost connectivity weights
         ic_groups = self.cfg.get("ic_groups", {})
@@ -470,6 +477,11 @@ class PlacementSolver:
         # Step 8: Snap to grid
         self._snap_to_grid(best_comps)
 
+        # Step 8.5: Orderedness — align passives into neat rows/columns
+        orderedness = self.cfg.get("orderedness", 0.0)
+        if orderedness > 0.01:
+            self._apply_orderedness(best_comps, orderedness)
+
         # Step 9: Final exhaustive overlap resolution — guarantee no courtyard
         # overlaps before routing. Must run after snap since snapping can
         # re-introduce small overlaps.
@@ -504,6 +516,9 @@ class PlacementSolver:
         # Step 13: Re-pin edge/corner components that may have drifted
         # during overlap resolution (both-locked case can push pinned parts)
         self._restore_pinned_positions(best_comps)
+
+        # Step 14: Re-validate pad containment after restoring pinned positions
+        self._clamp_pads_to_board(best_comps)
 
         # Final score
         work_state.components = best_comps
@@ -554,6 +569,43 @@ class PlacementSolver:
         
         return cross_score * 0.5 + access_score * 0.3 + dist_score * 0.2
 
+    @staticmethod
+    def _best_rotation_for_edge(comp: Component, edge: str) -> float:
+        """Find the rotation (0/90/180/270) that orients the pad centroid
+        toward the board center relative to the named edge.
+
+        For left edge: pads should be to the right of center (centroid.x > 0).
+        For right edge: pads should be to the left (centroid.x < 0).
+        For top edge: pads should be below center (centroid.y > 0).
+        For bottom edge: pads should be above center (centroid.y < 0).
+        """
+        if not comp.pads:
+            return comp.rotation
+
+        # Compute pad centroid offset from component center at current rotation
+        cx, cy = comp.pos.x, comp.pos.y
+        pad_cx = sum(p.pos.x for p in comp.pads) / len(comp.pads) - cx
+        pad_cy = sum(p.pos.y for p in comp.pads) / len(comp.pads) - cy
+
+        # What the centroid offset should look like for this edge:
+        # pads face inward = centroid points toward board center
+        desired_angle_deg = {"left": 0, "right": 180, "top": 90, "bottom": 270}
+        desired = math.radians(desired_angle_deg[edge])
+
+        # Current angle of pad centroid offset
+        if abs(pad_cx) < 0.001 and abs(pad_cy) < 0.001:
+            return comp.rotation  # symmetric footprint, no preference
+        current = math.atan2(pad_cy, pad_cx)
+
+        # Rotation needed to align current centroid with desired direction.
+        # KiCad rotation by +δ moves vectors from angle α to α-δ,
+        # so δ = current - desired.
+        delta = current - desired
+        # Snap to nearest 90°
+        delta_deg = math.degrees(delta) % 360
+        snapped = round(delta_deg / 90) * 90 % 360
+        return (comp.rotation + snapped) % 360
+
     def _pin_edge_components(self, comps: dict[str, Component]):
         """Pin components based on component_zones config, with fallback heuristics.
 
@@ -561,6 +613,12 @@ class PlacementSolver:
           - edge: snap to named edge (left/right/top/bottom), lock in place
           - corner: pin to named corner (top-left/top-right/bottom-left/bottom-right)
           - zone: confine to a board region (used during _place_clusters, not locked)
+
+        Connectors on the same edge are grouped together in a row/column
+        with spacing, preventing them from scattering or falling off the edge.
+
+        Connector orientation is auto-corrected so pads face the board
+        center (e.g., USB connector opening faces outward, pads inward).
 
         Connectors without explicit zone config fall back to nearest-edge heuristic.
         Mounting holes without config fall back to nearest-corner.
@@ -583,23 +641,8 @@ class PlacementSolver:
         zones = self.cfg.get("component_zones", {})
         unlock_all = self.cfg.get("unlock_all_footprints", False)
         jitter = self.cfg.get("edge_jitter_mm", 5.0)
-
-        def _random_along_edge(edge: str, comp: Component) -> Point:
-            """Return a randomized position pinned to the named edge."""
-            hw, hh = comp.width_mm / 2, comp.height_mm / 2
-            if edge in ("left", "right"):
-                fixed_x = tl.x + margin if edge == "left" else br.x - margin
-                # Randomize Y along the usable range of this edge
-                lo_y = tl.y + margin + hh
-                hi_y = br.y - margin - hh
-                new_y = self.rng.uniform(lo_y, max(lo_y, hi_y))
-                return Point(fixed_x, new_y)
-            else:  # top / bottom
-                fixed_y = tl.y + margin if edge == "top" else br.y - margin
-                lo_x = tl.x + margin + hw
-                hi_x = br.x - margin - hw
-                new_x = self.rng.uniform(lo_x, max(lo_x, hi_x))
-                return Point(new_x, fixed_y)
+        pad_inset = self.cfg.get("pad_inset_margin_mm", 0.3)
+        connector_gap = self.cfg.get("connector_gap_mm", 2.0)
 
         def _random_in_corner(corner: str, comp: Component) -> Point:
             """Return a position near the named corner with small jitter."""
@@ -613,45 +656,117 @@ class PlacementSolver:
             cy = max(tl.y + hh + 1, min(br.y - hh - 1, cy))
             return Point(cx, cy)
 
+        def _shift_pads_inside(comp: Component):
+            """Shift component so ALL pads are inside the board boundary."""
+            if not comp.pads:
+                return
+            pad_xs = [p.pos.x for p in comp.pads]
+            pad_ys = [p.pos.y for p in comp.pads]
+            shift_x = shift_y = 0.0
+            if min(pad_xs) < tl.x + pad_inset:
+                shift_x = tl.x + pad_inset - min(pad_xs)
+            elif max(pad_xs) > br.x - pad_inset:
+                shift_x = br.x - pad_inset - max(pad_xs)
+            if min(pad_ys) < tl.y + pad_inset:
+                shift_y = tl.y + pad_inset - min(pad_ys)
+            elif max(pad_ys) > br.y - pad_inset:
+                shift_y = br.y - pad_inset - max(pad_ys)
+            if abs(shift_x) > 0.01 or abs(shift_y) > 0.01:
+                comp.pos.x += shift_x
+                comp.pos.y += shift_y
+                for pad in comp.pads:
+                    pad.pos.x += shift_x
+                    pad.pos.y += shift_y
+
+        def _orient_and_place(comp: Component, edge: str, pos: Point):
+            """Orient connector to face inward and move to position."""
+            old_pos = Point(comp.pos.x, comp.pos.y)
+            old_rot = comp.rotation
+            # Auto-orient unless config specifies explicit rotation
+            zone_cfg = zones.get(comp.ref, {})
+            if "rotation" in zone_cfg:
+                comp.rotation = zone_cfg["rotation"]
+            else:
+                comp.rotation = self._best_rotation_for_edge(comp, edge)
+            comp.pos = pos
+            _update_pad_positions(comp, old_pos, old_rot)
+            _shift_pads_inside(comp)
+
+        # --- Collect edge-pinned connectors by edge for grouped placement ---
+        edge_groups: dict[str, list[str]] = {}  # edge -> [ref, ...]
         for ref, comp in comps.items():
             zone_cfg = zones.get(ref, {})
-
             if "edge" in zone_cfg:
-                # Explicit edge assignment with randomized position along edge.
-                # Keep original rotation — connector footprints are already
-                # oriented correctly in the schematic/PCB.
-                old_pos = Point(comp.pos.x, comp.pos.y)
                 edge = zone_cfg["edge"]
-                # Set explicit rotation only if config specifies one
-                old_rot = comp.rotation
-                if "rotation" in zone_cfg:
-                    comp.rotation = zone_cfg["rotation"]
-                comp.pos = _random_along_edge(edge, comp)
-                _update_pad_positions(comp, old_pos, old_rot)
-                # Shift inward so ALL pads are inside the board boundary
-                if comp.pads:
-                    pad_xs = [p.pos.x for p in comp.pads]
-                    pad_ys = [p.pos.y for p in comp.pads]
-                    shift_x = shift_y = 0.0
-                    if min(pad_xs) < tl.x + 0.3:
-                        shift_x = tl.x + 0.3 - min(pad_xs)
-                    elif max(pad_xs) > br.x - 0.3:
-                        shift_x = br.x - 0.3 - max(pad_xs)
-                    if min(pad_ys) < tl.y + 0.3:
-                        shift_y = tl.y + 0.3 - min(pad_ys)
-                    elif max(pad_ys) > br.y - 0.3:
-                        shift_y = br.y - 0.3 - max(pad_ys)
-                    if abs(shift_x) > 0.01 or abs(shift_y) > 0.01:
-                        comp.pos.x += shift_x
-                        comp.pos.y += shift_y
-                        for pad in comp.pads:
-                            pad.pos.x += shift_x
-                            pad.pos.y += shift_y
-                self._pinned_targets[ref] = Point(comp.pos.x, comp.pos.y)
-                comp.locked = not unlock_all
+                edge_groups.setdefault(edge, []).append(ref)
+            elif comp.kind == "connector" and "corner" not in zone_cfg and "zone" not in zone_cfg:
+                # Fallback: assign to nearest edge
+                x, y = comp.pos.x, comp.pos.y
+                distances = {
+                    "left": x - tl.x, "right": br.x - x,
+                    "top": y - tl.y, "bottom": br.y - y,
+                }
+                nearest = min(distances, key=distances.get)
+                edge_groups.setdefault(nearest, []).append(ref)
 
-            elif "corner" in zone_cfg:
-                # Explicit corner assignment with small jitter
+        # --- Place each edge group as a compact row/column ---
+        for edge, refs in edge_groups.items():
+            group_comps = [comps[r] for r in refs]
+            # Sort by component area descending (largest first = anchor)
+            order = sorted(range(len(refs)), key=lambda i: group_comps[i].area, reverse=True)
+
+            if edge in ("left", "right"):
+                # Column along Y axis
+                fixed_x = tl.x + margin if edge == "left" else br.x - margin
+                # Total height needed for the group
+                sizes = [group_comps[i].height_mm for i in order]
+                total_h = sum(sizes) + connector_gap * (len(sizes) - 1)
+                # Randomize the group's starting Y within usable range
+                usable_top = tl.y + margin + sizes[0] / 2
+                usable_bot = br.y - margin - sizes[-1] / 2
+                group_span = total_h
+                if group_span < (usable_bot - usable_top):
+                    start_y = self.rng.uniform(usable_top, usable_bot - group_span + sizes[0] / 2)
+                else:
+                    start_y = usable_top  # not enough room, pack from top
+
+                cursor_y = start_y
+                for idx in order:
+                    comp = group_comps[idx]
+                    pos = Point(fixed_x, cursor_y)
+                    _orient_and_place(comp, edge, pos)
+                    self._pinned_targets[refs[idx]] = Point(comp.pos.x, comp.pos.y)
+                    comp.locked = not unlock_all
+                    cursor_y += comp.height_mm + connector_gap
+            else:
+                # Row along X axis
+                fixed_y = tl.y + margin if edge == "top" else br.y - margin
+                sizes = [group_comps[i].width_mm for i in order]
+                total_w = sum(sizes) + connector_gap * (len(sizes) - 1)
+                usable_left = tl.x + margin + sizes[0] / 2
+                usable_right = br.x - margin - sizes[-1] / 2
+                group_span = total_w
+                if group_span < (usable_right - usable_left):
+                    start_x = self.rng.uniform(usable_left, usable_right - group_span + sizes[0] / 2)
+                else:
+                    start_x = usable_left
+                cursor_x = start_x
+                for idx in order:
+                    comp = group_comps[idx]
+                    pos = Point(cursor_x, fixed_y)
+                    _orient_and_place(comp, edge, pos)
+                    self._pinned_targets[refs[idx]] = Point(comp.pos.x, comp.pos.y)
+                    comp.locked = not unlock_all
+                    cursor_x += comp.width_mm + connector_gap
+
+        # --- Non-edge constraints (corners, zones, mounting holes) ---
+        for ref, comp in comps.items():
+            zone_cfg = zones.get(ref, {})
+            # Skip if already handled as edge group
+            if ref in self._pinned_targets:
+                continue
+
+            if "corner" in zone_cfg:
                 corner = zone_cfg["corner"]
                 old_pos = Point(comp.pos.x, comp.pos.y)
                 comp.pos = _random_in_corner(corner, comp)
@@ -660,7 +775,6 @@ class PlacementSolver:
                 comp.locked = not unlock_all
 
             elif "zone" in zone_cfg:
-                # Zone constraint — randomize within zone bounds, don't lock.
                 zx0, zy0, zx1, zy1 = self._get_zone_bounds(zone_cfg["zone"])
                 hw, hh = comp.width_mm / 2, comp.height_mm / 2
                 old_pos = Point(comp.pos.x, comp.pos.y)
@@ -669,26 +783,8 @@ class PlacementSolver:
                     self.rng.uniform(zy0 + hh, max(zy0 + hh + 1, zy1 - hh)),
                 )
                 _update_pad_positions(comp, old_pos, comp.rotation)
-                # Zone components are NOT locked — force sim can refine position
-
-            elif comp.kind == "connector":
-                # Fallback: snap connector to nearest edge with random position
-                old_pos = Point(comp.pos.x, comp.pos.y)
-                x, y = comp.pos.x, comp.pos.y
-                distances = {
-                    "left": x - tl.x,
-                    "right": br.x - x,
-                    "top": y - tl.y,
-                    "bottom": br.y - y,
-                }
-                nearest = min(distances, key=distances.get)
-                comp.pos = _random_along_edge(nearest, comp)
-                _update_pad_positions(comp, old_pos, comp.rotation)
-                self._pinned_targets[ref] = Point(comp.pos.x, comp.pos.y)
-                comp.locked = not unlock_all
 
             elif comp.kind == "mounting_hole":
-                # Fallback: snap mounting hole to nearest corner with jitter
                 corner = ""
                 corner += "top" if comp.pos.y < (tl.y + br.y) / 2 else "bottom"
                 corner += "-"
@@ -948,8 +1044,8 @@ class PlacementSolver:
                         for k, p in enumerate(comps[ref].pads):
                             ox, oy = pad_offsets[k]
                             p.pos = Point(
-                                comps[ref].pos.x + ox * cos_d - oy * sin_d,
-                                comps[ref].pos.y + ox * sin_d + oy * cos_d,
+                                comps[ref].pos.x + ox * cos_d + oy * sin_d,
+                                comps[ref].pos.y - ox * sin_d + oy * cos_d,
                             )
                         comps[ref].rotation = rot
                         rscore = self._score_rotation_for_routing(temp_state, comps[ref])
@@ -962,8 +1058,8 @@ class PlacementSolver:
                     for k, p in enumerate(comps[ref].pads):
                         ox, oy = pad_offsets[k]
                         p.pos = Point(
-                            comps[ref].pos.x + ox * cos_d - oy * sin_d,
-                            comps[ref].pos.y + ox * sin_d + oy * cos_d,
+                            comps[ref].pos.x + ox * cos_d + oy * sin_d,
+                            comps[ref].pos.y - ox * sin_d + oy * cos_d,
                         )
                     comps[ref].rotation = best_rot
 
@@ -1057,6 +1153,9 @@ class PlacementSolver:
         for ref, comp in comps.items():
             if comp.locked or comp.kind == "mounting_hole":
                 continue
+            # Skip edge-pinned connectors — rotation set by _best_rotation_for_edge
+            if ref in self._pinned_targets:
+                continue
             if len(comp.pads) < 2:
                 continue
 
@@ -1073,13 +1172,14 @@ class PlacementSolver:
                 if rot == orig_rot:
                     continue
                 # Apply rotation: rotate pad offsets by (rot - orig_rot)
+                # using KiCad convention (cos+sin, -sin+cos)
                 delta = math.radians(rot - orig_rot)
                 cos_d, sin_d = math.cos(delta), math.sin(delta)
                 for i, p in enumerate(comp.pads):
                     ox, oy = pad_offsets[i]
                     p.pos = Point(
-                        comp.pos.x + ox * cos_d - oy * sin_d,
-                        comp.pos.y + ox * sin_d + oy * cos_d,
+                        comp.pos.x + ox * cos_d + oy * sin_d,
+                        comp.pos.y - ox * sin_d + oy * cos_d,
                     )
                 comp.rotation = rot
 
@@ -1097,8 +1197,8 @@ class PlacementSolver:
             for i, p in enumerate(comp.pads):
                 ox, oy = pad_offsets[i]
                 p.pos = Point(
-                    comp.pos.x + ox * cos_d - oy * sin_d,
-                    comp.pos.y + ox * sin_d + oy * cos_d,
+                    comp.pos.x + ox * cos_d + oy * sin_d,
+                    comp.pos.y - ox * sin_d + oy * cos_d,
                 )
             comp.rotation = best_rot
 
@@ -1493,6 +1593,10 @@ class PlacementSolver:
             if comp.area < min_area:
                 continue
             if comp.layer != Layer.BACK:
+                # Mirror pad X offsets to match KiCad Flip() behavior:
+                # Flip negates absolute X offset from component center
+                for pad in comp.pads:
+                    pad.pos.x = 2 * comp.pos.x - pad.pos.x
                 comp.layer = Layer.BACK
                 moved.append(ref)
         if moved:
@@ -1513,6 +1617,9 @@ class PlacementSolver:
                 if (comp and not comp.is_through_hole and
                         comp.layer != Layer.BACK and
                         comp.kind == "passive"):
+                    # Mirror pad X offsets to match KiCad Flip()
+                    for pad in comp.pads:
+                        pad.pos.x = 2 * comp.pos.x - pad.pos.x
                     comp.layer = Layer.BACK
                     smt_moved.append(ref)
             if smt_moved:
@@ -1567,3 +1674,128 @@ class PlacementSolver:
             comp.pos.x = round(comp.pos.x / g) * g
             comp.pos.y = round(comp.pos.y / g) * g
             _update_pad_positions(comp, old_pos, comp.rotation)
+
+    def _apply_orderedness(self, comps: dict[str, Component], strength: float):
+        """Align passives into neat rows/columns near their IC group leader.
+
+        strength: 0.0 = no effect (organic), 1.0 = full grid alignment.
+        Intermediate values blend between organic position and grid position.
+
+        Groups passives by IC group, sorts them by size class, and arranges
+        each size class into rows. Components not in any IC group are grouped
+        by spatial proximity.
+        """
+        ic_groups = self.cfg.get("ic_groups", {})
+        grid = self.grid_snap
+
+        # Build map: ref -> group leader
+        ref_to_leader: dict[str, str] = {}
+        for leader, members in ic_groups.items():
+            ref_to_leader[leader] = leader
+            for m in members:
+                ref_to_leader[m] = leader
+
+        # Collect passives by group leader
+        grouped: dict[str, list[str]] = {}
+        ungrouped: list[str] = []
+        for ref, comp in comps.items():
+            if comp.locked or comp.kind not in ("passive",):
+                continue
+            leader = ref_to_leader.get(ref)
+            if leader and leader in comps:
+                grouped.setdefault(leader, []).append(ref)
+            else:
+                ungrouped.append(ref)
+
+        # Cluster ungrouped passives by proximity (simple greedy clustering)
+        if ungrouped:
+            clusters: list[list[str]] = []
+            remaining = set(ungrouped)
+            cluster_radius = 20.0  # mm
+            while remaining:
+                seed = remaining.pop()
+                cluster = [seed]
+                for ref in list(remaining):
+                    if comps[ref].pos.dist(comps[seed].pos) < cluster_radius:
+                        cluster.append(ref)
+                        remaining.discard(ref)
+                if len(cluster) >= 2:
+                    # Use first component as virtual "leader"
+                    grouped[cluster[0]] = cluster
+
+        total_aligned = 0
+        for leader, members in grouped.items():
+            if len(members) < 2:
+                continue
+
+            # Find anchor position: IC leader center or centroid of group
+            if leader in comps and leader not in members:
+                anchor = comps[leader].pos
+            else:
+                anchor = Point(
+                    sum(comps[r].pos.x for r in members) / len(members),
+                    sum(comps[r].pos.y for r in members) / len(members),
+                )
+
+            # Bin passives by size class (similar dimensions → same row)
+            size_bins: dict[tuple[float, float], list[str]] = {}
+            for ref in members:
+                c = comps[ref]
+                # Round dimensions to nearest 0.5mm for binning
+                w_key = round(min(c.width_mm, c.height_mm) * 2) / 2
+                h_key = round(max(c.width_mm, c.height_mm) * 2) / 2
+                size_bins.setdefault((w_key, h_key), []).append(ref)
+
+            # Arrange each size bin as a row
+            row_y_offset = 0.0
+            for (w_key, h_key), bin_refs in size_bins.items():
+                if not bin_refs:
+                    continue
+                bin_refs.sort(key=lambda r: comps[r].pos.x)  # left-to-right
+
+                # Determine row direction: horizontal if wider spread, else vertical
+                xs = [comps[r].pos.x for r in bin_refs]
+                ys = [comps[r].pos.y for r in bin_refs]
+                x_spread = max(xs) - min(xs)
+                y_spread = max(ys) - min(ys)
+                horizontal = x_spread >= y_spread
+
+                # Compute grid-aligned target positions
+                sample = comps[bin_refs[0]]
+                gap = max(sample.width_mm, sample.height_mm) + self.clearance
+
+                if horizontal:
+                    # Row: same Y, evenly spaced X
+                    row_cx = sum(xs) / len(xs)
+                    row_cy = anchor.y + row_y_offset
+                    targets = []
+                    start_x = row_cx - (len(bin_refs) - 1) * gap / 2
+                    for k, ref in enumerate(bin_refs):
+                        tx = round((start_x + k * gap) / grid) * grid
+                        ty = round(row_cy / grid) * grid
+                        targets.append((ref, tx, ty))
+                    row_y_offset += h_key + self.clearance
+                else:
+                    # Column: same X, evenly spaced Y
+                    bin_refs.sort(key=lambda r: comps[r].pos.y)
+                    row_cx = anchor.x + row_y_offset
+                    row_cy = sum(ys) / len(ys)
+                    targets = []
+                    start_y = row_cy - (len(bin_refs) - 1) * gap / 2
+                    for k, ref in enumerate(bin_refs):
+                        tx = round(row_cx / grid) * grid
+                        ty = round((start_y + k * gap) / grid) * grid
+                        targets.append((ref, tx, ty))
+                    row_y_offset += w_key + self.clearance
+
+                # Blend between organic position and grid target
+                for ref, tx, ty in targets:
+                    comp = comps[ref]
+                    old_pos = Point(comp.pos.x, comp.pos.y)
+                    comp.pos.x = comp.pos.x + (tx - comp.pos.x) * strength
+                    comp.pos.y = comp.pos.y + (ty - comp.pos.y) * strength
+                    _update_pad_positions(comp, old_pos, comp.rotation)
+                    total_aligned += 1
+
+        if total_aligned > 0:
+            print(f"  Orderedness ({strength:.0%}): aligned {total_aligned} passives")
