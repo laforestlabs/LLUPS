@@ -1447,6 +1447,7 @@ def main():
                     explore_delta = config_delta(BASE_CONFIG, explore_cfg)
                     batch[idx] = ("explore", explore_cfg, explore_seed, explore_delta)
 
+            stop_mid_batch = False
             if n_workers == 1:
                 # Single-worker: run in-process (no subprocess overhead)
                 mode, candidate_cfg, candidate_seed, delta = batch[0]

@@ -63,6 +63,7 @@ class Component:
     kind: str = ""        # "connector", "mounting_hole", "ic", "passive", "misc"
     is_through_hole: bool = False  # True if footprint has PTH pads
     body_center: Point | None = None  # courtyard/body bbox center (absolute coords)
+    opening_direction: float | None = None  # LOCAL-frame angle (0/90/180/270) where opening faces
 
     @property
     def area(self) -> float:

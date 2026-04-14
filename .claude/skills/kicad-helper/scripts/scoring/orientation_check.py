@@ -4,31 +4,101 @@ Scores whether connectors, switches, test points, and other access-critical
 components are oriented correctly for physical use — e.g., USB connectors
 should face outward from a board edge, not inward.
 """
-import math
 import pcbnew
 from .base import LayoutCheck, CheckResult, Issue
 
 
-# Rules: ref prefix -> expected orientation relative to nearest board edge
-# "edge_facing" means the component's pad-side should point toward the nearest edge
-# "edge_aligned" means the component should be at the board edge (within threshold)
 ORIENTATION_RULES = {
-    "J": {  # Connectors
+    "J": {
         "description": "Connector should face outward from nearest board edge",
         "max_edge_distance_mm": 5.0,
         "check_facing": True,
     },
-    "SW": {  # Switches
+    "SW": {
         "description": "Switch should be accessible near board edge",
         "max_edge_distance_mm": 10.0,
         "check_facing": False,
     },
-    "TP": {  # Test points
+    "TP": {
         "description": "Test point should be accessible",
         "max_edge_distance_mm": 15.0,
         "check_facing": False,
     },
 }
+
+# Expected outward direction per edge (board-space angle)
+_OUTWARD = {"left": 180, "right": 0, "top": 270, "bottom": 90}
+
+
+def detect_opening_direction_board(fp) -> float | None:
+    """Detect which direction the connector opening faces in BOARD space.
+
+    All coordinates come directly from pcbnew in board space — no rotation
+    math is needed.  Compares pad bounding box to body bounding box
+    (courtyard + fab layer graphics).  The side where the body extends
+    furthest beyond the pads is the opening / mating face.
+
+    Returns 0 (+X/right), 90 (+Y/down), 180 (-X/left), 270 (-Y/up),
+    or None if not clearly directional.
+    """
+    pad_xs = [pcbnew.ToMM(p.GetPosition().x) for p in fp.Pads()]
+    pad_ys = [pcbnew.ToMM(p.GetPosition().y) for p in fp.Pads()]
+    if not pad_xs:
+        return None
+
+    body_xs, body_ys = [], []
+    cy_layer = pcbnew.F_CrtYd if fp.GetLayer() == pcbnew.F_Cu else pcbnew.B_CrtYd
+    fab_layer = pcbnew.F_Fab if fp.GetLayer() == pcbnew.F_Cu else pcbnew.B_Fab
+
+    for item in fp.GraphicalItems():
+        if item.GetLayer() not in (cy_layer, fab_layer):
+            continue
+        try:
+            body_xs.append(pcbnew.ToMM(item.GetStart().x))
+            body_xs.append(pcbnew.ToMM(item.GetEnd().x))
+            body_ys.append(pcbnew.ToMM(item.GetStart().y))
+            body_ys.append(pcbnew.ToMM(item.GetEnd().y))
+        except Exception:
+            continue
+
+    if not body_xs:
+        return None
+
+    extensions = {
+        0:   max(body_xs) - max(pad_xs),   # +X (right)
+        180: min(pad_xs)  - min(body_xs),   # -X (left)
+        90:  max(body_ys) - max(pad_ys),    # +Y (down)
+        270: min(pad_ys)  - min(body_ys),   # -Y (up)
+    }
+
+    ranked = sorted(extensions.items(), key=lambda kv: kv[1], reverse=True)
+    best_dir, best_ext = ranked[0]
+    _, second_ext = ranked[1]
+
+    if best_ext >= 1.0 and (best_ext - second_ext) >= 0.5:
+        return best_dir
+
+    # Fallback: "PCB Edge" / "Board Edge" text on Dwgs.User
+    pad_cx = (min(pad_xs) + max(pad_xs)) / 2
+    pad_cy = (min(pad_ys) + max(pad_ys)) / 2
+    for item in fp.GraphicalItems():
+        if item.GetLayer() != pcbnew.Dwgs_User:
+            continue
+        try:
+            text = item.GetText()
+        except Exception:
+            continue
+        if not text or "edge" not in text.lower():
+            continue
+        tp = item.GetPosition()
+        off_x = pcbnew.ToMM(tp.x) - pad_cx
+        off_y = pcbnew.ToMM(tp.y) - pad_cy
+        if abs(off_x) > abs(off_y):
+            return 0 if off_x > 0 else 180
+        else:
+            return 90 if off_y > 0 else 270
+
+    return None
 
 
 class OrientationCheck(LayoutCheck):
@@ -37,7 +107,6 @@ class OrientationCheck(LayoutCheck):
     weight = 0.0  # advisory for now
 
     def run(self, board, config: dict) -> CheckResult:
-        # Board edges
         rect = board.GetBoardEdgesBoundingBox()
         bx1 = pcbnew.ToMM(rect.GetX())
         by1 = pcbnew.ToMM(rect.GetY())
@@ -51,7 +120,6 @@ class OrientationCheck(LayoutCheck):
         for fp in board.Footprints():
             ref = fp.GetReferenceAsString()
 
-            # Find matching rule
             rule = None
             for prefix, r in ORIENTATION_RULES.items():
                 if ref.startswith(prefix):
@@ -66,7 +134,6 @@ class OrientationCheck(LayoutCheck):
             py = pcbnew.ToMM(pos.y)
             rot = fp.GetOrientationDegrees() % 360
 
-            # Distance to each edge
             edges = {
                 "left": px - bx1,
                 "right": bx2 - px,
@@ -76,55 +143,18 @@ class OrientationCheck(LayoutCheck):
             nearest_edge = min(edges, key=edges.get)
             edge_dist = edges[nearest_edge]
 
-            # Check edge distance
             max_dist = rule["max_edge_distance_mm"]
             edge_ok = edge_dist <= max_dist
 
-            # Check facing direction using pad centroid vs body center
             facing_ok = True
             if rule.get("check_facing") and edge_ok:
-                # Compute pad centroid relative to body center (courtyard bbox
-                # center).  This handles connectors whose footprint origin is
-                # at a corner pad rather than the geometric center.
-                try:
-                    cy_shape = fp.GetCourtyard(
-                        pcbnew.F_CrtYd if fp.GetLayer() == pcbnew.F_Cu
-                        else pcbnew.B_CrtYd)
-                    cbox = cy_shape.BBox()
-                    if cbox.GetWidth() > 0 and cbox.GetHeight() > 0:
-                        cc = cbox.GetCenter()
-                        bcx = pcbnew.ToMM(cc.x)
-                        bcy = pcbnew.ToMM(cc.y)
-                    else:
-                        bcx, bcy = px, py
-                except Exception:
-                    bcx, bcy = px, py
-
-                # Pad centroid in absolute coords (connected pads only)
-                connected_pads = [
-                    p for p in fp.Pads()
-                    if p.GetNetname() and not p.GetNetname().startswith("unconnected-")
-                ]
-                if connected_pads:
-                    avg_x = sum(pcbnew.ToMM(p.GetPosition().x) for p in connected_pads) / len(connected_pads)
-                    avg_y = sum(pcbnew.ToMM(p.GetPosition().y) for p in connected_pads) / len(connected_pads)
-                    offset_x = avg_x - bcx
-                    offset_y = avg_y - bcy
-
-                    # The pad centroid should point toward the board center
-                    # (away from the nearest edge).
-                    # desired direction: left->0°(right), right->180°(left),
-                    #                    top->90°(down), bottom->270°(up)
-                    desired_angle = {"left": 0, "right": 180, "top": 90, "bottom": 270}
-                    desired = math.radians(desired_angle[nearest_edge])
-
-                    centroid_mag = math.hypot(offset_x, offset_y)
-                    if centroid_mag >= 0.3:
-                        actual = math.atan2(offset_y, offset_x)
-                        angle_err = abs(math.degrees(actual - desired)) % 360
-                        if angle_err > 180:
-                            angle_err = 360 - angle_err
-                        facing_ok = angle_err <= 50  # generous tolerance
+                opening_board = detect_opening_direction_board(fp)
+                if opening_board is not None:
+                    expected = _OUTWARD[nearest_edge]
+                    angle_err = abs(opening_board - expected) % 360
+                    if angle_err > 180:
+                        angle_err = 360 - angle_err
+                    facing_ok = angle_err <= 45
 
             if edge_ok and facing_ok:
                 passed += 1
@@ -138,7 +168,7 @@ class OrientationCheck(LayoutCheck):
                 elif not facing_ok:
                     issues.append(Issue(severity,
                         f"{ref} at {rot:.0f}° near {nearest_edge} edge — "
-                        f"should face outward. {rule['description']}",
+                        f"opening faces wrong direction. {rule['description']}",
                         {"ref": ref, "rotation": rot, "nearest_edge": nearest_edge}))
 
         if checked == 0:

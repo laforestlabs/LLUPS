@@ -599,65 +599,46 @@ class PlacementSolver:
     @staticmethod
     def _best_rotation_for_edge(comp: Component, edge: str) -> float:
         """Find the rotation (0/90/180/270) that orients a connector flush
-        against the named edge with pads facing inward.
+        against the named edge with its opening facing outward.
 
         Strategy:
-        1. Compute the pad centroid offset from the body center (not the
-           footprint origin, which may be at a corner pad).
-        2. If the offset is significant, rotate so the centroid points
-           inward (toward board center).
-        3. If pads are symmetric around the body center, use the
-           component aspect ratio: orient the long axis PARALLEL to the
-           edge so the connector sits naturally against it.
+        1. If the component has a known opening_direction (detected from
+           body-extension-beyond-pads in local coords), compute the exact
+           rotation that points the opening outward from the given edge.
+        2. Otherwise fall back to aspect-ratio heuristics (long axis
+           parallel to the edge).
         """
+        # Expected outward direction per edge (board-space angle).
+        # On B.Cu, Flip() mirrors the local X-axis, so left/right swap.
+        if comp.layer == Layer.BACK:
+            outward = {"left": 0, "right": 180, "top": 270, "bottom": 90}
+        else:
+            outward = {"left": 180, "right": 0, "top": 270, "bottom": 90}
+
+        if comp.opening_direction is not None:
+            # Direct computation: we need the opening (local-frame angle)
+            # to end up pointing at outward[edge] in board-space.
+            # KiCad forward: board_angle = local_angle - rotation.
+            # So: rotation = opening_direction - outward[edge]
+            rot = (comp.opening_direction - outward[edge]) % 360
+            return rot
+
+        # -- Fallback: no detectable opening direction --
+        # Orient the long axis parallel to the edge.
         if not comp.pads:
             return comp.rotation
 
-        # Use body_center as reference point; fall back to footprint origin.
-        # Body center (courtyard bbox center) accounts for connectors whose
-        # origin is at a corner pad rather than the geometric center.
-        if comp.body_center is not None:
-            cx, cy = comp.body_center.x, comp.body_center.y
+        w, h = comp.width_mm, comp.height_mm
+        if edge in ("left", "right"):
+            # Want height >= width (long axis vertical, parallel to edge).
+            if w > h * 1.1:
+                return (comp.rotation + 90) % 360
+            return comp.rotation
         else:
-            cx, cy = comp.pos.x, comp.pos.y
-        pad_cx = sum(p.pos.x for p in comp.pads) / len(comp.pads) - cx
-        pad_cy = sum(p.pos.y for p in comp.pads) / len(comp.pads) - cy
-
-        # What the centroid offset should look like for this edge:
-        # pads face inward = centroid points toward board center
-        desired_angle_deg = {"left": 0, "right": 180, "top": 90, "bottom": 270}
-        desired = math.radians(desired_angle_deg[edge])
-
-        # For symmetric footprints (centroid ~= body center), use aspect ratio
-        # to orient the long axis parallel to the edge.
-        centroid_mag = math.hypot(pad_cx, pad_cy)
-        if centroid_mag < 0.5:
-            # Symmetric: use body shape to decide orientation.
-            # For left/right edges: long axis should be vertical (height > width)
-            # For top/bottom edges: long axis should be horizontal (width > height)
-            w, h = comp.width_mm, comp.height_mm
-            if edge in ("left", "right"):
-                # We want height >= width at the final rotation.
-                # If currently wider than tall, rotate 90°.
-                if w > h * 1.1:
-                    return (comp.rotation + 90) % 360
-                return comp.rotation
-            else:
-                # top/bottom: want width >= height
-                if h > w * 1.1:
-                    return (comp.rotation + 90) % 360
-                return comp.rotation
-
-        current = math.atan2(pad_cy, pad_cx)
-
-        # Rotation needed to move pad centroid from its current angle to
-        # the desired angle.  Applying rotation +δ to the component
-        # rotates feature angles from α to α−δ, so δ = current − desired.
-        delta = current - desired
-        # Snap to nearest 90°
-        delta_deg = math.degrees(delta) % 360
-        snapped = round(delta_deg / 90) * 90 % 360
-        return (comp.rotation + snapped) % 360
+            # top/bottom: want width >= height (long axis horizontal).
+            if h > w * 1.1:
+                return (comp.rotation + 90) % 360
+            return comp.rotation
 
     def _pin_edge_components(self, comps: dict[str, Component]):
         """Pin components based on component_zones config, with fallback heuristics.

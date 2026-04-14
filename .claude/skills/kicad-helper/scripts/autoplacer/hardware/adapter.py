@@ -52,6 +52,84 @@ def _enum_to_layer(layer: Layer) -> int:
     return pcbnew.B_Cu if layer == Layer.BACK else pcbnew.F_Cu
 
 
+def detect_opening_direction(fp) -> float | None:
+    """Detect which direction the connector opening faces, in LOCAL coords.
+
+    Detects the board-space opening direction by comparing pad bbox to body
+    bbox (courtyard + fab graphics) — all in board-space coords straight from
+    pcbnew, no rotation math.  Then converts to local with one addition:
+    local_angle = (board_angle + rotation) % 360.
+
+    Returns 0/90/180/270 in local coords, or None.
+    """
+    # --- Board-space pad bbox ---
+    pad_xs = [pcbnew.ToMM(p.GetPosition().x) for p in fp.Pads()]
+    pad_ys = [pcbnew.ToMM(p.GetPosition().y) for p in fp.Pads()]
+    if not pad_xs:
+        return None
+
+    # --- Board-space body bbox from courtyard + fab ---
+    body_xs, body_ys = [], []
+    cy_layer = pcbnew.F_CrtYd if fp.GetLayer() == pcbnew.F_Cu else pcbnew.B_CrtYd
+    fab_layer = pcbnew.F_Fab if fp.GetLayer() == pcbnew.F_Cu else pcbnew.B_Fab
+    for item in fp.GraphicalItems():
+        if item.GetLayer() not in (cy_layer, fab_layer):
+            continue
+        try:
+            body_xs.append(pcbnew.ToMM(item.GetStart().x))
+            body_xs.append(pcbnew.ToMM(item.GetEnd().x))
+            body_ys.append(pcbnew.ToMM(item.GetStart().y))
+            body_ys.append(pcbnew.ToMM(item.GetEnd().y))
+        except Exception:
+            continue
+    if not body_xs:
+        return None
+
+    # --- How far body extends beyond pads on each side ---
+    extensions = {
+        0:   max(body_xs) - max(pad_xs),   # +X (right)
+        180: min(pad_xs)  - min(body_xs),   # -X (left)
+        90:  max(body_ys) - max(pad_ys),    # +Y (down)
+        270: min(pad_ys)  - min(body_ys),   # -Y (up)
+    }
+
+    ranked = sorted(extensions.items(), key=lambda kv: kv[1], reverse=True)
+    best_dir, best_ext = ranked[0]
+    _, second_ext = ranked[1]
+
+    opening_board = None
+    if best_ext >= 1.0 and (best_ext - second_ext) >= 0.5:
+        opening_board = best_dir
+    else:
+        # Fallback: "PCB Edge" / "Board Edge" text on Dwgs.User
+        pad_cx = (min(pad_xs) + max(pad_xs)) / 2
+        pad_cy = (min(pad_ys) + max(pad_ys)) / 2
+        for item in fp.GraphicalItems():
+            if item.GetLayer() != pcbnew.Dwgs_User:
+                continue
+            try:
+                text = item.GetText()
+            except Exception:
+                continue
+            if not text or "edge" not in text.lower():
+                continue
+            tp = item.GetPosition()
+            off_x = pcbnew.ToMM(tp.x) - pad_cx
+            off_y = pcbnew.ToMM(tp.y) - pad_cy
+            if abs(off_x) > abs(off_y):
+                opening_board = 0 if off_x > 0 else 180
+            else:
+                opening_board = 90 if off_y > 0 else 270
+            break
+
+    if opening_board is None:
+        return None
+
+    # Convert board-space → local with one addition (no trig)
+    rotation = fp.GetOrientationDegrees() % 360
+    return (opening_board + rotation) % 360
+
+
 class KiCadAdapter:
     """Reads and writes KiCad board state via pcbnew API."""
 
@@ -138,6 +216,9 @@ class KiCadAdapter:
                 kind=kind,
                 is_through_hole=has_pth,
                 body_center=body_ctr,
+                opening_direction=(
+                    detect_opening_direction(fp) if kind == "connector" else None
+                ),
             )
 
             for pad in fp.Pads():
