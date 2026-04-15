@@ -28,7 +28,7 @@
       5.0
     ],
     "orderedness": [
-      0.2,
+      0.0,
       1.0
     ],
     "connector_edge_inset_mm": [
@@ -36,12 +36,12 @@
       3.0
     ],
     "board_width_mm": [
-      80.0,
-      160.0
-    ],
-    "board_height_mm": [
       50.0,
       120.0
+    ],
+    "board_height_mm": [
+      35.0,
+      80.0
     ]
   },
   "score_weights": {

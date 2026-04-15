@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "timestamp": 1776273115.1421115,
+  "timestamp": 1776277468.682424,
   "best_cfg": {
     "signal_width_mm": 0.127,
     "power_width_mm": 0.127,
@@ -27,10 +27,10 @@
     ],
     "placement_grid_mm": 1.0,
     "edge_margin_mm": 6.0,
-    "force_attract_k": 0.02,
+    "force_attract_k": 0.0351,
     "force_repel_k": 200.0,
     "cooling_factor": 0.97,
-    "max_placement_iterations": 159,
+    "max_placement_iterations": 283,
     "placement_convergence_threshold": 0.5,
     "placement_score_every_n": 1,
     "intra_cluster_iters": 80,
@@ -155,6 +155,6 @@
     "_min_board_width_mm": 120.0,
     "_min_board_height_mm": 85.0
   },
-  "best_seed": 0,
-  "best_score": 81.82278582267767
+  "best_seed": 257802132,
+  "best_score": 79.72566794053776
 }
