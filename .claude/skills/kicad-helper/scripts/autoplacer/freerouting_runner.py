@@ -1,7 +1,8 @@
-"""FreeRouting integration — DSN export → FreeRouting CLI → SES import.
+"""FreeRouting integration — board cleanup → DSN export → FreeRouting CLI → SES import.
 
 Routing pipeline:
-  clear_traces() → export_dsn() → run_freerouting() → import_ses()
+  prepare_board_for_placement() → placement → route_with_freerouting()
+  route_with_freerouting(): clear_traces() → export_dsn() → run_freerouting() → import_ses()
   Then count_board_tracks() extracts real trace/via counts from the result.
 
 Note: Uses FreeRouting v1.9.0.  v2.1.0 has a regression where max_passes
@@ -112,6 +113,28 @@ def clear_traces(
     )
 
 
+def clear_zones(kicad_pcb_path: str) -> None:
+    """Remove all copper zones from the board."""
+    _run_pcbnew_script(
+        "import pcbnew\n"
+        f"board = pcbnew.LoadBoard({kicad_pcb_path!r})\n"
+        "for z in list(board.Zones()):\n"
+        "    board.Remove(z)\n"
+        f"board.Save({kicad_pcb_path!r})\n"
+    )
+
+
+def prepare_board_for_placement(kicad_pcb_path: str) -> None:
+    """Strip stale routing artifacts so placement starts from a clean board."""
+    clear_traces(
+        kicad_pcb_path,
+        preserve_thermal_vias=False,
+        thermal_refs=[],
+        thermal_radius_mm=0.0,
+    )
+    clear_zones(kicad_pcb_path)
+
+
 def count_board_tracks(kicad_pcb_path: str) -> dict:
     """Count traces, vias, and total trace length from a routed board.
 
@@ -147,15 +170,13 @@ def count_board_tracks(kicad_pcb_path: str) -> dict:
 def export_dsn(kicad_pcb_path: str, dsn_path: str) -> None:
     """Export Specctra DSN from a KiCad PCB file using pcbnew API.
 
-    Refills copper zones first so FreeRouting sees up-to-date zone geometry
-    after components have been moved by the placement engine.
+    Assumes copper zones have already been stripped so FreeRouting starts
+    from a clean board containing only footprints, nets, and board geometry.
     """
     _run_pcbnew_script(
         "import pcbnew\n"
         f"board = pcbnew.LoadBoard({kicad_pcb_path!r})\n"
         "board.BuildConnectivity()\n"
-        "filler = pcbnew.ZONE_FILLER(board)\n"
-        "filler.Fill(board.Zones())\n"
         f"board.Save({kicad_pcb_path!r})\n"
         f"pcbnew.ExportSpecctraDSN(board, {dsn_path!r})\n"
     )
@@ -311,13 +332,14 @@ def route_with_freerouting(
     Retries once on crash (rc != 0 and no SES output) with reduced
     max_passes to work around FreeRouting v1.9.0 intermittent failures.
     """
-    # Clear existing traces so FreeRouting starts fresh (preserve thermal vias)
+    # Clear existing traces and copper zones so FreeRouting starts fresh.
     clear_traces(
         kicad_pcb_path,
         preserve_thermal_vias=True,
         thermal_refs=config.get("thermal_refs", []),
         thermal_radius_mm=config.get("thermal_radius_mm", 3.0),
     )
+    clear_zones(kicad_pcb_path)
 
     max_passes = config.get("freerouting_max_passes", 40)
     timeout_s = config.get("freerouting_timeout_s", 120)

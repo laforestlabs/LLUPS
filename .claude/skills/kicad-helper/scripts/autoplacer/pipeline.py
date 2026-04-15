@@ -27,7 +27,11 @@ from .brain.types import (
     Point,
 )
 from .config import DEFAULT_CONFIG, LLUPS_CONFIG
-from .freerouting_runner import count_board_tracks, route_with_freerouting
+from .freerouting_runner import (
+    count_board_tracks,
+    prepare_board_for_placement,
+    route_with_freerouting,
+)
 from .hardware.adapter import KiCadAdapter
 
 
@@ -345,6 +349,8 @@ class FullPipeline:
         cfg = {**DEFAULT_CONFIG, **LLUPS_CONFIG, **(config or {})}
         out = output_path or pcb_path
 
+        prepare_board_for_placement(out)
+
         print("=" * 50)
         print("Phase 0: Placement Optimization")
         print("=" * 50)
@@ -438,17 +444,13 @@ class FullPipeline:
         print("=" * 50)
         print("Phase 1+2: FreeRouting Autorouter")
         print("=" * 50)
-        # Strip pre-existing zones from source PCB, then add fresh GND zone.
-        # Both run in subprocesses to avoid pcbnew SWIG corruption.
-        strip_adapter = KiCadAdapter(out, config=cfg)
-        strip_adapter.strip_zones()
-        _ensure_gnd_zone_subprocess(out, cfg)
 
         re = RoutingEngine()
         routing = re.run(out, out, cfg)
 
-        # Re-fill zones after routing so zone clearances are computed against
-        # the final trace geometry (prevents stale zone-fill DRC violations).
+        # Add/fill managed copper zones only after routing so FreeRouting sees
+        # a clean board and final zone clearances are computed from routed copper.
+        _ensure_gnd_zone_subprocess(out, cfg)
         _refill_zones(out)
 
         # Phase 3: DRC analysis

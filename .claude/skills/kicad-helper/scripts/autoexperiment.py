@@ -1408,7 +1408,8 @@ def main():
     parser.add_argument(
         "--save-all",
         action="store_true",
-        help="Save every round's PCB to .experiments/rounds/ for analysis",
+        default=True,
+        help="Save every round's PCB to .experiments/rounds/ for analysis (default: enabled)",
     )
     args = parser.parse_args()
 
@@ -1453,6 +1454,15 @@ def main():
     best_dir.mkdir(exist_ok=True)
     rounds_dir = work_dir / "rounds"
     rounds_dir.mkdir(exist_ok=True)
+    # Clear any saved round artifacts from previous runs so each experiment
+    # starts with only the current run's per-round outputs.
+    if rounds_dir.exists():
+        import glob as _glob
+
+        for f in _glob.glob(str(rounds_dir / "round_*.json")):
+            os.remove(f)
+        for f in _glob.glob(str(rounds_dir / "round_*.kicad_pcb")):
+            os.remove(f)
     frames_dir = work_dir / "frames"
     # Clear any frames from previous runs so the GIF doesn't include stale data
     if frames_dir.exists():
