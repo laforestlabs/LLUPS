@@ -49,6 +49,26 @@ try:
 except ImportError:
     _GROUP_LABELS_AVAILABLE = False
 
+
+def _apply_group_labels(pcb_path: str, cfg: dict) -> None:
+    """Apply silkscreen group labels to a PCB file in-place (if available)."""
+    if not _GROUP_LABELS_AVAILABLE:
+        return
+    ic_groups = cfg.get("ic_groups", {})
+    group_labels = cfg.get("group_labels", {})
+    if not ic_groups or not group_labels:
+        return
+    try:
+        _add_group_labels(
+            pcb_path=pcb_path,
+            ic_groups=ic_groups,
+            group_labels=group_labels,
+            in_place=True,
+        )
+    except Exception as e:
+        print(f"  Warning: group label update failed: {e}",
+              file=sys.stderr, flush=True)
+
 # Optional logging support
 try:
     import logging_config
@@ -1234,6 +1254,7 @@ def main():
                duration_s=base_dur)
 
     # Capture baseline frame for GIF
+    _apply_group_labels(baseline_pcb, BASE_CONFIG)
     baseline_elapsed = time.monotonic() - loop_t0
     snapshot_pcb(baseline_pcb, str(frames_dir / "frame_0000.png"),
                  board_mm=board_mm,
@@ -1682,6 +1703,8 @@ def main():
                 # Save round PCB for post-hoc analysis when --save-all is set
                 if getattr(args, 'save_all', False) and os.path.exists(work_pcb):
                     shutil.copy2(work_pcb, str(rounds_dir / f"round_{round_num:04d}.kicad_pcb"))
+                # Apply group labels before rendering the snapshot
+                _apply_group_labels(frame_pcb, BASE_CONFIG)
                 snapshot_pcb(frame_pcb, frame_png,
                              board_mm=board_mm,
                              frame_info={"round_num": round_num, "score": score.total,
@@ -1737,21 +1760,9 @@ def main():
         shutil.copy2(best_pcb, output_path)
 
     # Regenerate silkscreen group labels at final component positions
-    if _GROUP_LABELS_AVAILABLE and os.path.exists(output_path):
-        ic_groups = BASE_CONFIG.get("ic_groups", {})
-        group_labels = BASE_CONFIG.get("group_labels", {})
-        if ic_groups and group_labels:
-            try:
-                _add_group_labels(
-                    pcb_path=output_path,
-                    ic_groups=ic_groups,
-                    group_labels=group_labels,
-                    in_place=True,
-                )
-                print(f"  Group labels updated on {output_path}")
-            except Exception as e:
-                print(f"  Warning: group label update failed: {e}",
-                      file=sys.stderr, flush=True)
+    if os.path.exists(output_path):
+        _apply_group_labels(output_path, BASE_CONFIG)
+        print(f"  Group labels updated on {output_path}")
 
     print()
     print(f"=== Done: {len(experiments)} experiments ===")
