@@ -54,6 +54,26 @@ def _pad_half_extents(comp: Component) -> tuple[float, float]:
     return hw, hh
 
 
+def _same_physical_layer(a: Component, b: Component) -> bool:
+    """Return True if two components can physically collide (body-vs-body).
+
+    Components on the same layer always collide.  Components on different
+    layers can only collide if at least one is through-hole (THT pads
+    pierce both layers).  Two pure-SMT components on different layers
+    never collide at the body level — they occupy opposite sides of the
+    board and can share the same XY region freely.
+
+    NOTE: THT-vs-SMT pad-level collisions are handled separately by
+    _resolve_tht_pad_overlaps() which checks individual pad positions
+    rather than bounding boxes.
+    """
+    if a.layer == b.layer:
+        return True
+    # Different layers: only collide if at least one is THT
+    # (THT pads go through both sides)
+    return a.is_through_hole or b.is_through_hole
+
+
 def _bbox_overlap(a: Component, b: Component, clearance: float = 0.5) -> bool:
     """Check if two component bounding boxes overlap with clearance."""
     a_tl, a_br = a.bbox(clearance / 2)
@@ -69,6 +89,21 @@ def _bbox_overlap_amount(a: Component, b: Component) -> float:
     ox = max(0, min(a_br.x, b_br.x) - max(a_tl.x, b_tl.x))
     oy = max(0, min(a_br.y, b_br.y) - max(a_tl.y, b_tl.y))
     return ox * oy
+
+
+def _pads_overlap(a: Component, b: Component, clearance: float = 0.5) -> bool:
+    """Check if any pad from component *a* is too close to any pad of *b*.
+
+    Used for THT-vs-SMT cross-layer collision detection.  THT pads pierce
+    both layers, so even if the SMT body doesn't overlap the THT body,
+    individual pads can still short.  Uses a simple distance check with
+    the given clearance (mm).
+    """
+    for pa in a.pads:
+        for pb in b.pads:
+            if abs(pa.pos.x - pb.pos.x) < clearance and abs(pa.pos.y - pb.pos.y) < clearance:
+                return True
+    return False
 
 
 def _swap_pad_positions(a: Component, b: Component):
@@ -314,6 +349,9 @@ class PlacementScorer:
             total_courtyard_area += (a_br.x - a_tl.x) * (a_br.y - a_tl.y)
             for j in range(i + 1, n):
                 b = comps[j]
+                # Skip pairs on different physical layers
+                if not _same_physical_layer(a, b):
+                    continue
                 b_tl, b_br = b.bbox(clearance)
                 # Compute overlap rectangle
                 ox = max(0.0, min(a_br.x, b_br.x) - max(a_tl.x, b_tl.x))
@@ -725,6 +763,9 @@ class PlacementSolver:
                 a_tl, a_br = a.bbox(half_gap)
                 for j in range(i + 1, len(refs)):
                     b = comps[refs[j]]
+                    # Skip pairs on different physical layers
+                    if not _same_physical_layer(a, b):
+                        continue
                     b_tl, b_br = b.bbox(half_gap)
                     ox = min(a_br.x, b_br.x) - max(a_tl.x, b_tl.x)
                     oy = min(a_br.y, b_br.y) - max(a_tl.y, b_tl.y)
@@ -867,6 +908,7 @@ class PlacementSolver:
             else:
                 max_disp = self._force_step(comps, conn_graph, damping)
             self._resolve_overlaps(comps)
+            self._resolve_tht_pad_overlaps(comps)
             self._clamp_pads_to_board(comps)
             damping *= self.cooling
 
@@ -922,7 +964,9 @@ class PlacementSolver:
             for i in range(len(unlocked)):
                 for j in range(i + 1, len(unlocked)):
                     a, b = comps[unlocked[i]], comps[unlocked[j]]
-                    # Only swap components of similar size
+                    # Only swap components of similar size and on the same layer
+                    if a.layer != b.layer:
+                        continue
                     size_ratio = max(a.area, b.area) / max(min(a.area, b.area), 0.01)
                     if size_ratio > 4:
                         continue
@@ -962,6 +1006,7 @@ class PlacementSolver:
         # overlaps before routing. Must run after snap since snapping can
         # re-introduce small overlaps.
         self._resolve_overlaps(best_comps)
+        self._resolve_tht_pad_overlaps(best_comps)
 
         # Re-snap aligned pairs after overlap resolution
         self._re_snap_aligned_pairs(best_comps)
@@ -1002,6 +1047,7 @@ class PlacementSolver:
         # the force simulation).  Re-resolve, then re-restore to ensure both
         # overlap-free placement AND correct pinned positions.
         self._resolve_overlaps(best_comps)
+        self._resolve_tht_pad_overlaps(best_comps)
         self._restore_pinned_positions(best_comps)
 
         # Step 14: Re-validate pad containment after restoring pinned positions
@@ -1819,6 +1865,8 @@ class PlacementSolver:
         # Repulsion: push overlapping/close components apart.
         # Locked components (connectors, holes) act as repellers even though
         # they don't move — this keeps unlocked parts from clustering against them.
+        # Layer-aware: skip repulsion between components on opposite layers
+        # (unless THT pads are involved — those pierce both sides).
         ref_list = list(comps.keys())
         for i in range(len(ref_list)):
             a = comps[ref_list[i]]
@@ -1826,6 +1874,8 @@ class PlacementSolver:
                 b = comps[ref_list[j]]
                 if a.locked and b.locked:
                     continue  # both fixed, nothing to do
+                if not _same_physical_layer(a, b):
+                    continue  # different layers, no body repulsion
                 d = a.pos.dist(b.pos)
                 min_dist = (max(a.width_mm, a.height_mm) +
                             max(b.width_mm, b.height_mm)) / 2 + self.clearance
@@ -1848,11 +1898,13 @@ class PlacementSolver:
         # the nearest point on the nearest back-layer THT bounding box.
         # This distributes SMT across the available THT courtyard space
         # rather than clustering them all at the centroid.
+        # Now that repulsion is layer-aware, this force is no longer
+        # counteracted — SMT can freely overlap THT in XY on opposite layers.
         if self.cfg.get("smt_opposite_tht", True):
             back_tht = [c for c in comps.values()
                         if c.is_through_hole and c.layer == Layer.BACK]
             if back_tht:
-                smt_k = self.k_attract * 0.6
+                smt_k = self.k_attract * 1.2
                 # Pre-compute back-THT bboxes
                 btht_bboxes = [(t.pos.x - t.width_mm / 2,
                                 t.pos.y - t.height_mm / 2,
@@ -2012,6 +2064,15 @@ class PlacementSolver:
         heights = np.array([comps[r].height_mm for r in ref_list], dtype=np.float64)
         locked = np.array([comps[r].locked for r in ref_list], dtype=bool)
 
+        # Layer-awareness: build mask for pairs that can physically collide.
+        # Components on different layers skip repulsion UNLESS at least one
+        # is through-hole (THT pads pierce both sides).
+        layers = np.array([comps[r].layer for r in ref_list], dtype=np.int32)
+        is_tht = np.array([comps[r].is_through_hole for r in ref_list], dtype=bool)
+        same_layer = layers[:, np.newaxis] == layers[np.newaxis, :]
+        either_tht = is_tht[:, np.newaxis] | is_tht[np.newaxis, :]
+        can_collide = same_layer | either_tht
+
         max_dims = np.maximum(widths, heights)
         min_dists = (max_dims[:, np.newaxis] + max_dims[np.newaxis, :]) / 2 + self.clearance
 
@@ -2019,7 +2080,7 @@ class PlacementSolver:
         dy = pos_y[:, np.newaxis] - pos_y[np.newaxis, :]
         dists = np.sqrt(dx * dx + dy * dy)
 
-        skip_mask = (dists > min_dists * 2) | (dists < 0.001)
+        skip_mask = (dists > min_dists * 2) | (dists < 0.001) | (~can_collide)
 
         force_mags = self.k_repel * (areas[:, np.newaxis] * areas[np.newaxis, :]) / (dists * dists + 0.01)
         np.fill_diagonal(force_mags, 0)
@@ -2047,11 +2108,13 @@ class PlacementSolver:
                 forces[ref].y += float(fy_totals[i])
 
         # SMT-opposite-THT attraction (same logic as _force_step)
+        # Now that repulsion is layer-aware, this force is no longer
+        # counteracted — SMT can freely overlap THT in XY on opposite layers.
         if self.cfg.get("smt_opposite_tht", True):
             back_tht = [c for c in comps.values()
                         if c.is_through_hole and c.layer == Layer.BACK]
             if back_tht:
-                smt_k = self.k_attract * 0.6
+                smt_k = self.k_attract * 1.2
                 btht_bboxes = [(t.pos.x - t.width_mm / 2,
                                 t.pos.y - t.height_mm / 2,
                                 t.pos.x + t.width_mm / 2,
@@ -2164,6 +2227,12 @@ class PlacementSolver:
         This handles edge cases where the shortest-axis push would send a component
         into a board edge (e.g. a small part trapped between a large locked battery
         holder and the board boundary).
+
+        Layer-aware: components on opposite layers (e.g. front-side SMT vs
+        back-side THT) do NOT get their bodies pushed apart — they can share
+        the same XY region freely.  However, THT pad-vs-SMT pad collisions
+        are resolved separately by _resolve_tht_pad_overlaps() which runs
+        after this method.
         """
         refs = list(comps.keys())
         half_gap = self.clearance / 2.0
@@ -2213,6 +2282,11 @@ class PlacementSolver:
                 a_tl, a_br = a.bbox(half_gap)
                 for j in range(i + 1, len(refs)):
                     b = comps[refs[j]]
+
+                    # Skip pairs on different physical layers — they can
+                    # share XY space freely (e.g. front SMT over back THT).
+                    if not _same_physical_layer(a, b):
+                        continue
 
                     b_tl, b_br = b.bbox(half_gap)
                     ox = min(a_br.x, b_br.x) - max(a_tl.x, b_tl.x)
@@ -2286,6 +2360,72 @@ class PlacementSolver:
 
             if not moved:
                 break  # fully separated
+
+    def _resolve_tht_pad_overlaps(self, comps: dict[str, Component]):
+        """Resolve pad-level collisions between THT and opposite-layer SMT parts.
+
+        When a THT component is on the back layer, its pads pierce through to
+        the front.  If a front-side SMT component has pads that coincide with
+        those THT pads, that's a short.  This method detects such pad-vs-pad
+        overlaps and nudges the SMT component away.
+
+        Must run AFTER _resolve_overlaps() (which skips cross-layer body
+        overlaps) and BEFORE final clamping.
+        """
+        tl, br = self.state.board_outline
+        pad_clearance = 0.5  # mm — actual electrical clearance for pad-vs-pad
+
+        # Gather cross-layer pairs: THT on one side, SMT on the other
+        tht_comps = [c for c in comps.values() if c.is_through_hole]
+        smt_comps = [c for c in comps.values()
+                     if not c.is_through_hole and c.layer == Layer.FRONT]
+
+        if not tht_comps or not smt_comps:
+            return
+
+        for iteration in range(100):
+            moved = False
+            for tht in tht_comps:
+                for smt in smt_comps:
+                    if smt.layer == tht.layer:
+                        continue  # same-layer already handled by body overlap
+                    if not _pads_overlap(tht, smt, pad_clearance):
+                        continue
+
+                    # Find the worst-offending pad pair to determine push dir
+                    worst_dist = float("inf")
+                    push_dx, push_dy = 0.0, 0.0
+                    for tp in tht.pads:
+                        for sp in smt.pads:
+                            dx = sp.pos.x - tp.pos.x
+                            dy = sp.pos.y - tp.pos.y
+                            d = abs(dx) + abs(dy)  # Manhattan distance
+                            if d < worst_dist:
+                                worst_dist = d
+                                push_dx = dx
+                                push_dy = dy
+
+                    # Push the SMT component away from the THT pad
+                    push_mag = pad_clearance + 0.2
+                    if abs(push_dx) < 0.01 and abs(push_dy) < 0.01:
+                        push_dx = 1.0  # default: push right
+                    norm = math.hypot(push_dx, push_dy)
+                    if norm > 0.01:
+                        push_dx = push_dx / norm * push_mag
+                        push_dy = push_dy / norm * push_mag
+
+                    hw = smt.width_mm / 2
+                    hh = smt.height_mm / 2
+                    old_pos = Point(smt.pos.x, smt.pos.y)
+                    smt.pos.x = max(tl.x + hw + 1.0,
+                                    min(br.x - hw - 1.0, smt.pos.x + push_dx))
+                    smt.pos.y = max(tl.y + hh + 1.0,
+                                    min(br.y - hh - 1.0, smt.pos.y + push_dy))
+                    _update_pad_positions(smt, old_pos, smt.rotation)
+                    moved = True
+
+            if not moved:
+                break
 
     def _re_snap_aligned_pairs(self, comps: dict[str, Component]):
         """Re-snap aligned pairs to shared coordinate after pipeline steps.

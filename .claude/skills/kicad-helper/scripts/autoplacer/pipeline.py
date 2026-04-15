@@ -198,6 +198,7 @@ class PlacementEngine:
 
         # Resolve overlaps
         post_solver._resolve_overlaps(new_comps)
+        post_solver._resolve_tht_pad_overlaps(new_comps)
         post_solver._re_snap_aligned_pairs(new_comps)
 
         # Snap to grid
@@ -206,6 +207,7 @@ class PlacementEngine:
 
         # Final overlap resolution
         post_solver._resolve_overlaps(new_comps)
+        post_solver._resolve_tht_pad_overlaps(new_comps)
         post_solver._re_snap_aligned_pairs(new_comps)
 
         # Hard clamp — nothing outside the board
@@ -235,6 +237,7 @@ class PlacementEngine:
         # Restore pinned positions
         post_solver._restore_pinned_positions(new_comps)
         post_solver._resolve_overlaps(new_comps)
+        post_solver._resolve_tht_pad_overlaps(new_comps)
         post_solver._restore_pinned_positions(new_comps)
         post_solver._clamp_pads_to_board(new_comps)
 
