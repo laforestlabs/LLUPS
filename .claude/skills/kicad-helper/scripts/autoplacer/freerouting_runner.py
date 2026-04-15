@@ -7,6 +7,7 @@ Routing pipeline:
 Note: Uses FreeRouting v1.9.0.  v2.1.0 has a regression where max_passes
 is ignored and routing runs indefinitely.
 """
+
 from __future__ import annotations
 
 import json
@@ -14,26 +15,29 @@ import os
 import re
 import signal
 import subprocess
+import sys
 import tempfile
 
 
 def _run_pcbnew_script(script: str) -> None:
     """Run a pcbnew script in a fresh subprocess to avoid SwigPyObject bugs."""
     result = subprocess.run(
-        ["python3", "-c", script],
-        capture_output=True, text=True,
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         raise RuntimeError(
-            f"pcbnew subprocess failed (rc={result.returncode}):\n"
-            f"{result.stderr}"
+            f"pcbnew subprocess failed (rc={result.returncode}):\n{result.stderr}"
         )
 
 
-def clear_traces(kicad_pcb_path: str,
-                 preserve_thermal_vias: bool = True,
-                 thermal_refs: list[str] | None = None,
-                 thermal_radius_mm: float = 3.0) -> None:
+def clear_traces(
+    kicad_pcb_path: str,
+    preserve_thermal_vias: bool = True,
+    thermal_refs: list[str] | None = None,
+    thermal_radius_mm: float = 3.0,
+) -> None:
     """Remove all traces/vias from the board, optionally preserving thermal vias."""
     thermal_refs = thermal_refs or []
     _run_pcbnew_script(
@@ -69,20 +73,24 @@ def count_board_tracks(kicad_pcb_path: str) -> dict:
     Returns {traces: int, vias: int, total_length_mm: float}.
     """
     result = subprocess.run(
-        ["python3", "-c",
-         "import json, pcbnew\n"
-         f"board = pcbnew.LoadBoard({kicad_pcb_path!r})\n"
-         "traces = vias = 0\n"
-         "length_nm = 0\n"
-         "for t in board.GetTracks():\n"
-         "    if isinstance(t, pcbnew.PCB_VIA):\n"
-         "        vias += 1\n"
-         "    else:\n"
-         "        traces += 1\n"
-         "        length_nm += t.GetLength()\n"
-         "print(json.dumps({'traces': traces, 'vias': vias,"
-         "  'total_length_mm': round(pcbnew.ToMM(length_nm), 2)}))\n"],
-        capture_output=True, text=True,
+        [
+            sys.executable,
+            "-c",
+            "import json, pcbnew\n"
+            f"board = pcbnew.LoadBoard({kicad_pcb_path!r})\n"
+            "traces = vias = 0\n"
+            "length_nm = 0\n"
+            "for t in board.GetTracks():\n"
+            "    if isinstance(t, pcbnew.PCB_VIA):\n"
+            "        vias += 1\n"
+            "    else:\n"
+            "        traces += 1\n"
+            "        length_nm += t.GetLength()\n"
+            "print(json.dumps({'traces': traces, 'vias': vias,"
+            "  'total_length_mm': round(pcbnew.ToMM(length_nm), 2)}))\n",
+        ],
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         return {"traces": 0, "vias": 0, "total_length_mm": 0.0}
@@ -111,27 +119,31 @@ def export_dsn(kicad_pcb_path: str, dsn_path: str) -> None:
 
 
 def _patch_dsn_clearance(dsn_path: str) -> None:
-    """Raise the smd_smd clearance in a DSN file to match the global clearance."""
+    """Raise ALL type-specific clearances in a DSN file to match the global clearance.
+
+    KiCad exports reduced clearances for certain types (e.g. smd_smd at 0.05mm,
+    smd_to_trace, etc.) which cause DRC violations when KiCad checks with its
+    actual design rules.  Replace every typed clearance with the global value.
+    """
     with open(dsn_path) as f:
         content = f.read()
-    # Find global clearance value (first bare clearance line)
-    m = re.search(r'\(clearance\s+(\d+)\)', content)
+    # Find global clearance value (first bare clearance line without a type qualifier)
+    m = re.search(r"\(clearance\s+(\d+)\)", content)
     if not m:
         return
     global_clearance = m.group(1)
-    # Replace smd_smd clearance with the global value
+    # Replace ALL type-specific clearances (smd_smd, smd_to_trace, etc.)
     patched = re.sub(
-        r'\(clearance\s+\d+\s+\(type smd_smd\)\)',
-        f'(clearance {global_clearance} (type smd_smd))',
+        r"\(clearance\s+\d+\s+\(type\s+(\w+)\)\)",
+        lambda match: f"(clearance {global_clearance} (type {match.group(1)}))",
         content,
     )
     if patched != content:
-        with open(dsn_path, 'w') as f:
+        with open(dsn_path, "w") as f:
             f.write(patched)
 
 
-def parse_freerouting_output(stdout: str, stderr: str,
-                             returncode: int) -> dict:
+def parse_freerouting_output(stdout: str, stderr: str, returncode: int) -> dict:
     """Parse FreeRouting stdout/stderr for routing statistics."""
     stats = {
         "returncode": returncode,
@@ -147,8 +159,8 @@ def parse_freerouting_output(stdout: str, stderr: str,
 
     # v2.x format: "Auto-routing was completed in X.XX seconds with the score of X (N unrouted and M violations)."
     m = re.search(
-        r'Auto-routing was completed in ([\d.]+) seconds.*?'
-        r'score of ([\d.]+).*?(\d+) unrouted.*?(\d+) violations',
+        r"Auto-routing was completed in ([\d.]+) seconds.*?"
+        r"score of ([\d.]+).*?(\d+) unrouted.*?(\d+) violations",
         combined,
     )
     if m:
@@ -159,20 +171,20 @@ def parse_freerouting_output(stdout: str, stderr: str,
     else:
         # v1.9.x format: "Auto-routing was completed in X.XX seconds."
         m19 = re.search(
-            r'Auto-routing was completed in ([\d.]+) seconds',
+            r"Auto-routing was completed in ([\d.]+) seconds",
             combined,
         )
         if m19:
             stats["routing_seconds"] = float(m19.group(1))
 
     # Count successful passes (v2.x logs per-pass)
-    pass_matches = re.findall(r'Auto-router pass #(\d+)', combined)
+    pass_matches = re.findall(r"Auto-router pass #(\d+)", combined)
     if pass_matches:
         stats["passes"] = int(pass_matches[-1])
 
     # Parse optimization time (both versions)
     m_opt = re.search(
-        r'[Oo]ptimization was completed in ([\d.]+) seconds',
+        r"[Oo]ptimization was completed in ([\d.]+) seconds",
         combined,
     )
     if m_opt:
@@ -181,10 +193,14 @@ def parse_freerouting_output(stdout: str, stderr: str,
     return stats
 
 
-def run_freerouting(dsn_path: str, ses_path: str,
-                    jar_path: str, timeout_s: int = 120,
-                    max_passes: int = 40,
-                    work_dir: str | None = None) -> dict:
+def run_freerouting(
+    dsn_path: str,
+    ses_path: str,
+    jar_path: str,
+    timeout_s: int = 120,
+    max_passes: int = 40,
+    work_dir: str | None = None,
+) -> dict:
     """Run FreeRouting CLI and return result metadata.
 
     Uses start_new_session so the Java process gets its own process group,
@@ -192,19 +208,29 @@ def run_freerouting(dsn_path: str, ses_path: str,
     """
     cmd = [
         "java",
-        "-jar", jar_path,
-        "-de", dsn_path,
-        "-do", ses_path,
-        "-mp", str(max_passes),
-        "-mt", "1",  # single-threaded optimization (multi is buggy)
-        "-dct", "0",  # auto-dismiss dialogs immediately
+        "-jar",
+        jar_path,
+        "-de",
+        dsn_path,
+        "-do",
+        ses_path,
+        "-mp",
+        str(max_passes),
+        "-mt",
+        "1",  # single-threaded optimization (multi is buggy)
+        "-dct",
+        "0",  # auto-dismiss dialogs immediately
     ]
 
     cwd = work_dir or os.path.dirname(dsn_path)
 
     proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        text=True, cwd=cwd, start_new_session=True,
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=cwd,
+        start_new_session=True,
     )
     try:
         stdout, stderr = proc.communicate(timeout=timeout_s)
@@ -220,8 +246,7 @@ def run_freerouting(dsn_path: str, ses_path: str,
     return parse_freerouting_output(stdout, stderr, proc.returncode)
 
 
-def import_ses(kicad_pcb_path: str, ses_path: str,
-               output_path: str) -> None:
+def import_ses(kicad_pcb_path: str, ses_path: str, output_path: str) -> None:
     """Import Specctra SES session file into KiCad PCB."""
     _run_pcbnew_script(
         "import pcbnew\n"
@@ -231,8 +256,9 @@ def import_ses(kicad_pcb_path: str, ses_path: str,
     )
 
 
-def route_with_freerouting(kicad_pcb_path: str, output_path: str,
-                           jar_path: str, config: dict) -> dict:
+def route_with_freerouting(
+    kicad_pcb_path: str, output_path: str, jar_path: str, config: dict
+) -> dict:
     """Full DSN → FreeRouting → SES pipeline. Returns routing stats.
 
     Retries once on crash (rc != 0 and no SES output) with reduced
@@ -258,7 +284,9 @@ def route_with_freerouting(kicad_pcb_path: str, output_path: str,
 
             passes = max_passes if attempt == 0 else max(10, max_passes // 2)
             stats = run_freerouting(
-                dsn_path, ses_path, jar_path,
+                dsn_path,
+                ses_path,
+                jar_path,
                 timeout_s=timeout_s,
                 max_passes=passes,
             )
@@ -270,7 +298,9 @@ def route_with_freerouting(kicad_pcb_path: str, output_path: str,
 
             # No SES output — retry once with reduced passes
             if attempt == 0:
-                print(f"  FreeRouting crash (rc={stats.get('returncode', '?')}), retrying with {max(10, max_passes // 2)} passes...")
+                print(
+                    f"  FreeRouting crash (rc={stats.get('returncode', '?')}), retrying with {max(10, max_passes // 2)} passes..."
+                )
                 continue
 
             raise RuntimeError(

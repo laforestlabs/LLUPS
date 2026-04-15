@@ -3,21 +3,34 @@
 This is the ONLY module that imports pcbnew. All other modules operate
 on pure-Python types from brain.types.
 """
+
 import math
+import os
+import sys
+
 import pcbnew
 
-import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from brain.types import (
-    Point, Pad, Component, Net, TraceSegment, Via, BoardState, Layer
-)
-
+from brain.types import BoardState, Component, Layer, Net, Pad, Point, TraceSegment, Via
 
 # Nets that get wider traces
 POWER_NETS = {
-    "VBUS", "VBAT", "5V", "3V3", "3.3V", "+5V", "+3V3", "GND",
-    "/VBUS", "/VBAT", "/5V", "/3V3", "/VSYS", "/VSYS_BOOST",
-    "/CELL_NEG", "/EN",
+    "VBUS",
+    "VBAT",
+    "5V",
+    "3V3",
+    "3.3V",
+    "+5V",
+    "+3V3",
+    "GND",
+    "/VBUS",
+    "/VBAT",
+    "/5V",
+    "/3V3",
+    "/VSYS",
+    "/VSYS_BOOST",
+    "/CELL_NEG",
+    "/EN",
 }
 
 SIGNAL_WIDTH_MM = 0.127
@@ -87,10 +100,10 @@ def detect_opening_direction(fp) -> float | None:
 
     # --- How far body extends beyond pads on each side ---
     extensions = {
-        0:   max(body_xs) - max(pad_xs),   # +X (right)
-        180: min(pad_xs)  - min(body_xs),   # -X (left)
-        90:  max(body_ys) - max(pad_ys),    # +Y (down)
-        270: min(pad_ys)  - min(body_ys),   # -Y (up)
+        0: max(body_xs) - max(pad_xs),  # +X (right)
+        180: min(pad_xs) - min(body_xs),  # -X (left)
+        90: max(body_ys) - max(pad_ys),  # +Y (down)
+        270: min(pad_ys) - min(body_ys),  # -Y (up)
     }
 
     ranked = sorted(extensions.items(), key=lambda kv: kv[1], reverse=True)
@@ -171,8 +184,8 @@ class KiCadAdapter:
             body_ctr = None
             try:
                 cy = fp.GetCourtyard(
-                    pcbnew.F_CrtYd if fp.GetLayer() == pcbnew.F_Cu
-                    else pcbnew.B_CrtYd)
+                    pcbnew.F_CrtYd if fp.GetLayer() == pcbnew.F_Cu else pcbnew.B_CrtYd
+                )
                 cbox = cy.BBox()
                 if cbox.GetWidth() > 0 and cbox.GetHeight() > 0:
                     w_mm = pcbnew.ToMM(cbox.GetWidth())
@@ -193,10 +206,7 @@ class KiCadAdapter:
 
             kind = _classify_component(ref, val)
             # Detect through-hole: any pad with PTH attribute means THT footprint
-            has_pth = any(
-                p.GetAttribute() == pcbnew.PAD_ATTRIB_PTH
-                for p in fp.Pads()
-            )
+            has_pth = any(p.GetAttribute() == pcbnew.PAD_ATTRIB_PTH for p in fp.Pads())
             # Lock mechanically-fixed parts unless unlock_all_footprints is set.
             # Battery holders have fixed positions by default.
             if self.cfg.get("unlock_all_footprints", False):
@@ -261,22 +271,26 @@ class KiCadAdapter:
                     via_size = pcbnew.ToMM(track.GetWidth(pcbnew.F_Cu))
                 except TypeError:
                     via_size = pcbnew.ToMM(track.GetWidth())
-                vias.append(Via(
-                    pos=Point(pcbnew.ToMM(vpos.x), pcbnew.ToMM(vpos.y)),
-                    net=track.GetNetname(),
-                    drill_mm=pcbnew.ToMM(track.GetDrill()),
-                    size_mm=via_size,
-                ))
+                vias.append(
+                    Via(
+                        pos=Point(pcbnew.ToMM(vpos.x), pcbnew.ToMM(vpos.y)),
+                        net=track.GetNetname(),
+                        drill_mm=pcbnew.ToMM(track.GetDrill()),
+                        size_mm=via_size,
+                    )
+                )
             else:
                 s = track.GetStart()
                 e = track.GetEnd()
-                traces.append(TraceSegment(
-                    start=Point(pcbnew.ToMM(s.x), pcbnew.ToMM(s.y)),
-                    end=Point(pcbnew.ToMM(e.x), pcbnew.ToMM(e.y)),
-                    layer=_layer_to_enum(track.GetLayer()),
-                    net=track.GetNetname(),
-                    width_mm=pcbnew.ToMM(track.GetWidth()),
-                ))
+                traces.append(
+                    TraceSegment(
+                        start=Point(pcbnew.ToMM(s.x), pcbnew.ToMM(s.y)),
+                        end=Point(pcbnew.ToMM(e.x), pcbnew.ToMM(e.y)),
+                        layer=_layer_to_enum(track.GetLayer()),
+                        net=track.GetNetname(),
+                        width_mm=pcbnew.ToMM(track.GetWidth()),
+                    )
+                )
 
         return BoardState(
             components=components,
@@ -286,8 +300,9 @@ class KiCadAdapter:
             board_outline=(tl, br),
         )
 
-    def apply_placement(self, components: dict[str, Component],
-                        output_path: str = None):
+    def apply_placement(
+        self, components: dict[str, Component], output_path: str = None
+    ):
         """Move footprints to new positions/rotations. Preserves existing traces."""
         self._ensure_loaded()
         board = self.board
@@ -313,10 +328,12 @@ class KiCadAdapter:
             current_layer = _layer_to_enum(fp.GetLayer())
             if comp.layer != current_layer:
                 fp.Flip(fp.GetPosition(), False)
-            fp.SetPosition(pcbnew.VECTOR2I(
-                pcbnew.FromMM(comp.pos.x),
-                pcbnew.FromMM(comp.pos.y),
-            ))
+            fp.SetPosition(
+                pcbnew.VECTOR2I(
+                    pcbnew.FromMM(comp.pos.x),
+                    pcbnew.FromMM(comp.pos.y),
+                )
+            )
             fp.SetOrientationDegrees(comp.rotation)
 
         out = output_path or self.pcb_path
@@ -348,8 +365,10 @@ class KiCadAdapter:
 
         # Draw new rectangle
         corners = [
-            (new_left, new_top), (new_right, new_top),
-            (new_right, new_bottom), (new_left, new_bottom),
+            (new_left, new_top),
+            (new_right, new_top),
+            (new_right, new_bottom),
+            (new_left, new_bottom),
         ]
         for i in range(4):
             seg = pcbnew.PCB_SHAPE(board)
@@ -372,20 +391,26 @@ class KiCadAdapter:
         Runs in a subprocess to avoid pcbnew SWIG corruption.
         """
         import subprocess
+
         result = subprocess.run(
-            ["python3", "-c",
-             "import pcbnew\n"
-             f"board = pcbnew.LoadBoard({self.pcb_path!r})\n"
-             "to_remove = [z for z in board.Zones() if not z.GetIsRuleArea()]\n"
-             "for z in to_remove:\n"
-             "    board.Remove(z)\n"
-             f"board.Save({self.pcb_path!r})\n"
-             "print(len(to_remove))\n"],
-            capture_output=True, text=True, timeout=30,
+            [
+                sys.executable,
+                "-c",
+                "import pcbnew\n"
+                f"board = pcbnew.LoadBoard({self.pcb_path!r})\n"
+                "to_remove = [z for z in board.Zones() if not z.GetIsRuleArea()]\n"
+                "for z in to_remove:\n"
+                "    board.Remove(z)\n"
+                f"board.Save({self.pcb_path!r})\n"
+                "print(len(to_remove))\n",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         if result.returncode == 0:
             # Take first line only — SWIG may print memory leak warnings after
-            n = result.stdout.strip().split('\n')[0].strip()
+            n = result.stdout.strip().split("\n")[0].strip()
             if n and n.isdigit() and int(n) > 0:
                 print(f"  Stripped {n} pre-existing copper zone(s)")
         # Force reload on next access since file changed
@@ -417,7 +442,9 @@ class KiCadAdapter:
         # Find the net
         gnd_net = board.GetNetInfo().GetNetItem(zone_net_name)
         if not gnd_net or gnd_net.GetNetCode() == 0:
-            print(f"  WARNING: Net '{zone_net_name}' not found — skipping zone creation")
+            print(
+                f"  WARNING: Net '{zone_net_name}' not found — skipping zone creation"
+            )
             return
 
         # Compute board outline rectangle
@@ -430,9 +457,11 @@ class KiCadAdapter:
         # Look for existing zone on target layer with matching net
         existing_zone = None
         for zone in board.Zones():
-            if (zone.GetLayer() == target_layer and
-                    zone.GetNetname() == zone_net_name and
-                    not zone.GetIsRuleArea()):
+            if (
+                zone.GetLayer() == target_layer
+                and zone.GetNetname() == zone_net_name
+                and not zone.GetIsRuleArea()
+            ):
                 existing_zone = zone
                 break
 

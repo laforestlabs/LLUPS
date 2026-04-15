@@ -3,7 +3,9 @@ with integrated scoring to minimize routing difficulty.
 
 Pure Python. All iteration runs locally — no LLM calls in the loop.
 """
+
 from __future__ import annotations
+
 import copy
 import math
 import random
@@ -11,17 +13,29 @@ from collections import defaultdict
 
 try:
     import numpy as np
+
     _HAS_NUMPY = True
 except ImportError:
     _HAS_NUMPY = False
 
-from .types import (
-    Point, Component, Net, BoardState, Layer, Pad, PlacementScore,
-    FunctionalGroup, PlacedGroup,
-)
 from .graph import (
-    build_connectivity_graph, find_communities, minimum_spanning_tree,
-    count_crossings, total_ratsnest_length, AdjacencyGraph
+    AdjacencyGraph,
+    build_connectivity_graph,
+    count_crossings,
+    find_communities,
+    minimum_spanning_tree,
+    total_ratsnest_length,
+)
+from .types import (
+    BoardState,
+    Component,
+    FunctionalGroup,
+    Layer,
+    Net,
+    Pad,
+    PlacedGroup,
+    PlacementScore,
+    Point,
 )
 
 
@@ -58,8 +72,7 @@ def _bbox_overlap(a: Component, b: Component, clearance: float = 0.5) -> bool:
     """Check if two component bounding boxes overlap with clearance."""
     a_tl, a_br = a.bbox(clearance / 2)
     b_tl, b_br = b.bbox(clearance / 2)
-    return (a_tl.x < b_br.x and a_br.x > b_tl.x and
-            a_tl.y < b_br.y and a_br.y > b_tl.y)
+    return a_tl.x < b_br.x and a_br.x > b_tl.x and a_tl.y < b_br.y and a_br.y > b_tl.y
 
 
 def _bbox_overlap_amount(a: Component, b: Component) -> float:
@@ -119,25 +132,100 @@ def _update_pad_positions(comp: Component, old_pos: Point, old_rot: float):
         comp.body_center = _transform(comp.body_center)
 
 
-def compute_min_board_size(state: BoardState, overhead_factor: float = 2.5
-                           ) -> tuple[float, float]:
+def compute_min_board_size(
+    state: BoardState,
+    overhead_factor: float = 2.5,
+    group_blocks: list[tuple[float, float]] | None = None,
+) -> tuple[float, float]:
     """Estimate the minimum viable board dimensions from component area.
 
     Returns (min_width_mm, min_height_mm) based on total component area
     scaled by overhead_factor (to leave room for routing and clearances).
-    Preserves the aspect ratio of the current board outline.
+
+    Also ensures the board is large enough to contain the largest group
+    block (if *group_blocks* is supplied) or the largest estimated
+    component cluster.  The board aspect ratio is clamped to 1:1–2:1 and
+    maximum dimensions are capped to avoid unnecessarily large boards.
     """
     total_area = sum(c.area for c in state.components.values())
     min_area = total_area * overhead_factor
     if min_area <= 0:
         return (40.0, 30.0)  # fallback
-    # Preserve current board aspect ratio
+
+    # Start from board aspect ratio, clamped to 1:1 – 2:1
     bw = max(1.0, state.board_width)
     bh = max(1.0, state.board_height)
-    aspect = bw / bh
-    # min_area = min_w * min_h = min_w * (min_w / aspect)
+    aspect = max(1.0, min(2.0, bw / bh))
+
+    # Area-based estimate
     min_w = math.sqrt(min_area * aspect)
     min_h = min_w / aspect
+
+    # --- Ensure board can hold the largest block -----------------------
+    largest_block_w = 0.0
+    largest_block_h = 0.0
+
+    # Explicit group blocks (provided by caller after solve_group)
+    if group_blocks:
+        for gw, gh in group_blocks:
+            largest_block_w = max(largest_block_w, gw)
+            largest_block_h = max(largest_block_h, gh)
+
+    # Estimate from individual components: largest single component and
+    # potential paired components (same kind, similar size) that the
+    # group solver will likely merge into one block.
+    comp_by_area = sorted(state.components.values(), key=lambda c: c.area, reverse=True)
+    if comp_by_area:
+        biggest = comp_by_area[0]
+        largest_block_w = max(largest_block_w, biggest.width_mm)
+        largest_block_h = max(largest_block_h, biggest.height_mm)
+
+        # Look for a potential pair partner (same kind, similar size)
+        for c2 in comp_by_area[1:5]:
+            if (
+                c2.kind == biggest.kind
+                and c2.kind not in ("", "misc", "passive")
+                and c2.area > 0
+                and biggest.area > 0
+                and min(c2.area, biggest.area) / max(c2.area, biggest.area) > 0.5
+            ):
+                gap = 2.0  # minimal gap between pair members
+                # Horizontal arrangement
+                horiz = (
+                    biggest.width_mm + c2.width_mm + gap,
+                    max(biggest.height_mm, c2.height_mm),
+                )
+                # Vertical arrangement
+                vert = (
+                    max(biggest.width_mm, c2.width_mm),
+                    biggest.height_mm + c2.height_mm + gap,
+                )
+                # Pick the more compact arrangement (smaller area)
+                if horiz[0] * horiz[1] <= vert[0] * vert[1]:
+                    pair_w, pair_h = horiz
+                else:
+                    pair_w, pair_h = vert
+                largest_block_w = max(largest_block_w, pair_w)
+                largest_block_h = max(largest_block_h, pair_h)
+                break  # only consider first matching pair
+
+    # Board must fit largest block with edge margin on each side
+    block_margin = 4.0
+    min_w = max(min_w, largest_block_w + block_margin * 2)
+    min_h = max(min_h, largest_block_h + block_margin * 2)
+
+    # --- Re-check aspect ratio after block adjustment ------------------
+    if min_w > 0 and min_h > 0:
+        ratio = min_w / min_h
+        if ratio > 2.0:
+            min_h = min_w / 2.0
+        elif ratio < 0.5:
+            min_w = min_h / 2.0
+
+    # --- Cap maximum dimensions to avoid runaway board sizes -----------
+    min_w = min(min_w, 120.0)
+    min_h = min(min_h, 100.0)
+
     # Round up to nearest 5mm
     min_w = math.ceil(min_w / 5.0) * 5.0
     min_h = math.ceil(min_h / 5.0) * 5.0
@@ -167,6 +255,15 @@ class PlacementScorer:
         s.courtyard_overlap = self._score_courtyard_overlap()
         s.smt_opposite_tht = self._score_smt_opposite_tht()
         s.group_coherence = self._score_group_coherence()
+
+        # Board aspect ratio scoring
+        board_w = self.state.board_width
+        board_h = self.state.board_height
+        if board_w > 0 and board_h > 0:
+            ratio = max(board_w, board_h) / min(board_w, board_h)
+            # Score: 100 for 1:1, 80 for 1.5:1, 50 for 2:1, 0 for 3:1+
+            s.aspect_ratio = max(0.0, 100.0 * (1.0 - (ratio - 1.0) / 2.0))
+
         s.compute_total()
         return s
 
@@ -176,8 +273,16 @@ class PlacementScorer:
         total_len = total_ratsnest_length(self.state)
         # Heuristic: board diagonal is worst case per net
         diag = math.hypot(self.state.board_width, self.state.board_height)
-        n_nets = max(1, len([n for n in self.state.nets.values()
-                             if len(n.pad_refs) >= 2 and n.name not in ("GND", "/GND")]))
+        n_nets = max(
+            1,
+            len(
+                [
+                    n
+                    for n in self.state.nets.values()
+                    if len(n.pad_refs) >= 2 and n.name not in ("GND", "/GND")
+                ]
+            ),
+        )
         worst_case = diag * n_nets
         if worst_case == 0:
             return 100.0
@@ -223,8 +328,10 @@ class PlacementScorer:
             total += 1
             x, y = comp.pos.x, comp.pos.y
             near_edge = (
-                x - tl.x <= margin or br.x - x <= margin or
-                y - tl.y <= margin or br.y - y <= margin
+                x - tl.x <= margin
+                or br.x - x <= margin
+                or y - tl.y <= margin
+                or br.y - y <= margin
             )
             if near_edge:
                 compliant += 1
@@ -273,14 +380,17 @@ class PlacementScorer:
         for comp in self.state.components.values():
             total_bodies += 1
             c_tl, c_br = comp.bbox()
-            if (c_tl.x < tl.x or c_br.x > br.x or
-                    c_tl.y < tl.y or c_br.y > br.y):
+            if c_tl.x < tl.x or c_br.x > br.x or c_tl.y < tl.y or c_br.y > br.y:
                 bodies_outside += 1
 
             for pad in comp.pads:
                 total_pads += 1
-                if (pad.pos.x < tl.x + inset or pad.pos.x > br.x - inset or
-                        pad.pos.y < tl.y + inset or pad.pos.y > br.y - inset):
+                if (
+                    pad.pos.x < tl.x + inset
+                    or pad.pos.x > br.x - inset
+                    or pad.pos.y < tl.y + inset
+                    or pad.pos.y > br.y - inset
+                ):
                     pads_outside += 1
 
         if total_pads == 0 and total_bodies == 0:
@@ -341,15 +451,19 @@ class PlacementScorer:
             return 100.0  # feature disabled — don't penalize
 
         min_area = self.cfg.get("tht_backside_min_area_mm2", 50.0)
-        back_tht = [c for c in self.state.components.values()
-                    if c.is_through_hole and c.layer == Layer.BACK
-                    and c.area >= min_area]
+        back_tht = [
+            c
+            for c in self.state.components.values()
+            if c.is_through_hole and c.layer == Layer.BACK and c.area >= min_area
+        ]
         if not back_tht:
             return 100.0  # no back-side THT — nothing to optimize
 
-        front_smt = [c for c in self.state.components.values()
-                     if not c.is_through_hole and c.layer != Layer.BACK
-                     and not c.locked]
+        front_smt = [
+            c
+            for c in self.state.components.values()
+            if not c.is_through_hole and c.layer != Layer.BACK and not c.locked
+        ]
         if not front_smt:
             return 100.0
 
@@ -440,15 +554,18 @@ class PlacementSolver:
         self.cooling = max(0.5, min(0.999, self.cfg.get("cooling_factor", 0.97)))
         self.edge_margin = max(0.5, min(30.0, self.cfg.get("edge_margin_mm", 2.0)))
         self.grid_snap = self.cfg.get("placement_grid_mm", 0.5)
-        self.max_iterations = max(10, min(2000, int(self.cfg.get("max_placement_iterations", 300))))
-        self.convergence_threshold = self.cfg.get("placement_convergence_threshold", 0.5)
+        self.max_iterations = max(
+            10, min(2000, int(self.cfg.get("max_placement_iterations", 300)))
+        )
+        self.convergence_threshold = self.cfg.get(
+            "placement_convergence_threshold", 0.5
+        )
         self.score_every_n = self.cfg.get("placement_score_every_n", 1)
         self.intra_cluster_iters = self.cfg.get("intra_cluster_iters", 80)
         # placement_clearance_mm is the min gap between component bboxes.
         # Falls back to clearance_mm for backwards compatibility, then 2.5mm.
         self.clearance = self.cfg.get(
-            "placement_clearance_mm",
-            self.cfg.get("clearance_mm", 2.5)
+            "placement_clearance_mm", self.cfg.get("clearance_mm", 2.5)
         )
         self._seen_force_states: set[int] = set()
         # Aligned pairs: list of (ref_a, ref_b, axis) tuples.
@@ -459,9 +576,9 @@ class PlacementSolver:
     # Intra-group placement (Phase 2 of hierarchical pipeline)
     # ------------------------------------------------------------------
 
-    def solve_group(self, group: FunctionalGroup,
-                    comps: dict[str, Component],
-                    nets: dict[str, Net]) -> PlacedGroup:
+    def solve_group(
+        self, group: FunctionalGroup, comps: dict[str, Component], nets: dict[str, Net]
+    ) -> PlacedGroup:
         """Place components within a single functional group.
 
         Creates a tight virtual bounding rectangle, runs a mini force-directed
@@ -477,14 +594,80 @@ class PlacementSolver:
             PlacedGroup with component positions/rotations relative to group
             origin (0, 0) and bounding box dimensions.
         """
-        member_comps = {ref: comps[ref] for ref in group.member_refs
-                        if ref in comps}
+        member_comps = {ref: comps[ref] for ref in group.member_refs if ref in comps}
         if not member_comps:
             return PlacedGroup(
                 group=group,
                 bounding_box=(0, 0),
                 component_positions={},
                 component_layers={},
+            )
+
+        # Skip rigid group placement for groups of only large THT components.
+        # These will be aligned by _align_large_pairs() during post-processing,
+        # which is more flexible than a rigid group block.
+        tht_area_threshold = self.cfg.get("tht_backside_min_area_mm2", 50.0)
+        if all(
+            c.area > tht_area_threshold and c.is_through_hole
+            for c in member_comps.values()
+        ):
+            # Try both horizontal and vertical arrangements, pick the more compact one
+            def _tht_strip(horiz: bool):
+                positions = {}
+                layers = {}
+                tw = 0.0
+                th = 0.0
+                cursor = 0.0
+                for ref, c in member_comps.items():
+                    if horiz:
+                        positions[ref] = (
+                            cursor + c.width_mm / 2,
+                            c.height_mm / 2,
+                            c.rotation,
+                        )
+                        layers[ref] = c.layer
+                        cursor += c.width_mm + 2.0
+                        th = max(th, c.height_mm)
+                    else:
+                        positions[ref] = (
+                            c.width_mm / 2,
+                            cursor + c.height_mm / 2,
+                            c.rotation,
+                        )
+                        layers[ref] = c.layer
+                        cursor += c.height_mm + 2.0
+                        tw = max(tw, c.width_mm)
+                if horiz:
+                    tw = cursor - 2.0 if cursor > 2.0 else 0.0
+                else:
+                    th = cursor - 2.0 if cursor > 2.0 else 0.0
+                return positions, layers, tw, th
+
+            h_pos, h_lay, h_w, h_h = _tht_strip(True)
+            v_pos, v_lay, v_w, v_h = _tht_strip(False)
+            # Pick arrangement closest to 1:1 aspect ratio
+            h_ratio = max(h_w, h_h) / max(0.1, min(h_w, h_h))
+            v_ratio = max(v_w, v_h) / max(0.1, min(v_w, v_h))
+            if v_ratio < h_ratio:
+                component_positions, component_layers, total_w, max_h = (
+                    v_pos,
+                    v_lay,
+                    v_w,
+                    v_h,
+                )
+            else:
+                component_positions, component_layers, total_w, max_h = (
+                    h_pos,
+                    h_lay,
+                    h_w,
+                    h_h,
+                )
+            # Return with tight bbox (no clearance padding)
+            return PlacedGroup(
+                group=group,
+                bounding_box=(total_w, max_h),
+                component_positions=component_positions,
+                component_layers=component_layers,
             )
 
         # --- Compute virtual board size from total component area ---
@@ -524,12 +707,19 @@ class PlacementSolver:
         leader = work_comps.get(group.leader_ref)
 
         # Sort members: leader first, then ICs, then by connectivity, then passives
-        sorted_refs = sorted(work_comps.keys(), key=lambda r: (
-            0 if r == group.leader_ref else
-            1 if work_comps[r].kind == 'ic' else
-            2 if work_comps[r].kind not in ('passive', 'misc', '') else 3,
-            -group_conn.degree(r),
-        ))
+        sorted_refs = sorted(
+            work_comps.keys(),
+            key=lambda r: (
+                0
+                if r == group.leader_ref
+                else 1
+                if work_comps[r].kind == "ic"
+                else 2
+                if work_comps[r].kind not in ("passive", "misc", "")
+                else 3,
+                -group_conn.degree(r),
+            ),
+        )
 
         # Place in radial pattern around center
         if leader:
@@ -543,7 +733,7 @@ class PlacementSolver:
             c = work_comps[ref]
             angle = 2 * math.pi * i / max(len(others), 1)
             # Tighter radius for decoupling caps
-            is_cap = ref.startswith('C')
+            is_cap = ref.startswith("C")
             r = radius_base * (0.4 if is_cap else 0.8)
             old_pos = Point(c.pos.x, c.pos.y)
             c.pos = Point(
@@ -564,14 +754,16 @@ class PlacementSolver:
             # Attraction: connected pairs
             refs_list = list(work_comps.keys())
             for i_r, ra in enumerate(refs_list):
-                for rb in refs_list[i_r + 1:]:
+                for rb in refs_list[i_r + 1 :]:
                     w = group_conn.weight(ra, rb)
                     if w <= 0:
                         continue
                     a, b = work_comps[ra], work_comps[rb]
                     d = max(a.pos.dist(b.pos), 0.1)
                     target = (a.width_mm + b.width_mm) / 2 + self.clearance
-                    f = self.k_attract * w * (d - target) * 2.0  # 2x stronger within group
+                    f = (
+                        self.k_attract * w * (d - target) * 2.0
+                    )  # 2x stronger within group
                     dx = (b.pos.x - a.pos.x) / d * f
                     dy = (b.pos.y - a.pos.y) / d * f
                     forces[ra].x += dx
@@ -581,14 +773,19 @@ class PlacementSolver:
 
             # Repulsion: overlap-based
             for i_r, ra in enumerate(refs_list):
-                for rb in refs_list[i_r + 1:]:
+                for rb in refs_list[i_r + 1 :]:
                     a, b = work_comps[ra], work_comps[rb]
                     overlap = _bbox_overlap_amount(a, b)
                     d = max(a.pos.dist(b.pos), 0.1)
                     # Lighter repulsion within groups (we want tight packing)
                     if overlap > 0:
                         f = 4.0 * math.sqrt(overlap)
-                    elif d < (max(a.width_mm, a.height_mm) + max(b.width_mm, b.height_mm)) / 2 + self.clearance:
+                    elif (
+                        d
+                        < (max(a.width_mm, a.height_mm) + max(b.width_mm, b.height_mm))
+                        / 2
+                        + self.clearance
+                    ):
                         f = self.k_repel * 0.01 * (a.area * b.area) / (d * d)
                     else:
                         continue
@@ -636,14 +833,19 @@ class PlacementSolver:
         # Build a mini BoardState for rotation scoring
         mini_state = BoardState(
             components=work_comps,
-            nets={n.name: n for n in nets.values()
-                  if any(r in member_set for r, _ in n.pad_refs)},
+            nets={
+                n.name: n
+                for n in nets.values()
+                if any(r in member_set for r, _ in n.pad_refs)
+            },
             board_outline=(virt_tl, virt_br),
         )
         for ref, comp in work_comps.items():
-            if comp.kind not in ('ic', 'connector') or len(comp.pads) < 2:
+            if comp.kind not in ("ic", "connector") or len(comp.pads) < 2:
                 continue
-            pad_offsets = [(p.pos.x - comp.pos.x, p.pos.y - comp.pos.y) for p in comp.pads]
+            pad_offsets = [
+                (p.pos.x - comp.pos.x, p.pos.y - comp.pos.y) for p in comp.pads
+            ]
             orig_rot = comp.rotation
             best_rot = orig_rot
             best_score = self._score_rotation_for_routing(mini_state, comp)
@@ -675,15 +877,28 @@ class PlacementSolver:
             comp.rotation = best_rot
 
         # --- Compute tight bounding box and normalize to origin ---
+        # For small groups of large components (e.g. battery holder pairs),
+        # reduce the inter-component clearance padding so the group block
+        # doesn't dominate the board.
+        large_area_threshold = 100.0  # mm²
+        if n <= 2 and all(c.area > large_area_threshold for c in work_comps.values()):
+            bbox_clearance = self.clearance * 0.15
+        else:
+            bbox_clearance = self.clearance / 2
+
         all_tls = []
         all_brs = []
         for c in work_comps.values():
-            c_tl, c_br = c.bbox(self.clearance / 2)
+            c_tl, c_br = c.bbox(bbox_clearance)
             all_tls.append(c_tl)
             all_brs.append(c_br)
         if not all_tls:
-            return PlacedGroup(group=group, bounding_box=(0, 0),
-                               component_positions={}, component_layers={})
+            return PlacedGroup(
+                group=group,
+                bounding_box=(0, 0),
+                component_positions={},
+                component_layers={},
+            )
 
         min_x = min(p.x for p in all_tls)
         min_y = min(p.y for p in all_tls)
@@ -701,6 +916,74 @@ class PlacementSolver:
             component_positions[ref] = (rel_x, rel_y, c.rotation)
             component_layers[ref] = c.layer
 
+        # --- Constrain group aspect ratio to prevent overly elongated blocks ---
+        max_aspect = 3.0
+        if bbox_w > 0 and bbox_h > 0:
+            ratio = max(bbox_w, bbox_h) / min(bbox_w, bbox_h)
+            if ratio > max_aspect:
+                if n <= 3:
+                    # For small groups, try the perpendicular arrangement.
+                    # Compute both horizontal and vertical layouts and pick
+                    # the one with the better (closer to 1:1) aspect ratio.
+                    refs = list(work_comps.keys())
+                    if n == 2:
+                        c1 = work_comps[refs[0]]
+                        c2 = work_comps[refs[1]]
+                        gap = bbox_clearance * 2
+
+                        # Horizontal arrangement
+                        h_w = c1.width_mm + c2.width_mm + gap + bbox_clearance * 2
+                        h_h = max(c1.height_mm, c2.height_mm) + bbox_clearance * 2
+                        h_ratio = max(h_w, h_h) / max(min(h_w, h_h), 0.1)
+
+                        # Vertical arrangement
+                        v_w = max(c1.width_mm, c2.width_mm) + bbox_clearance * 2
+                        v_h = c1.height_mm + c2.height_mm + gap + bbox_clearance * 2
+                        v_ratio = max(v_w, v_h) / max(min(v_w, v_h), 0.1)
+
+                        # Pick whichever is closer to 1:1
+                        if v_ratio < h_ratio and v_ratio < ratio:
+                            # Reflow to vertical: stack components
+                            x = bbox_clearance + max(c1.width_mm, c2.width_mm) / 2
+                            y1 = bbox_clearance + c1.height_mm / 2
+                            y2 = bbox_clearance + c1.height_mm + gap + c2.height_mm / 2
+                            component_positions[refs[0]] = (x, y1, c1.rotation)
+                            component_positions[refs[1]] = (x, y2, c2.rotation)
+                            bbox_w, bbox_h = v_w, v_h
+                        elif h_ratio < v_ratio and h_ratio < ratio:
+                            # Reflow to horizontal: place side by side
+                            y = bbox_clearance + max(c1.height_mm, c2.height_mm) / 2
+                            x1 = bbox_clearance + c1.width_mm / 2
+                            x2 = bbox_clearance + c1.width_mm + gap + c2.width_mm / 2
+                            component_positions[refs[0]] = (x1, y, c1.rotation)
+                            component_positions[refs[1]] = (x2, y, c2.rotation)
+                            bbox_w, bbox_h = h_w, h_h
+                    # else n==3: keep current layout (reflow is complex)
+                else:
+                    # For larger groups, compress the long axis toward
+                    # the target ratio to reduce elongation.
+                    target_ratio = max_aspect
+                    if bbox_w > bbox_h:
+                        target_w = bbox_h * target_ratio
+                        if target_w < bbox_w:
+                            scale = target_w / bbox_w
+                            cx = bbox_w / 2
+                            new_pos = {}
+                            for ref, (rx, ry, rot) in component_positions.items():
+                                new_pos[ref] = (cx + (rx - cx) * scale, ry, rot)
+                            component_positions = new_pos
+                            bbox_w = target_w
+                    else:
+                        target_h = bbox_w * target_ratio
+                        if target_h < bbox_h:
+                            scale = target_h / bbox_h
+                            cy = bbox_h / 2
+                            new_pos = {}
+                            for ref, (rx, ry, rot) in component_positions.items():
+                                new_pos[ref] = (rx, cy + (ry - cy) * scale, rot)
+                            component_positions = new_pos
+                            bbox_h = target_h
+
         return PlacedGroup(
             group=group,
             bounding_box=(bbox_w, bbox_h),
@@ -708,8 +991,9 @@ class PlacementSolver:
             component_layers=component_layers,
         )
 
-    def _resolve_overlaps_bounded(self, comps: dict[str, Component],
-                                  tl: Point, br: Point):
+    def _resolve_overlaps_bounded(
+        self, comps: dict[str, Component], tl: Point, br: Point
+    ):
         """Resolve overlaps within bounded area (virtual board for groups).
 
         Simpler version of _resolve_overlaps that uses the provided bounds
@@ -738,19 +1022,27 @@ class PlacementSolver:
                         sign = 1.0 if a.pos.x >= b.pos.x else -1.0
                         old_a = Point(a.pos.x, a.pos.y)
                         old_b = Point(b.pos.x, b.pos.y)
-                        a.pos.x = max(tl.x + hw_a + 0.5,
-                                      min(br.x - hw_a - 0.5, a.pos.x + sign * push))
-                        b.pos.x = max(tl.x + hw_b + 0.5,
-                                      min(br.x - hw_b - 0.5, b.pos.x - sign * push))
+                        a.pos.x = max(
+                            tl.x + hw_a + 0.5,
+                            min(br.x - hw_a - 0.5, a.pos.x + sign * push),
+                        )
+                        b.pos.x = max(
+                            tl.x + hw_b + 0.5,
+                            min(br.x - hw_b - 0.5, b.pos.x - sign * push),
+                        )
                     else:
                         push = (oy + 0.1) / 2
                         sign = 1.0 if a.pos.y >= b.pos.y else -1.0
                         old_a = Point(a.pos.x, a.pos.y)
                         old_b = Point(b.pos.x, b.pos.y)
-                        a.pos.y = max(tl.y + hh_a + 0.5,
-                                      min(br.y - hh_a - 0.5, a.pos.y + sign * push))
-                        b.pos.y = max(tl.y + hh_b + 0.5,
-                                      min(br.y - hh_b - 0.5, b.pos.y - sign * push))
+                        a.pos.y = max(
+                            tl.y + hh_a + 0.5,
+                            min(br.y - hh_a - 0.5, a.pos.y + sign * push),
+                        )
+                        b.pos.y = max(
+                            tl.y + hh_b + 0.5,
+                            min(br.y - hh_b - 0.5, b.pos.y - sign * push),
+                        )
                     _update_pad_positions(a, old_a, a.rotation)
                     _update_pad_positions(b, old_b, b.rotation)
                     a_tl, a_br = a.bbox(half_gap)
@@ -758,8 +1050,9 @@ class PlacementSolver:
             if not moved:
                 break
 
-    def solve(self, max_iterations: int = None,
-              convergence_threshold: float = None) -> dict[str, Component]:
+    def solve(
+        self, max_iterations: int = None, convergence_threshold: float = None
+    ) -> dict[str, Component]:
         """Run full placement pipeline. Returns updated components dict."""
         # Deep copy so we don't mutate the original
         comps = {ref: copy.deepcopy(c) for ref, c in self.state.components.items()}
@@ -789,7 +1082,9 @@ class PlacementSolver:
                     if sup_ref in comps and ic_ref in comps:
                         conn_graph.add_edge(sup_ref, ic_ref, 2.0)  # Strong bond
             clusters = find_communities(conn_graph, seed=self.seed)
-            print(f"  Found {len(clusters)} component clusters (with {len(ic_groups)} IC groups)")
+            print(
+                f"  Found {len(clusters)} component clusters (with {len(ic_groups)} IC groups)"
+            )
         else:
             # Step 2: Cluster by connectivity (seeded for reproducible variation)
             clusters = find_communities(conn_graph, seed=self.seed)
@@ -801,12 +1096,15 @@ class PlacementSolver:
         sibling_pairs = []
         comp_list = list(comps.values())
         for i, a in enumerate(comp_list):
-            for b in comp_list[i + 1:]:
+            for b in comp_list[i + 1 :]:
                 if a.locked or b.locked:
                     continue
-                same_kind = (a.kind == b.kind and a.kind not in ("", "misc", "passive"))
-                similar_size = (a.area > 0 and b.area > 0 and
-                                min(a.area, b.area) / max(a.area, b.area) > 0.7)
+                same_kind = a.kind == b.kind and a.kind not in ("", "misc", "passive")
+                similar_size = (
+                    a.area > 0
+                    and b.area > 0
+                    and min(a.area, b.area) / max(a.area, b.area) > 0.7
+                )
                 if same_kind and similar_size:
                     # Weight proportional to component area — larger siblings
                     # benefit more from adjacency (saves more board space)
@@ -814,8 +1112,10 @@ class PlacementSolver:
                     conn_graph.add_edge(a.ref, b.ref, weight)
                     sibling_pairs.append((a.ref, b.ref))
         if sibling_pairs:
-            print(f"  Sibling grouping: {len(sibling_pairs)} pair(s) "
-                  f"({', '.join(f'{a}+{b}' for a, b in sibling_pairs)})")
+            print(
+                f"  Sibling grouping: {len(sibling_pairs)} pair(s) "
+                f"({', '.join(f'{a}+{b}' for a, b in sibling_pairs)})"
+            )
 
         # Step 3: Initial cluster placement (with seeded jitter)
         self._place_clusters(comps, clusters, conn_graph)
@@ -835,15 +1135,20 @@ class PlacementSolver:
         reheat_strength = self.cfg.get("reheat_strength", 0.0)
         reheat_done = False
 
-        print(f"  Initial placement score: {best_score.total:.1f} "
-              f"(nets={best_score.net_distance:.0f} "
-              f"cross={best_score.crossover_score:.0f} "
-              f"xovers={best_score.crossover_count})")
+        print(
+            f"  Initial placement score: {best_score.total:.1f} "
+            f"(nets={best_score.net_distance:.0f} "
+            f"cross={best_score.crossover_score:.0f} "
+            f"xovers={best_score.crossover_count})"
+        )
 
         for iteration in range(self.max_iterations):
             # Temperature reheat: at 50% of iterations, apply perturbation kick
-            if (not reheat_done and reheat_strength > 0
-                    and iteration == self.max_iterations // 2):
+            if (
+                not reheat_done
+                and reheat_strength > 0
+                and iteration == self.max_iterations // 2
+            ):
                 reheat_done = True
                 tl_r, br_r = self.state.board_outline
                 diag = math.hypot(br_r.x - tl_r.x, br_r.y - tl_r.y)
@@ -855,8 +1160,12 @@ class PlacementSolver:
                     comps[ref].pos.y += self.rng.gauss(0, kick_mag)
                     # Clamp to board (pad-aware)
                     hw, hh = _pad_half_extents(comps[ref])
-                    comps[ref].pos.x = max(tl_r.x + hw + 1, min(br_r.x - hw - 1, comps[ref].pos.x))
-                    comps[ref].pos.y = max(tl_r.y + hh + 1, min(br_r.y - hh - 1, comps[ref].pos.y))
+                    comps[ref].pos.x = max(
+                        tl_r.x + hw + 1, min(br_r.x - hw - 1, comps[ref].pos.x)
+                    )
+                    comps[ref].pos.y = max(
+                        tl_r.y + hh + 1, min(br_r.y - hh - 1, comps[ref].pos.y)
+                    )
                     _update_pad_positions(comps[ref], old_pos, comps[ref].rotation)
                 damping = 0.7  # partial reheat of damping
                 stagnant = 0
@@ -885,18 +1194,24 @@ class PlacementSolver:
                         comps = {r: copy.deepcopy(c) for r, c in best_comps.items()}
 
                 if stagnant >= 20:
-                    print(f"  Converged at iteration {iteration+1}")
+                    print(f"  Converged at iteration {iteration + 1}")
                     break
 
             if max_disp < self.convergence_threshold and iteration > 30:
-                print(f"  Displacement converged at iteration {iteration+1}")
+                print(f"  Displacement converged at iteration {iteration + 1}")
                 break
 
             # Adaptive convergence: early exit when placement is good and stable
-            if (iteration > 15 and best_score.total > 85.0
-                    and max_disp < 3.0 and stagnant >= 3):
-                print(f"  Adaptive early exit at iteration {iteration+1} "
-                      f"(score={best_score.total:.1f}, disp={max_disp:.2f})")
+            if (
+                iteration > 15
+                and best_score.total > 85.0
+                and max_disp < 3.0
+                and stagnant >= 3
+            ):
+                print(
+                    f"  Adaptive early exit at iteration {iteration + 1} "
+                    f"(score={best_score.total:.1f}, disp={max_disp:.2f})"
+                )
                 break
 
         # Step 7: Swap optimization — directly minimize crossovers
@@ -918,7 +1233,9 @@ class PlacementSolver:
         while improved and swap_round < 5:
             improved = False
             swap_round += 1
-            unlocked = [r for r in comps if not comps[r].locked and r not in aligned_refs]
+            unlocked = [
+                r for r in comps if not comps[r].locked and r not in aligned_refs
+            ]
             for i in range(len(unlocked)):
                 for j in range(i + 1, len(unlocked)):
                     a, b = comps[unlocked[i]], comps[unlocked[j]]
@@ -979,8 +1296,12 @@ class PlacementSolver:
             any_outside = False
             for comp in best_comps.values():
                 for pad in comp.pads:
-                    if (pad.pos.x < tl_v.x + inset_v or pad.pos.x > br_v.x - inset_v or
-                            pad.pos.y < tl_v.y + inset_v or pad.pos.y > br_v.y - inset_v):
+                    if (
+                        pad.pos.x < tl_v.x + inset_v
+                        or pad.pos.x > br_v.x - inset_v
+                        or pad.pos.y < tl_v.y + inset_v
+                        or pad.pos.y > br_v.y - inset_v
+                    ):
                         any_outside = True
                         break
                 if any_outside:
@@ -1010,22 +1331,26 @@ class PlacementSolver:
         # Final score
         work_state.components = best_comps
         final = PlacementScorer(work_state, self.cfg).score()
-        print(f"  Final placement score: {final.total:.1f} "
-              f"(nets={final.net_distance:.0f} "
-              f"cross={final.crossover_score:.0f} "
-              f"xovers={final.crossover_count})")
+        print(
+            f"  Final placement score: {final.total:.1f} "
+            f"(nets={final.net_distance:.0f} "
+            f"cross={final.crossover_score:.0f} "
+            f"xovers={final.crossover_count})"
+        )
 
         return best_comps
 
-    def _score_rotation_for_routing(self, work_state: BoardState, comp: Component) -> float:
+    def _score_rotation_for_routing(
+        self, work_state: BoardState, comp: Component
+    ) -> float:
         """Score component rotation for routability.
-        
+
         Considers: crossovers, pad accessibility (pads not blocked by component body),
         and net distance.
         """
         cross = count_crossings(work_state)
         cross_score = 100 / (1 + cross) if cross > 0 else 100
-        
+
         # Prefer rotations where pads face outward (toward board edge or open space)
         # Check if pads have clear path to edges
         tl, br = work_state.board_outline
@@ -1033,7 +1358,7 @@ class PlacementSolver:
         for pad in comp.pads:
             px, py = pad.pos.x, pad.pos.y
             # Check each quadrant for openness
-            dirs = [(1,1), (1,-1), (-1,1), (-1,-1)]
+            dirs = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
             for dx, dy in dirs:
                 dist = 0
                 ox, oy = px, py
@@ -1045,15 +1370,16 @@ class PlacementSolver:
                     else:
                         break
             accessible += dist
-        
+
         # Higher = more accessible area around pads
         access_score = min(100, accessible / 10)
-        
+
         # Net distance matters for routing
         from .graph import total_ratsnest_length
+
         net_dist = total_ratsnest_length(work_state)
         dist_score = max(0, 100 - net_dist / 5)
-        
+
         return cross_score * 0.5 + access_score * 0.3 + dist_score * 0.2
 
     @staticmethod
@@ -1142,8 +1468,10 @@ class PlacementSolver:
         # Validate configured refs against actual components
         missing_refs = [ref for ref in zones if ref not in comps]
         if missing_refs:
-            print(f"  WARNING: component_zones references not found on board: "
-                  f"{', '.join(missing_refs)}")
+            print(
+                f"  WARNING: component_zones references not found on board: "
+                f"{', '.join(missing_refs)}"
+            )
 
         def _random_in_corner(corner: str, comp: Component) -> Point:
             """Return a position near the named corner with small jitter."""
@@ -1241,12 +1569,18 @@ class PlacementSolver:
             if "edge" in zone_cfg:
                 edge = zone_cfg["edge"]
                 edge_groups.setdefault(edge, []).append(ref)
-            elif comp.kind == "connector" and "corner" not in zone_cfg and "zone" not in zone_cfg:
+            elif (
+                comp.kind == "connector"
+                and "corner" not in zone_cfg
+                and "zone" not in zone_cfg
+            ):
                 # Fallback: assign to nearest edge
                 x, y = comp.pos.x, comp.pos.y
                 distances = {
-                    "left": x - tl.x, "right": br.x - x,
-                    "top": y - tl.y, "bottom": br.y - y,
+                    "left": x - tl.x,
+                    "right": br.x - x,
+                    "top": y - tl.y,
+                    "bottom": br.y - y,
                 }
                 nearest = min(distances, key=distances.get)
                 edge_groups.setdefault(nearest, []).append(ref)
@@ -1255,7 +1589,9 @@ class PlacementSolver:
         for edge, refs in edge_groups.items():
             group_comps = [comps[r] for r in refs]
             # Sort by component area descending (largest first = anchor)
-            order = sorted(range(len(refs)), key=lambda i: group_comps[i].area, reverse=True)
+            order = sorted(
+                range(len(refs)), key=lambda i: group_comps[i].area, reverse=True
+            )
 
             if edge in ("left", "right"):
                 # Column along Y axis — body edge flush with board edge
@@ -1267,7 +1603,9 @@ class PlacementSolver:
                 usable_bot = br.y - margin - sizes[-1] / 2
                 group_span = total_h
                 if group_span < (usable_bot - usable_top):
-                    start_y = self.rng.uniform(usable_top, usable_bot - group_span + sizes[0] / 2)
+                    start_y = self.rng.uniform(
+                        usable_top, usable_bot - group_span + sizes[0] / 2
+                    )
                 else:
                     start_y = usable_top  # not enough room, pack from top
 
@@ -1289,7 +1627,9 @@ class PlacementSolver:
                 usable_right = br.x - margin - sizes[-1] / 2
                 group_span = total_w
                 if group_span < (usable_right - usable_left):
-                    start_x = self.rng.uniform(usable_left, usable_right - group_span + sizes[0] / 2)
+                    start_x = self.rng.uniform(
+                        usable_left, usable_right - group_span + sizes[0] / 2
+                    )
                 else:
                     start_x = usable_left
                 cursor_x = start_x
@@ -1332,17 +1672,22 @@ class PlacementSolver:
                 pass  # handled in batch below
 
         # --- Batch mounting hole placement: force diagonal for 2, corners for 4 ---
-        mh_refs = [ref for ref, comp in comps.items()
-                   if comp.kind == "mounting_hole"
-                   and ref not in self._pinned_targets
-                   and zones.get(ref, {}).get("corner") is None
-                   and zones.get(ref, {}).get("edge") is None]
+        mh_refs = [
+            ref
+            for ref, comp in comps.items()
+            if comp.kind == "mounting_hole"
+            and ref not in self._pinned_targets
+            and zones.get(ref, {}).get("corner") is None
+            and zones.get(ref, {}).get("edge") is None
+        ]
         if len(mh_refs) == 2:
             # Force to diagonally opposite corners
-            diag = self.rng.choice([
-                ("top-left", "bottom-right"),
-                ("top-right", "bottom-left"),
-            ])
+            diag = self.rng.choice(
+                [
+                    ("top-left", "bottom-right"),
+                    ("top-right", "bottom-left"),
+                ]
+            )
             for ref, corner in zip(mh_refs, diag):
                 comp = comps[ref]
                 old_pos = Point(comp.pos.x, comp.pos.y)
@@ -1404,25 +1749,28 @@ class PlacementSolver:
         mid_y = (tl.y + br.y) / 2
 
         zone_map = {
-            "center":        (tl.x + margin, tl.y + margin, br.x - margin, br.y - margin),
-            "top":           (tl.x + margin, tl.y + margin, br.x - margin, mid_y),
-            "bottom":        (tl.x + margin, mid_y, br.x - margin, br.y - margin),
-            "left":          (tl.x + margin, tl.y + margin, mid_x, br.y - margin),
-            "right":         (mid_x, tl.y + margin, br.x - margin, br.y - margin),
-            "center-top":    (tl.x + margin, tl.y + margin, br.x - margin, mid_y),
+            "center": (tl.x + margin, tl.y + margin, br.x - margin, br.y - margin),
+            "top": (tl.x + margin, tl.y + margin, br.x - margin, mid_y),
+            "bottom": (tl.x + margin, mid_y, br.x - margin, br.y - margin),
+            "left": (tl.x + margin, tl.y + margin, mid_x, br.y - margin),
+            "right": (mid_x, tl.y + margin, br.x - margin, br.y - margin),
+            "center-top": (tl.x + margin, tl.y + margin, br.x - margin, mid_y),
             "center-bottom": (tl.x + margin, mid_y, br.x - margin, br.y - margin),
-            "center-left":   (tl.x + margin, tl.y + margin, mid_x, br.y - margin),
-            "center-right":  (mid_x, tl.y + margin, br.x - margin, br.y - margin),
-            "top-left":      (tl.x + margin, tl.y + margin, mid_x, mid_y),
-            "top-right":     (mid_x, tl.y + margin, br.x - margin, mid_y),
-            "bottom-left":   (tl.x + margin, mid_y, mid_x, br.y - margin),
-            "bottom-right":  (mid_x, mid_y, br.x - margin, br.y - margin),
+            "center-left": (tl.x + margin, tl.y + margin, mid_x, br.y - margin),
+            "center-right": (mid_x, tl.y + margin, br.x - margin, br.y - margin),
+            "top-left": (tl.x + margin, tl.y + margin, mid_x, mid_y),
+            "top-right": (mid_x, tl.y + margin, br.x - margin, mid_y),
+            "bottom-left": (tl.x + margin, mid_y, mid_x, br.y - margin),
+            "bottom-right": (mid_x, mid_y, br.x - margin, br.y - margin),
         }
         return zone_map.get(zone_name, zone_map["center"])
 
-    def _place_clusters(self, comps: dict[str, Component],
-                        clusters: list[set[str]],
-                        conn_graph: AdjacencyGraph):
+    def _place_clusters(
+        self,
+        comps: dict[str, Component],
+        clusters: list[set[str]],
+        conn_graph: AdjacencyGraph,
+    ):
         """Place each cluster's components near their connectivity centroid.
 
         Supports three placement strategies controlled by config:
@@ -1454,12 +1802,12 @@ class PlacementSolver:
             usable_right = br.x - margin
             for i, leader in enumerate(signal_flow):
                 frac = (i + 0.5) / len(signal_flow)
-                flow_x_targets[leader] = usable_left + frac * (usable_right - usable_left)
+                flow_x_targets[leader] = usable_left + frac * (
+                    usable_right - usable_left
+                )
 
         # Find locked component positions for attraction
-        locked_positions = {
-            ref: comp.pos for ref, comp in comps.items() if comp.locked
-        }
+        locked_positions = {ref: comp.pos for ref, comp in comps.items() if comp.locked}
 
         # Sort clusters by total connectivity (highest first) so the most
         # connected cluster gets placed first, improving net-topology bias.
@@ -1565,7 +1913,9 @@ class PlacementSolver:
                 # connected neighbors, bias position toward their centroid.
                 nbr_cx, nbr_cy, nbr_w = 0.0, 0.0, 0.0
                 for nbr, w in conn_graph.neighbors(ref).items():
-                    if nbr in comps and (comps[nbr].locked or nbr in placed_this_cluster):
+                    if nbr in comps and (
+                        comps[nbr].locked or nbr in placed_this_cluster
+                    ):
                         nbr_cx += comps[nbr].pos.x * w
                         nbr_cy += comps[nbr].pos.y * w
                         nbr_w += w
@@ -1578,9 +1928,9 @@ class PlacementSolver:
 
                 # Decoupling cap proximity: caps in IC groups get tighter radius
                 is_decoupling_cap = (
-                    ref.startswith("C") and
-                    ref in ref_to_leader and
-                    ref_to_leader[ref] != ref  # not the leader itself
+                    ref.startswith("C")
+                    and ref in ref_to_leader
+                    and ref_to_leader[ref] != ref  # not the leader itself
                 )
                 if is_decoupling_cap:
                     # Place within 1.5× clearance of centroid (very tight)
@@ -1628,7 +1978,9 @@ class PlacementSolver:
                                 comps[ref].pos.y - ox * sin_d + oy * cos_d,
                             )
                         comps[ref].rotation = rot
-                        rscore = self._score_rotation_for_routing(temp_state, comps[ref])
+                        rscore = self._score_rotation_for_routing(
+                            temp_state, comps[ref]
+                        )
                         if rscore > best_rscore:
                             best_rscore = rscore
                             best_rot = rot
@@ -1645,9 +1997,12 @@ class PlacementSolver:
 
                 placed_this_cluster.add(ref)
 
-    def _optimize_intra_cluster(self, comps: dict[str, Component],
-                                clusters: list[set[str]],
-                                conn_graph: AdjacencyGraph):
+    def _optimize_intra_cluster(
+        self,
+        comps: dict[str, Component],
+        clusters: list[set[str]],
+        conn_graph: AdjacencyGraph,
+    ):
         """Run a short force-directed pass within each cluster independently.
 
         This arranges components within functional groups (e.g. charger IC
@@ -1671,7 +2026,7 @@ class PlacementSolver:
 
                 # Attract connected pairs within cluster
                 for i, ra in enumerate(unlocked):
-                    for rb in unlocked[i + 1:]:
+                    for rb in unlocked[i + 1 :]:
                         w = conn_graph.weight(ra, rb)
                         if w <= 0:
                             continue
@@ -1688,7 +2043,7 @@ class PlacementSolver:
 
                 # Repel overlapping bboxes
                 for i, ra in enumerate(unlocked):
-                    for rb in unlocked[i + 1:]:
+                    for rb in unlocked[i + 1 :]:
                         a, b = comps[ra], comps[rb]
                         overlap = _bbox_overlap_amount(a, b)
                         if overlap <= 0:
@@ -1717,16 +2072,19 @@ class PlacementSolver:
                     comps[r].pos.y += dy
                     # Clamp to board
                     hw, hh = comps[r].width_mm / 2, comps[r].height_mm / 2
-                    comps[r].pos.x = max(tl.x + hw + 1.0, min(br.x - hw - 1.0, comps[r].pos.x))
-                    comps[r].pos.y = max(tl.y + hh + 1.0, min(br.y - hh - 1.0, comps[r].pos.y))
+                    comps[r].pos.x = max(
+                        tl.x + hw + 1.0, min(br.x - hw - 1.0, comps[r].pos.x)
+                    )
+                    comps[r].pos.y = max(
+                        tl.y + hh + 1.0, min(br.y - hh - 1.0, comps[r].pos.y)
+                    )
                     _update_pad_positions(comps[r], old_pos, comps[r].rotation)
 
                 damping *= 0.95
 
         print(f"  Intra-cluster optimization done ({len(clusters)} clusters)")
 
-    def _optimize_rotations(self, comps: dict[str, Component],
-                            work_state: BoardState):
+    def _optimize_rotations(self, comps: dict[str, Component], work_state: BoardState):
         """Try 0/90/180/270 rotations - optimize for routing (low crossovers + accessible pads)."""
         work_state.components = comps
 
@@ -1782,15 +2140,17 @@ class PlacementSolver:
                 )
             comp.rotation = best_rot
 
-    def _force_step(self, comps: dict[str, Component],
-                    conn_graph: AdjacencyGraph,
-                    damping: float) -> float:
+    def _force_step(
+        self, comps: dict[str, Component], conn_graph: AdjacencyGraph, damping: float
+    ) -> float:
         """One iteration of force-directed simulation. Returns max displacement."""
         # State dedup: skip if we've seen this exact layout before
-        state_h = hash(tuple(
-            (r, round(comps[r].pos.x, 2), round(comps[r].pos.y, 2))
-            for r in sorted(comps.keys())
-        ))
+        state_h = hash(
+            tuple(
+                (r, round(comps[r].pos.x, 2), round(comps[r].pos.y, 2))
+                for r in sorted(comps.keys())
+            )
+        )
         if state_h in self._seen_force_states:
             return 0.01  # signal convergence
         self._seen_force_states.add(state_h)
@@ -1827,8 +2187,9 @@ class PlacementSolver:
                 if a.locked and b.locked:
                     continue  # both fixed, nothing to do
                 d = a.pos.dist(b.pos)
-                min_dist = (max(a.width_mm, a.height_mm) +
-                            max(b.width_mm, b.height_mm)) / 2 + self.clearance
+                min_dist = (
+                    max(a.width_mm, a.height_mm) + max(b.width_mm, b.height_mm)
+                ) / 2 + self.clearance
                 if d > min_dist * 2:
                     continue  # too far to matter
                 if d < 0.1:
@@ -1849,15 +2210,21 @@ class PlacementSolver:
         # This distributes SMT across the available THT courtyard space
         # rather than clustering them all at the centroid.
         if self.cfg.get("smt_opposite_tht", True):
-            back_tht = [c for c in comps.values()
-                        if c.is_through_hole and c.layer == Layer.BACK]
+            back_tht = [
+                c for c in comps.values() if c.is_through_hole and c.layer == Layer.BACK
+            ]
             if back_tht:
                 smt_k = self.k_attract * 0.6
                 # Pre-compute back-THT bboxes
-                btht_bboxes = [(t.pos.x - t.width_mm / 2,
-                                t.pos.y - t.height_mm / 2,
-                                t.pos.x + t.width_mm / 2,
-                                t.pos.y + t.height_mm / 2) for t in back_tht]
+                btht_bboxes = [
+                    (
+                        t.pos.x - t.width_mm / 2,
+                        t.pos.y - t.height_mm / 2,
+                        t.pos.x + t.width_mm / 2,
+                        t.pos.y + t.height_mm / 2,
+                    )
+                    for t in back_tht
+                ]
                 for ref in refs:
                     c = comps[ref]
                     if c.is_through_hole or c.layer == Layer.BACK:
@@ -1894,6 +2261,21 @@ class PlacementSolver:
                 forces[ref].y += k_boundary * (tl.y + margin - (c.pos.y - hh))
             if c.pos.y + hh > br.y - margin:
                 forces[ref].y -= k_boundary * ((c.pos.y + hh) - (br.y - margin))
+
+        # Center attraction: weak force pulling components toward board center
+        # to prevent edge-clumping bias
+        cx = (tl.x + br.x) / 2.0
+        cy = (tl.y + br.y) / 2.0
+        k_center = 0.02  # weak — just enough to break edge-clumping symmetry
+        for ref in refs:
+            c = comps[ref]
+            dx = cx - c.pos.x
+            dy = cy - c.pos.y
+            dist = max(0.1, (dx * dx + dy * dy) ** 0.5)
+            # Scale by distance from center — stronger pull for far-flung components
+            strength = k_center * dist / max(1.0, (br.x - tl.x))
+            forces[ref].x += strength * dx
+            forces[ref].y += strength * dy
 
         # Large-pair alignment: keep paired components sharing an axis
         if self._aligned_pairs:
@@ -1966,19 +2348,21 @@ class PlacementSolver:
 
         return max_disp
 
-    def _force_step_numpy(self, comps: dict[str, Component],
-                          conn_graph: AdjacencyGraph,
-                          damping: float) -> float:
+    def _force_step_numpy(
+        self, comps: dict[str, Component], conn_graph: AdjacencyGraph, damping: float
+    ) -> float:
         """One iteration of force-directed simulation with numpy vectorization.
         Returns max displacement."""
         if not _HAS_NUMPY:
             return self._force_step(comps, conn_graph, damping)
 
         # State dedup: skip if we've seen this exact layout before
-        state_h = hash(tuple(
-            (r, round(comps[r].pos.x, 2), round(comps[r].pos.y, 2))
-            for r in sorted(comps.keys())
-        ))
+        state_h = hash(
+            tuple(
+                (r, round(comps[r].pos.x, 2), round(comps[r].pos.y, 2))
+                for r in sorted(comps.keys())
+            )
+        )
         if state_h in self._seen_force_states:
             return 0.01
         self._seen_force_states.add(state_h)
@@ -2013,7 +2397,9 @@ class PlacementSolver:
         locked = np.array([comps[r].locked for r in ref_list], dtype=bool)
 
         max_dims = np.maximum(widths, heights)
-        min_dists = (max_dims[:, np.newaxis] + max_dims[np.newaxis, :]) / 2 + self.clearance
+        min_dists = (
+            max_dims[:, np.newaxis] + max_dims[np.newaxis, :]
+        ) / 2 + self.clearance
 
         dx = pos_x[:, np.newaxis] - pos_x[np.newaxis, :]
         dy = pos_y[:, np.newaxis] - pos_y[np.newaxis, :]
@@ -2021,7 +2407,11 @@ class PlacementSolver:
 
         skip_mask = (dists > min_dists * 2) | (dists < 0.001)
 
-        force_mags = self.k_repel * (areas[:, np.newaxis] * areas[np.newaxis, :]) / (dists * dists + 0.01)
+        force_mags = (
+            self.k_repel
+            * (areas[:, np.newaxis] * areas[np.newaxis, :])
+            / (dists * dists + 0.01)
+        )
         np.fill_diagonal(force_mags, 0)
         force_mags = np.where(skip_mask, 0, force_mags)
 
@@ -2048,14 +2438,20 @@ class PlacementSolver:
 
         # SMT-opposite-THT attraction (same logic as _force_step)
         if self.cfg.get("smt_opposite_tht", True):
-            back_tht = [c for c in comps.values()
-                        if c.is_through_hole and c.layer == Layer.BACK]
+            back_tht = [
+                c for c in comps.values() if c.is_through_hole and c.layer == Layer.BACK
+            ]
             if back_tht:
                 smt_k = self.k_attract * 0.6
-                btht_bboxes = [(t.pos.x - t.width_mm / 2,
-                                t.pos.y - t.height_mm / 2,
-                                t.pos.x + t.width_mm / 2,
-                                t.pos.y + t.height_mm / 2) for t in back_tht]
+                btht_bboxes = [
+                    (
+                        t.pos.x - t.width_mm / 2,
+                        t.pos.y - t.height_mm / 2,
+                        t.pos.x + t.width_mm / 2,
+                        t.pos.y + t.height_mm / 2,
+                    )
+                    for t in back_tht
+                ]
                 for ref in refs:
                     c = comps[ref]
                     if c.is_through_hole or c.layer == Layer.BACK:
@@ -2195,7 +2591,7 @@ class PlacementSolver:
             for travel, nx, ny in moves:
                 nx_c = max(tl.x + hw + 1.0, min(br.x - hw - 1.0, nx))
                 ny_c = max(tl.y + hh + 1.0, min(br.y - hh - 1.0, ny))
-                clamped = (abs(nx_c - nx) > 0.01 or abs(ny_c - ny) > 0.01)
+                clamped = abs(nx_c - nx) > 0.01 or abs(ny_c - ny) > 0.01
                 key = (1 if clamped else 0, travel)
                 if best is None or key < best[0]:
                     best = (key, nx_c, ny_c)
@@ -2226,9 +2622,11 @@ class PlacementSolver:
                         # pinned, so connectors and mounting holes stay put.
                         zones = self.cfg.get("component_zones", {})
                         a_pinned = refs[i] in zones and (
-                            "edge" in zones[refs[i]] or "corner" in zones[refs[i]])
+                            "edge" in zones[refs[i]] or "corner" in zones[refs[i]]
+                        )
                         b_pinned = refs[j] in zones and (
-                            "edge" in zones[refs[j]] or "corner" in zones[refs[j]])
+                            "edge" in zones[refs[j]] or "corner" in zones[refs[j]]
+                        )
                         if a_pinned and not b_pinned:
                             if _escape(b, a_tl, a_br):
                                 b_tl, b_br = b.bbox(half_gap)
@@ -2266,19 +2664,27 @@ class PlacementSolver:
                             sign = 1.0 if a.pos.x >= b.pos.x else -1.0
                             old_a = Point(a.pos.x, a.pos.y)
                             old_b = Point(b.pos.x, b.pos.y)
-                            a.pos.x = max(tl.x + hw_a + 1.0,
-                                          min(br.x - hw_a - 1.0, a.pos.x + sign * push))
-                            b.pos.x = max(tl.x + hw_b + 1.0,
-                                          min(br.x - hw_b - 1.0, b.pos.x - sign * push))
+                            a.pos.x = max(
+                                tl.x + hw_a + 1.0,
+                                min(br.x - hw_a - 1.0, a.pos.x + sign * push),
+                            )
+                            b.pos.x = max(
+                                tl.x + hw_b + 1.0,
+                                min(br.x - hw_b - 1.0, b.pos.x - sign * push),
+                            )
                         else:
                             push = (oy + 0.1) / 2
                             sign = 1.0 if a.pos.y >= b.pos.y else -1.0
                             old_a = Point(a.pos.x, a.pos.y)
                             old_b = Point(b.pos.x, b.pos.y)
-                            a.pos.y = max(tl.y + hh_a + 1.0,
-                                          min(br.y - hh_a - 1.0, a.pos.y + sign * push))
-                            b.pos.y = max(tl.y + hh_b + 1.0,
-                                          min(br.y - hh_b - 1.0, b.pos.y - sign * push))
+                            a.pos.y = max(
+                                tl.y + hh_a + 1.0,
+                                min(br.y - hh_a - 1.0, a.pos.y + sign * push),
+                            )
+                            b.pos.y = max(
+                                tl.y + hh_b + 1.0,
+                                min(br.y - hh_b - 1.0, b.pos.y - sign * push),
+                            )
                         _update_pad_positions(a, old_a, a.rotation)
                         _update_pad_positions(b, old_b, b.rotation)
                         a_tl, a_br = a.bbox(half_gap)
@@ -2361,8 +2767,10 @@ class PlacementSolver:
                 comp.layer = Layer.BACK
                 moved.append(ref)
         if moved:
-            print(f"  Assigned {len(moved)} large THT component(s) to back layer: "
-                  f"{', '.join(moved)}")
+            print(
+                f"  Assigned {len(moved)} large THT component(s) to back layer: "
+                f"{', '.join(moved)}"
+            )
 
     def _align_large_pairs(self, comps: dict[str, Component]):
         """Detect and align pairs of large, similarly-sized components side-by-side.
@@ -2384,7 +2792,8 @@ class PlacementSolver:
 
         # Find candidates: large, non-passive, non-misc
         candidates = [
-            (ref, comp) for ref, comp in comps.items()
+            (ref, comp)
+            for ref, comp in comps.items()
             if comp.area >= min_area
             and comp.kind not in ("", "misc", "passive", "connector", "mounting_hole")
         ]
@@ -2395,7 +2804,7 @@ class PlacementSolver:
         for i, (ref_a, a) in enumerate(candidates):
             if ref_a in paired:
                 continue
-            for ref_b, b in candidates[i + 1:]:
+            for ref_b, b in candidates[i + 1 :]:
                 if ref_b in paired:
                     continue
                 if a.kind != b.kind:
@@ -2449,8 +2858,10 @@ class PlacementSolver:
                 a.pos.x = pair_cx - (b.width_mm + gap) / 2
                 b.pos.x = pair_cx + (a.width_mm + gap) / 2
                 # Clamp Y to zone
-                mid_y = max(zy0 + max(a.height_mm, b.height_mm) / 2,
-                            min(zy1 - max(a.height_mm, b.height_mm) / 2, mid_y))
+                mid_y = max(
+                    zy0 + max(a.height_mm, b.height_mm) / 2,
+                    min(zy1 - max(a.height_mm, b.height_mm) / 2, mid_y),
+                )
                 a.pos.y = mid_y
                 b.pos.y = mid_y
             else:
@@ -2463,8 +2874,10 @@ class PlacementSolver:
                 )
                 a.pos.y = pair_cy - (b.height_mm + gap) / 2
                 b.pos.y = pair_cy + (a.height_mm + gap) / 2
-                mid_x = max(zx0 + max(a.width_mm, b.width_mm) / 2,
-                            min(zx1 - max(a.width_mm, b.width_mm) / 2, mid_x))
+                mid_x = max(
+                    zx0 + max(a.width_mm, b.width_mm) / 2,
+                    min(zx1 - max(a.width_mm, b.width_mm) / 2, mid_x),
+                )
                 a.pos.x = mid_x
                 b.pos.x = mid_x
 
@@ -2474,8 +2887,10 @@ class PlacementSolver:
             self._aligned_pairs.append((ref_a, ref_b, axis))
 
         if pairs:
-            print(f"  Aligned {len(pairs)} large pair(s) side-by-side: "
-                  f"{', '.join(f'{a}+{b}' for a, b in pairs)}")
+            print(
+                f"  Aligned {len(pairs)} large pair(s) side-by-side: "
+                f"{', '.join(f'{a}+{b}' for a, b in pairs)}"
+            )
 
     def _clamp_pads_to_board(self, comps: dict[str, Component]):
         """Hard clamp: shift components inward so all pads are inside the board."""
@@ -2491,10 +2906,10 @@ class PlacementSolver:
                 continue
 
             # Track left/right and top/bottom violations separately
-            shift_left = 0.0   # positive = need to move right
+            shift_left = 0.0  # positive = need to move right
             shift_right = 0.0  # negative = need to move left
-            shift_up = 0.0     # positive = need to move down
-            shift_down = 0.0   # negative = need to move up
+            shift_up = 0.0  # positive = need to move down
+            shift_down = 0.0  # negative = need to move up
             for pad in comp.pads:
                 if pad.pos.x < min_x:
                     shift_left = max(shift_left, min_x - pad.pos.x)

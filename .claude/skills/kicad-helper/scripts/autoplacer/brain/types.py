@@ -3,16 +3,18 @@
 All types are plain Python dataclasses — no pcbnew imports.
 These serve as the interchange format between Brain and Hardware layers.
 """
+
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import IntEnum
-from math import hypot, atan2, pi, sqrt
-from typing import Optional, NamedTuple
+from math import atan2, hypot, pi, sqrt
+from typing import NamedTuple, Optional
 
 
 class Layer(IntEnum):
     FRONT = 0  # F.Cu
-    BACK = 1   # B.Cu
+    BACK = 1  # B.Cu
 
 
 @dataclass(slots=True)
@@ -42,10 +44,10 @@ class Point:
 
 @dataclass(slots=True)
 class Pad:
-    ref: str        # component reference, e.g. "U2"
-    pad_id: str     # pad number/name, e.g. "1"
-    pos: Point      # absolute position in mm
-    net: str        # net name
+    ref: str  # component reference, e.g. "U2"
+    pad_id: str  # pad number/name, e.g. "1"
+    pos: Point  # absolute position in mm
+    net: str  # net name
     layer: Layer
 
 
@@ -54,16 +56,18 @@ class Component:
     ref: str
     value: str
     pos: Point
-    rotation: float       # degrees
+    rotation: float  # degrees
     layer: Layer
-    width_mm: float       # bounding box width
-    height_mm: float      # bounding box height
+    width_mm: float  # bounding box width
+    height_mm: float  # bounding box height
     pads: list[Pad] = field(default_factory=list)
     locked: bool = False
-    kind: str = ""        # "connector", "mounting_hole", "ic", "passive", "misc"
+    kind: str = ""  # "connector", "mounting_hole", "ic", "passive", "misc"
     is_through_hole: bool = False  # True if footprint has PTH pads
     body_center: Point | None = None  # courtyard/body bbox center (absolute coords)
-    opening_direction: float | None = None  # LOCAL-frame angle (0/90/180/270) where opening faces
+    opening_direction: float | None = (
+        None  # LOCAL-frame angle (0/90/180/270) where opening faces
+    )
 
     @property
     def area(self) -> float:
@@ -92,8 +96,8 @@ class Component:
 class Net:
     name: str
     pad_refs: list[tuple[str, str]] = field(default_factory=list)  # [(ref, pad_id)]
-    priority: int = 0          # higher = route first
-    width_mm: float = 0.127    # trace width
+    priority: int = 0  # higher = route first
+    width_mm: float = 0.127  # trace width
     is_power: bool = False
 
     @property
@@ -125,8 +129,9 @@ class Via:
 @dataclass
 class BoardState:
     """Complete snapshot — the interchange format between Brain and Hardware."""
-    components: dict[str, Component] = field(default_factory=dict)   # ref -> Component
-    nets: dict[str, Net] = field(default_factory=dict)               # name -> Net
+
+    components: dict[str, Component] = field(default_factory=dict)  # ref -> Component
+    nets: dict[str, Net] = field(default_factory=dict)  # name -> Net
     traces: list[TraceSegment] = field(default_factory=list)
     vias: list[Via] = field(default_factory=list)
     board_outline: tuple[Point, Point] = field(
@@ -150,6 +155,7 @@ class BoardState:
 @dataclass
 class PlacementIterationSnapshot:
     """Snapshot of placement state at one iteration."""
+
     iteration: int = 0
     score: float = 0.0
     max_displacement: float = 0.0
@@ -170,39 +176,41 @@ class PlacementIterationSnapshot:
 class PlacementScore:
     """Scores a placement configuration before routing.
     Higher is better for all fields (0-100 scale)."""
+
     total: float = 0.0
-    net_distance: float = 0.0       # how close connected components are
-    crossover_count: int = 0        # estimated ratsnest crossings
-    crossover_score: float = 0.0    # 100 = zero crossings
-    compactness: float = 0.0        # board utilization
-    edge_compliance: float = 0.0    # connectors/holes on edges
-    rotation_score: float = 0.0     # pad alignment quality
+    net_distance: float = 0.0  # how close connected components are
+    crossover_count: int = 0  # estimated ratsnest crossings
+    crossover_score: float = 0.0  # 100 = zero crossings
+    compactness: float = 0.0  # board utilization
+    edge_compliance: float = 0.0  # connectors/holes on edges
+    rotation_score: float = 0.0  # pad alignment quality
     board_containment: float = 0.0  # % of pads/bodies inside board outline
     courtyard_overlap: float = 0.0  # 100 = no overlaps
     smt_opposite_tht: float = 100.0  # SMT-over-THT board space utilization
     group_coherence: float = 100.0  # functional group compactness (100 = perfect)
+    aspect_ratio: float = 100.0  # 100 = square board, penalized for elongated boards
 
     def compute_total(self, weights: Optional[dict] = None) -> float:
         w = weights or {
-            "net_distance": 0.22,        # connected parts close together
-            "crossover_score": 0.18,     # fewer crossings = easier routing
-            "compactness": 0.05,         # tighter layouts = smaller boards
+            "net_distance": 0.22,  # connected parts close together
+            "crossover_score": 0.18,  # fewer crossings = easier routing
+            "compactness": 0.02,  # tighter layouts = smaller boards
             "edge_compliance": 0.10,
-            "rotation_score": 0.03,
+            "rotation_score": 0.01,
             "board_containment": 0.12,
             "courtyard_overlap": 0.10,
-            "smt_opposite_tht": 0.10,   # SMT on opposite side of THT
-            "group_coherence": 0.10,    # functional groups stay compact
+            "smt_opposite_tht": 0.10,  # SMT on opposite side of THT
+            "group_coherence": 0.10,  # functional groups stay compact
+            "aspect_ratio": 0.05,  # penalize elongated board shapes
         }
-        self.total = sum(
-            getattr(self, k) * v for k, v in w.items()
-        )
+        self.total = sum(getattr(self, k) * v for k, v in w.items())
         return self.total
 
 
 @dataclass
 class DRCScore:
     """DRC violation penalties. Higher = fewer violations. 0-100 scale."""
+
     total: float = 100.0
     shorts: float = 100.0
     unconnected: float = 100.0
@@ -210,7 +218,7 @@ class DRCScore:
     courtyard: float = 100.0
 
     @staticmethod
-    def from_counts(drc_dict: dict) -> 'DRCScore':
+    def from_counts(drc_dict: dict) -> "DRCScore":
         """Convert quick_drc() output dict to DRCScore on 0-100 scale."""
         import math
 
@@ -232,6 +240,7 @@ class DRCScore:
 class ExperimentScore:
     """Unified score combining placement + routing quality.
     Single metric for the outer optimization loop. Higher = better."""
+
     placement: PlacementScore = field(default_factory=PlacementScore)
     routed_nets: int = 0
     total_nets: int = 0
@@ -248,11 +257,14 @@ class ExperimentScore:
     pipeline_drc: dict = field(default_factory=dict)
     skipped_routing: bool = False
 
-    def compute(self, weights: Optional[dict] = None,
-                drc_dict: Optional[dict] = None,
-                board_area_mm2: Optional[float] = None) -> float:
+    def compute(
+        self,
+        weights: Optional[dict] = None,
+        drc_dict: Optional[dict] = None,
+        board_area_mm2: Optional[float] = None,
+    ) -> float:
         """Compute unified score. Route completion dominates, then placement + DRC.
-        
+
         If board_area_mm2 is provided (from board size search), an area bonus
         rewards smaller boards.
         """
@@ -265,16 +277,35 @@ class ExperimentScore:
 
         # Route completion: most important — must get all nets routed
         if self.total_nets > 0:
-            route_pct = ((self.total_nets - self.failed_nets)
-                         / self.total_nets) * 100
+            route_pct = ((self.total_nets - self.failed_nets) / self.total_nets) * 100
         else:
             # No nets counted = routing was skipped or failed. Score 0, not 100.
             route_pct = 0.0
 
+        # Trace length efficiency: penalize long traces relative to board perimeter
+        # Good routing should have total length roughly proportional to
+        # (num_nets * avg_half_perimeter). Use board_area to estimate.
+        if self.total_trace_length_mm > 0 and self.routed_nets > 0:
+            # Estimate optimal: ~15mm baseline + sqrt(board_area)/2 per net
+            if board_area_mm2 and board_area_mm2 > 0:
+                import math as _m
+
+                est_half_perim = _m.sqrt(board_area_mm2) * 2
+                optimal_estimate = self.routed_nets * (est_half_perim / 4 + 10)
+            else:
+                optimal_estimate = self.routed_nets * 25.0
+            length_ratio = min(1.0, optimal_estimate / self.total_trace_length_mm)
+            trace_length_score = length_ratio * 100.0
+        else:
+            trace_length_score = 50.0
+
         # Via penalty: fewer vias per routed net = better
+        # Blended with trace length efficiency for joint penalization
         if self.routed_nets > 0:
             vias_per_net = self.via_count / self.routed_nets
-            via_score = max(0, min(100, 100 - vias_per_net * 20))
+            raw_via_score = max(0, min(100, 100 - vias_per_net * 20))
+            # Blend: 40% via penalty + 60% trace length efficiency
+            via_score = 0.4 * raw_via_score + 0.6 * trace_length_score
         elif self.skipped_routing:
             via_score = 0.0  # No routing = no via credit
         else:
@@ -289,11 +320,11 @@ class ExperimentScore:
             drc_val = self.drc_score.total
 
         self.total = (
-            w_placement * self.placement.total +
-            w_route * route_pct +
-            w_via * via_score +
-            w_contain * self.placement.board_containment +
-            w_drc * drc_val
+            w_placement * self.placement.total
+            + w_route * route_pct
+            + w_via * via_score
+            + w_contain * self.placement.board_containment
+            + w_drc * drc_val
         )
 
         # Hard score gates: cap score based on route completion
@@ -305,14 +336,16 @@ class ExperimentScore:
         # Area bonus: reward smaller boards (only when board size search is active)
         if board_area_mm2 is not None:
             import math as _math
+
             # Nonlinear area scoring: exponential decay rewards being closer
             # to the minimum viable area.  A board at min_area scores ~85,
             # at 2x min_area scores ~35, at max_area scores ~10.
             max_area = 120.0 * 80.0  # generous upper bound
             # Use a reference area proportional to a reasonable min (40% of max)
             ref_area = max_area * 0.4
-            area_score = max(0.0, min(100.0,
-                100.0 * _math.exp(-board_area_mm2 / (1.8 * ref_area))))
+            area_score = max(
+                0.0, min(100.0, 100.0 * _math.exp(-board_area_mm2 / (1.8 * ref_area)))
+            )
             w_area = w.get("area", 0.15)
             # Scale other weights down proportionally
             scale = 1.0 - w_area
@@ -321,34 +354,43 @@ class ExperimentScore:
         return self.total
 
     def summary(self) -> str:
-        return (f"score={self.total:.1f} "
-                f"routed={self.routed_nets}/{self.total_nets} "
-                f"failed={self.failed_nets} "
-                f"traces={self.trace_count} vias={self.via_count} "
-                f"length={self.total_trace_length_mm:.0f}mm "
-                f"placement={self.placement.total:.1f}")
+        return (
+            f"score={self.total:.1f} "
+            f"routed={self.routed_nets}/{self.total_nets} "
+            f"failed={self.failed_nets} "
+            f"traces={self.trace_count} vias={self.via_count} "
+            f"length={self.total_trace_length_mm:.0f}mm "
+            f"placement={self.placement.total:.1f}"
+        )
 
 
 # ---------------------------------------------------------------------------
 # Hierarchical group placement data structures
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class FunctionalGroup:
     """A functional group of components that belong together (e.g. one IC and
     its supporting passives, as defined by a schematic sub-sheet)."""
-    name: str                          # Human-readable name (e.g. "USB INPUT")
-    leader_ref: str                    # Primary component reference (e.g. "U1")
-    member_refs: list[str]             # All component refs including leader
-    inter_group_nets: list[str] = field(default_factory=list)  # Nets connecting to other groups
+
+    name: str  # Human-readable name (e.g. "USB INPUT")
+    leader_ref: str  # Primary component reference (e.g. "U1")
+    member_refs: list[str]  # All component refs including leader
+    inter_group_nets: list[str] = field(
+        default_factory=list
+    )  # Nets connecting to other groups
 
 
 @dataclass
 class GroupSet:
     """Complete set of functional groups for a project."""
+
     groups: list[FunctionalGroup] = field(default_factory=list)
-    ungrouped_refs: list[str] = field(default_factory=list)  # Components not in any group
-    source: str = "auto"               # "schematic", "netlist", "manual", "auto"
+    ungrouped_refs: list[str] = field(
+        default_factory=list
+    )  # Components not in any group
+    source: str = "auto"  # "schematic", "netlist", "manual", "auto"
 
     def ref_to_group(self) -> dict[str, FunctionalGroup]:
         """Build reverse map: component ref -> its FunctionalGroup."""
@@ -374,9 +416,12 @@ class PlacedGroup:
     Component positions are stored relative to the group origin (0, 0).
     The bounding_box gives the overall envelope of the placed group.
     """
+
     group: FunctionalGroup
     bounding_box: tuple[float, float]  # (width, height) in mm
-    component_positions: dict[str, tuple[float, float, float]]  # ref -> (rel_x, rel_y, rotation)
+    component_positions: dict[
+        str, tuple[float, float, float]
+    ]  # ref -> (rel_x, rel_y, rotation)
     component_layers: dict[str, Layer] = field(default_factory=dict)  # ref -> layer
 
     @property

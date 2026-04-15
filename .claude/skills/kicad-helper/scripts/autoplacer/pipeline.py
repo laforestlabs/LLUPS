@@ -3,21 +3,32 @@
 Routing uses FreeRouting (Java) via DSN/SES file exchange.
 Each engine: adapter.load() -> algorithm -> score.
 """
+
 from __future__ import annotations
+
 import os
+import sys
 import time
 from typing import Any
 
-from .brain.types import (
-    BoardState, PlacementScore, ExperimentScore, DRCScore, Point,
-)
-from .brain.placement import PlacementSolver, PlacementScorer, compute_min_board_size
-from .brain.placement import _update_pad_positions
-from .brain.groups import resolve_groups, derive_signal_flow_order
 from .brain.group_placer import GroupPlacer
-from .freerouting_runner import route_with_freerouting, count_board_tracks
-from .hardware.adapter import KiCadAdapter
+from .brain.groups import derive_signal_flow_order, resolve_groups
+from .brain.placement import (
+    PlacementScorer,
+    PlacementSolver,
+    _update_pad_positions,
+    compute_min_board_size,
+)
+from .brain.types import (
+    BoardState,
+    DRCScore,
+    ExperimentScore,
+    PlacementScore,
+    Point,
+)
 from .config import DEFAULT_CONFIG, LLUPS_CONFIG
+from .freerouting_runner import count_board_tracks, route_with_freerouting
+from .hardware.adapter import KiCadAdapter
 
 
 def _override_board_outline(state: BoardState, cfg: dict):
@@ -42,8 +53,9 @@ class PlacementEngine:
       - flat (legacy): global force-directed placement with clustering.
     """
 
-    def run(self, pcb_path: str, output_path: str = None,
-            config: dict = None, seed: int = 0) -> dict:
+    def run(
+        self, pcb_path: str, output_path: str = None, config: dict = None, seed: int = 0
+    ) -> dict:
         cfg = {**DEFAULT_CONFIG, **LLUPS_CONFIG, **(config or {})}
         adapter = KiCadAdapter(pcb_path, config=cfg)
         state = adapter.load()
@@ -55,15 +67,16 @@ class PlacementEngine:
         # Compute minimum viable board size for search bounds
         overhead = cfg.get("board_size_overhead_factor", 2.5)
         min_w, min_h = compute_min_board_size(state, overhead)
-        print(f"  Min viable board: {min_w:.0f} x {min_h:.0f} mm "
-              f"(overhead={overhead:.1f}x)")
+        print(
+            f"  Min viable board: {min_w:.0f} x {min_h:.0f} mm "
+            f"(overhead={overhead:.1f}x)"
+        )
 
         # Choose placement strategy
         use_hierarchical = cfg.get("hierarchical_placement", True)
 
         if use_hierarchical:
-            new_comps = self._run_hierarchical(
-                pcb_path, adapter, state, cfg, seed)
+            new_comps = self._run_hierarchical(pcb_path, adapter, state, cfg, seed)
         else:
             new_comps = self._run_flat(state, cfg, seed)
 
@@ -76,8 +89,13 @@ class PlacementEngine:
             state2 = adapter.load()
             _override_board_outline(state2, cfg)
             fallback_cfg = {**cfg}
-            for k in ("force_attract_k", "force_repel_k", "cooling_factor",
-                       "placement_clearance_mm", "orderedness"):
+            for k in (
+                "force_attract_k",
+                "force_repel_k",
+                "cooling_factor",
+                "placement_clearance_mm",
+                "orderedness",
+            ):
                 if k in DEFAULT_CONFIG:
                     fallback_cfg[k] = DEFAULT_CONFIG[k]
             new_comps = self._run_flat(state2, fallback_cfg, seed + 1)
@@ -93,8 +111,12 @@ class PlacementEngine:
         pads_outside = 0
         for comp in new_comps.values():
             for pad in comp.pads:
-                if (pad.pos.x < tl.x + inset or pad.pos.x > br.x - inset or
-                        pad.pos.y < tl.y + inset or pad.pos.y > br.y - inset):
+                if (
+                    pad.pos.x < tl.x + inset
+                    or pad.pos.x > br.x - inset
+                    or pad.pos.y < tl.y + inset
+                    or pad.pos.y > br.y - inset
+                ):
                     pads_outside += 1
 
         return {
@@ -113,15 +135,21 @@ class PlacementEngine:
             "min_board_height_mm": min_h,
         }
 
-    def _run_flat(self, state: BoardState, cfg: dict, seed: int
-                  ) -> dict[str, 'Component']:
+    def _run_flat(
+        self, state: BoardState, cfg: dict, seed: int
+    ) -> dict[str, "Component"]:
         """Legacy flat placement: global force-directed with clustering."""
         solver = PlacementSolver(state, cfg, seed=seed)
         return solver.solve()
 
-    def _run_hierarchical(self, pcb_path: str, adapter: 'KiCadAdapter',
-                          state: BoardState, cfg: dict, seed: int
-                          ) -> dict[str, 'Component']:
+    def _run_hierarchical(
+        self,
+        pcb_path: str,
+        adapter: "KiCadAdapter",
+        state: BoardState,
+        cfg: dict,
+        seed: int,
+    ) -> dict[str, "Component"]:
         """Hierarchical group-based placement.
 
         1. Extract functional groups
@@ -136,7 +164,8 @@ class PlacementEngine:
         project_dir = os.path.dirname(os.path.abspath(pcb_path))
         component_refs = list(state.components.keys())
         group_set = resolve_groups(
-            project_dir, component_refs, state.nets, cfg, seed=seed)
+            project_dir, component_refs, state.nets, cfg, seed=seed
+        )
 
         if not group_set.groups:
             print("  No functional groups found — falling back to flat placement")
@@ -152,21 +181,25 @@ class PlacementEngine:
         solver = PlacementSolver(state, cfg, seed=seed)
         placed_groups = []
         for group in group_set.groups:
-            print(f"  Placing group '{group.name}' ({len(group.member_refs)} components)...")
+            print(
+                f"  Placing group '{group.name}' ({len(group.member_refs)} components)..."
+            )
             pg = solver.solve_group(group, state.components, state.nets)
             placed_groups.append(pg)
             print(f"    -> {pg.width:.1f} x {pg.height:.1f} mm block")
 
         # --- Step 3: Inter-group placement ---
         print(f"  Arranging {len(placed_groups)} groups on board...")
-        ungrouped_comps = {ref: state.components[ref]
-                           for ref in group_set.ungrouped_refs
-                           if ref in state.components}
+        ungrouped_comps = {
+            ref: state.components[ref]
+            for ref in group_set.ungrouped_refs
+            if ref in state.components
+        }
 
         group_placer = GroupPlacer(state, cfg, seed=seed)
         global_positions = group_placer.place_groups(
-            placed_groups, ungrouped_comps, state.nets,
-            signal_flow_order=flow_order)
+            placed_groups, ungrouped_comps, state.nets, signal_flow_order=flow_order
+        )
 
         # --- Step 4: Apply global positions to components ---
         new_comps = copy.deepcopy(state.components)
@@ -219,8 +252,12 @@ class PlacementEngine:
             any_outside = False
             for comp in new_comps.values():
                 for pad in comp.pads:
-                    if (pad.pos.x < tl.x + inset or pad.pos.x > br.x - inset or
-                            pad.pos.y < tl.y + inset or pad.pos.y > br.y - inset):
+                    if (
+                        pad.pos.x < tl.x + inset
+                        or pad.pos.x > br.x - inset
+                        or pad.pos.y < tl.y + inset
+                        or pad.pos.y > br.y - inset
+                    ):
                         any_outside = True
                         break
                 if any_outside:
@@ -241,10 +278,12 @@ class PlacementEngine:
         # Final score
         state.components = new_comps
         final = PlacementScorer(state, cfg).score()
-        print(f"  Final placement score: {final.total:.1f} "
-              f"(nets={final.net_distance:.0f} "
-              f"cross={final.crossover_score:.0f} "
-              f"xovers={final.crossover_count})")
+        print(
+            f"  Final placement score: {final.total:.1f} "
+            f"(nets={final.net_distance:.0f} "
+            f"cross={final.crossover_score:.0f} "
+            f"xovers={final.crossover_count})"
+        )
 
         return new_comps
 
@@ -252,13 +291,13 @@ class PlacementEngine:
 class RoutingEngine:
     """Run FreeRouting autorouter via DSN/SES file exchange."""
 
-    def run(self, pcb_path: str, output_path: str = None,
-            config: dict = None) -> dict:
+    def run(self, pcb_path: str, output_path: str = None, config: dict = None) -> dict:
         cfg = {**DEFAULT_CONFIG, **LLUPS_CONFIG, **(config or {})}
         out = output_path or pcb_path
 
-        jar_path = cfg.get("freerouting_jar",
-                           os.path.expanduser("~/.local/lib/freerouting-1.9.0.jar"))
+        jar_path = cfg.get(
+            "freerouting_jar", os.path.expanduser("~/.local/lib/freerouting-1.9.0.jar")
+        )
 
         t0 = time.monotonic()
         stats = route_with_freerouting(pcb_path, out, jar_path, cfg)
@@ -272,10 +311,13 @@ class RoutingEngine:
         state = adapter.load()
         skip_gnd = cfg.get("skip_gnd_routing", True)
         ignore_nets = set(cfg.get("freerouting_ignore_nets", []))
-        routable_nets = [n for n in state.nets.values()
-                         if len(n.pad_refs) >= 2 and
-                         not (skip_gnd and n.name in ("GND", "/GND")) and
-                         n.name not in ignore_nets]
+        routable_nets = [
+            n
+            for n in state.nets.values()
+            if len(n.pad_refs) >= 2
+            and not (skip_gnd and n.name in ("GND", "/GND"))
+            and n.name not in ignore_nets
+        ]
         n_total = len(routable_nets)
 
         # FreeRouting reports unrouted count; derive failed nets
@@ -297,8 +339,9 @@ class RoutingEngine:
 class FullPipeline:
     """Run placement + routing + scoring in sequence."""
 
-    def run(self, pcb_path: str, output_path: str = None,
-            config: dict = None, seed: int = 0) -> dict:
+    def run(
+        self, pcb_path: str, output_path: str = None, config: dict = None, seed: int = 0
+    ) -> dict:
         cfg = {**DEFAULT_CONFIG, **LLUPS_CONFIG, **(config or {})}
         out = output_path or pcb_path
 
@@ -322,16 +365,21 @@ class FullPipeline:
         p_pads_out = placement.get("pads_outside_board", 0)
 
         if p_pads_out > 0:
-            skip_reason = (f"{p_pads_out} pads outside board boundary — "
-                           f"placement invalid")
+            skip_reason = (
+                f"{p_pads_out} pads outside board boundary — placement invalid"
+            )
         elif p_score < min_score:
-            skip_reason = (f"total score {p_score:.1f} < {min_score}")
+            skip_reason = f"total score {p_score:.1f} < {min_score}"
         elif p_contain < min_containment:
-            skip_reason = (f"board containment {p_contain:.1f}% < {min_containment}% "
-                           f"(pads/bodies outside board)")
+            skip_reason = (
+                f"board containment {p_contain:.1f}% < {min_containment}% "
+                f"(pads/bodies outside board)"
+            )
         elif p_courtyard < min_courtyard:
-            skip_reason = (f"courtyard overlap score {p_courtyard:.1f} < {min_courtyard} "
-                           f"(major component overlaps)")
+            skip_reason = (
+                f"courtyard overlap score {p_courtyard:.1f} < {min_courtyard} "
+                f"(major component overlaps)"
+            )
 
         if skip_reason:
             print(f"  Placement REJECTED: {skip_reason} — skipping routing")
@@ -350,18 +398,38 @@ class FullPipeline:
                 board_containment=placement.get("board_containment", 0),
                 courtyard_overlap=placement.get("courtyard_overlap", 0),
             )
-            _skip_drc = {"shorts": 0, "unconnected": 0,
-                         "clearance": 0, "courtyard": 0, "total": 0}
+            _skip_drc = {
+                "shorts": 0,
+                "unconnected": 0,
+                "clearance": 0,
+                "courtyard": 0,
+                "total": 0,
+            }
             exp_score.pipeline_drc = _skip_drc
-            exp_score.compute(drc_dict=_skip_drc,
-                             board_area_mm2=cfg.get("board_width_mm", 90.0) * cfg.get("board_height_mm", 58.0)
-                                            if cfg.get("enable_board_size_search") else None)
+            exp_score.compute(
+                drc_dict=_skip_drc,
+                board_area_mm2=cfg.get("board_width_mm", 90.0)
+                * cfg.get("board_height_mm", 58.0)
+                if cfg.get("enable_board_size_search")
+                else None,
+            )
             return {
                 "placement": placement,
-                "routing": {"traces": 0, "vias": 0, "failed_nets": [],
-                            "total_nets": 0, "total_length_mm": 0, "routing_ms": 0},
-                "drc": {"shorts": 0, "unconnected": 0, "clearance": 0,
-                        "courtyard": 0, "total": 0},
+                "routing": {
+                    "traces": 0,
+                    "vias": 0,
+                    "failed_nets": [],
+                    "total_nets": 0,
+                    "total_length_mm": 0,
+                    "routing_ms": 0,
+                },
+                "drc": {
+                    "shorts": 0,
+                    "unconnected": 0,
+                    "clearance": 0,
+                    "courtyard": 0,
+                    "total": 0,
+                },
                 "experiment_score": exp_score,
                 "skipped_routing": True,
             }
@@ -389,9 +457,11 @@ class FullPipeline:
         print("Phase 3: DRC Analysis")
         print("=" * 50)
         drc = _run_kicad_cli_drc(out)
-        print(f"  DRC: {drc['total']} violations "
-              f"(shorts={drc['shorts']} unconnected={drc['unconnected']} "
-              f"clearance={drc['clearance']} courtyard={drc['courtyard']})")
+        print(
+            f"  DRC: {drc['total']} violations "
+            f"(shorts={drc['shorts']} unconnected={drc['unconnected']} "
+            f"clearance={drc['clearance']} courtyard={drc['courtyard']})"
+        )
 
         # Build unified experiment score
         failed = routing["failed_nets"]
@@ -422,9 +492,13 @@ class FullPipeline:
             courtyard_overlap=placement.get("courtyard_overlap", 0),
         )
         exp_score.pipeline_drc = drc
-        exp_score.compute(drc_dict=drc,
-                         board_area_mm2=cfg.get("board_width_mm", 90.0) * cfg.get("board_height_mm", 58.0)
-                                        if cfg.get("enable_board_size_search") else None)
+        exp_score.compute(
+            drc_dict=drc,
+            board_area_mm2=cfg.get("board_width_mm", 90.0)
+            * cfg.get("board_height_mm", 58.0)
+            if cfg.get("enable_board_size_search")
+            else None,
+        )
 
         return {
             "placement": placement,
@@ -437,6 +511,7 @@ class FullPipeline:
 def _ensure_gnd_zone_subprocess(pcb_path: str, cfg: dict) -> None:
     """Create/update GND zone in a subprocess to avoid pcbnew SWIG corruption."""
     import subprocess
+
     zone_net = cfg.get("gnd_zone_net", "GND")
     if not zone_net:
         return
@@ -444,61 +519,72 @@ def _ensure_gnd_zone_subprocess(pcb_path: str, cfg: dict) -> None:
     margin_mm = cfg.get("gnd_zone_margin_mm", 0.5)
     target_layer = "pcbnew.B_Cu" if layer == "B.Cu" else "pcbnew.F_Cu"
     subprocess.run(
-        ["python3", "-c",
-         "import pcbnew\n"
-         f"board = pcbnew.LoadBoard({pcb_path!r})\n"
-         f"zone_net_name = {zone_net!r}\n"
-         f"target_layer = {target_layer}\n"
-         f"margin = pcbnew.FromMM({margin_mm})\n"
-         "gnd_net = board.GetNetInfo().GetNetItem(zone_net_name)\n"
-         "if not gnd_net or gnd_net.GetNetCode() == 0:\n"
-         "    print(f'WARNING: Net {zone_net_name!r} not found')\n"
-         "    raise SystemExit(0)\n"
-         "rect = board.GetBoardEdgesBoundingBox()\n"
-         "x1 = rect.GetX() + margin\n"
-         "y1 = rect.GetY() + margin\n"
-         "x2 = x1 + rect.GetWidth() - 2 * margin\n"
-         "y2 = y1 + rect.GetHeight() - 2 * margin\n"
-         "existing = None\n"
-         "for z in board.Zones():\n"
-         "    if z.GetLayer() == target_layer and z.GetNetname() == zone_net_name and not z.GetIsRuleArea():\n"
-         "        existing = z; break\n"
-         "if existing:\n"
-         "    ol = existing.Outline(); ol.RemoveAllContours(); ol.NewOutline()\n"
-         "    ol.Append(x1,y1); ol.Append(x2,y1); ol.Append(x2,y2); ol.Append(x1,y2)\n"
-         "else:\n"
-         "    z = pcbnew.ZONE(board); z.SetNet(gnd_net); z.SetLayer(target_layer)\n"
-         "    z.SetIsRuleArea(False); z.SetDoNotAllowTracks(False); z.SetDoNotAllowVias(False)\n"
-         "    z.SetDoNotAllowPads(False); z.SetDoNotAllowCopperPour(False)\n"
-         "    z.SetLocalClearance(pcbnew.FromMM(0.3))\n"
-         "    z.SetMinThickness(pcbnew.FromMM(0.25))\n"
-         "    z.SetPadConnection(pcbnew.ZONE_CONNECTION_THERMAL)\n"
-         "    z.SetThermalReliefGap(pcbnew.FromMM(0.5))\n"
-         "    z.SetThermalReliefSpokeWidth(pcbnew.FromMM(0.5))\n"
-         "    z.SetAssignedPriority(0)\n"
-         "    ol = z.Outline(); ol.NewOutline()\n"
-         "    ol.Append(x1,y1); ol.Append(x2,y1); ol.Append(x2,y2); ol.Append(x1,y2)\n"
-         "    board.Add(z)\n"
-         "filler = pcbnew.ZONE_FILLER(board)\n"
-         "filler.Fill(board.Zones())\n"
-         f"board.Save({pcb_path!r})\n"
-         f"print('GND zone on {layer}: ensured and filled')\n"],
-        capture_output=True, text=True, timeout=60,
+        [
+            sys.executable,
+            "-c",
+            "import pcbnew\n"
+            f"board = pcbnew.LoadBoard({pcb_path!r})\n"
+            f"zone_net_name = {zone_net!r}\n"
+            f"target_layer = {target_layer}\n"
+            f"margin = pcbnew.FromMM({margin_mm})\n"
+            "gnd_net = board.GetNetInfo().GetNetItem(zone_net_name)\n"
+            "if not gnd_net or gnd_net.GetNetCode() == 0:\n"
+            "    print(f'WARNING: Net {zone_net_name!r} not found')\n"
+            "    raise SystemExit(0)\n"
+            "rect = board.GetBoardEdgesBoundingBox()\n"
+            "x1 = rect.GetX() + margin\n"
+            "y1 = rect.GetY() + margin\n"
+            "x2 = x1 + rect.GetWidth() - 2 * margin\n"
+            "y2 = y1 + rect.GetHeight() - 2 * margin\n"
+            "existing = None\n"
+            "for z in board.Zones():\n"
+            "    if z.GetLayer() == target_layer and z.GetNetname() == zone_net_name and not z.GetIsRuleArea():\n"
+            "        existing = z; break\n"
+            "if existing:\n"
+            "    ol = existing.Outline(); ol.RemoveAllContours(); ol.NewOutline()\n"
+            "    ol.Append(x1,y1); ol.Append(x2,y1); ol.Append(x2,y2); ol.Append(x1,y2)\n"
+            "else:\n"
+            "    z = pcbnew.ZONE(board); z.SetNet(gnd_net); z.SetLayer(target_layer)\n"
+            "    z.SetIsRuleArea(False); z.SetDoNotAllowTracks(False); z.SetDoNotAllowVias(False)\n"
+            "    z.SetDoNotAllowPads(False); z.SetDoNotAllowCopperPour(False)\n"
+            "    z.SetLocalClearance(pcbnew.FromMM(0.3))\n"
+            "    z.SetMinThickness(pcbnew.FromMM(0.25))\n"
+            "    z.SetPadConnection(pcbnew.ZONE_CONNECTION_THERMAL)\n"
+            "    z.SetThermalReliefGap(pcbnew.FromMM(0.5))\n"
+            "    z.SetThermalReliefSpokeWidth(pcbnew.FromMM(0.5))\n"
+            "    z.SetAssignedPriority(0)\n"
+            "    ol = z.Outline(); ol.NewOutline()\n"
+            "    ol.Append(x1,y1); ol.Append(x2,y1); ol.Append(x2,y2); ol.Append(x1,y2)\n"
+            "    board.Add(z)\n"
+            "filler = pcbnew.ZONE_FILLER(board)\n"
+            "filler.Fill(board.Zones())\n"
+            f"board.Save({pcb_path!r})\n"
+            f"print('GND zone on {layer}: ensured and filled')\n",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
 
 
 def _refill_zones(pcb_path: str) -> None:
     """Re-fill copper zones so they respect the final trace layout."""
     import subprocess
+
     subprocess.run(
-        ["python3", "-c",
-         "import pcbnew\n"
-         f"board = pcbnew.LoadBoard({pcb_path!r})\n"
-         "board.BuildConnectivity()\n"
-         "filler = pcbnew.ZONE_FILLER(board)\n"
-         "filler.Fill(board.Zones())\n"
-         f"board.Save({pcb_path!r})\n"],
-        capture_output=True, text=True, timeout=60,
+        [
+            sys.executable,
+            "-c",
+            "import pcbnew\n"
+            f"board = pcbnew.LoadBoard({pcb_path!r})\n"
+            "board.BuildConnectivity()\n"
+            "filler = pcbnew.ZONE_FILLER(board)\n"
+            "filler.Fill(board.Zones())\n"
+            f"board.Save({pcb_path!r})\n",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
 
 
@@ -514,14 +600,16 @@ def _run_kicad_cli_drc(pcb_path: str) -> dict:
             report_path = f.name
         subprocess.run(
             ["kicad-cli", "pcb", "drc", "-o", report_path, pcb_path],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         with open(report_path) as f:
             report = f.read()
         os.remove(report_path)
 
         for line in report.splitlines():
-            m = re.match(r'^\[(\w+)\]:', line)
+            m = re.match(r"^\[(\w+)\]:", line)
             if not m:
                 continue
             vtype = m.group(1)

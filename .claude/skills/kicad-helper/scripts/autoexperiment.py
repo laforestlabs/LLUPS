@@ -14,7 +14,9 @@ and automatically escalates to a MAJOR mutation to escape local optima.
 Usage:
     python3 autoexperiment.py <file.kicad_pcb> [--rounds 100] [--program program.md]
 """
+
 from __future__ import annotations
+
 import argparse
 import copy
 import glob
@@ -23,8 +25,8 @@ import multiprocessing as mp
 import os
 import random
 import re
-import signal
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -38,13 +40,14 @@ _SCRIPT_DIR = str(Path(__file__).parent.absolute())
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
+from autoplacer.brain.types import ExperimentScore
 from autoplacer.config import DEFAULT_CONFIG, LLUPS_CONFIG
 from autoplacer.pipeline import FullPipeline
-from autoplacer.brain.types import ExperimentScore
 
 # Group label support (silkscreen labels for IC groups)
 try:
     from add_group_labels import add_group_labels as _add_group_labels
+
     _GROUP_LABELS_AVAILABLE = True
 except ImportError:
     _GROUP_LABELS_AVAILABLE = False
@@ -66,17 +69,19 @@ def _apply_group_labels(pcb_path: str, cfg: dict) -> None:
             in_place=True,
         )
     except Exception as e:
-        print(f"  Warning: group label update failed: {e}",
-              file=sys.stderr, flush=True)
+        print(f"  Warning: group label update failed: {e}", file=sys.stderr, flush=True)
+
 
 # Optional logging support
 try:
     import logging_config
+
     LOGGING_AVAILABLE = True
 except ImportError:
     LOGGING_AVAILABLE = False
 
 log = None  # Will be initialized in main if logging available
+
 
 def _check_stop_request(work_dir: Path) -> bool:
     """Check if stop has been requested via signal file."""
@@ -100,10 +105,11 @@ def _log_event(event: str, **kwargs) -> None:
 @dataclass
 class Experiment:
     """Record of a single experiment run."""
+
     round_num: int
     seed: int
-    config_delta: dict        # only the keys that differ from baseline
-    mode: str                 # "minor" or "major"
+    config_delta: dict  # only the keys that differ from baseline
+    mode: str  # "minor" or "major"
     score: float = 0.0
     details: str = ""
     duration_s: float = 0.0
@@ -233,6 +239,7 @@ def load_program(path: str) -> dict:
     """Load program.md — the human-editable search space definition.
     Returns parsed config with parameter ranges and strategy."""
     import re
+
     program = {"param_ranges": {}, "strategy": {}, "score_weights": {}}
     if not os.path.exists(path):
         return program
@@ -241,7 +248,7 @@ def load_program(path: str) -> dict:
         text = f.read()
 
     # Parse YAML-like blocks from markdown code fences
-    for match in re.finditer(r'```(?:yaml|json)\s*\n(.*?)```', text, re.DOTALL):
+    for match in re.finditer(r"```(?:yaml|json)\s*\n(.*?)```", text, re.DOTALL):
         block = match.group(1).strip()
         try:
             data = json.loads(block)
@@ -259,8 +266,9 @@ def _board_area(cfg: dict):
     return None
 
 
-def mutate_config_minor(base: dict, rng: random.Random,
-                        param_ranges: dict = None) -> dict:
+def mutate_config_minor(
+    base: dict, rng: random.Random, param_ranges: dict = None
+) -> dict:
     """Small perturbation of continuous parameters."""
     cfg = copy.deepcopy(base)
     ranges = param_ranges or {}
@@ -268,11 +276,11 @@ def mutate_config_minor(base: dict, rng: random.Random,
     # Parameters eligible for minor mutation with (min, max, sigma_frac)
     tunable = {
         "force_attract_k": (0.005, 0.15, 0.15),
-        "force_repel_k":   (100.0, 500.0, 0.15),
-        "cooling_factor":  (0.90, 0.995, 0.05),
-        "edge_margin_mm":  (4.0, 10.0, 0.1),
+        "force_repel_k": (100.0, 500.0, 0.15),
+        "cooling_factor": (0.90, 0.995, 0.05),
+        "edge_margin_mm": (4.0, 10.0, 0.1),
         "placement_clearance_mm": (1.0, 3.0, 0.15),
-        "orderedness":             (0.0, 1.0, 0.2),
+        "orderedness": (0.0, 1.0, 0.2),
         "connector_edge_inset_mm": (0.0, 3.0, 0.15),
         "max_placement_iterations": (100, 500, 0.15),
     }
@@ -320,11 +328,58 @@ def mutate_config_minor(base: dict, rng: random.Random,
             new_val = int(round(new_val))
         cfg[key] = round(new_val, 4)
 
+    # Enforce minimum orderedness to maintain signal flow ordering
+    if cfg.get("orderedness", 0.0) < 0.2:
+        cfg["orderedness"] = 0.2
+
     return cfg
 
 
-def mutate_config_major(base: dict, rng: random.Random,
-                        param_ranges: dict = None) -> dict:
+def _clamp_board_guardrails(cfg: dict) -> dict:
+    """Apply guardrails to board dimensions: aspect ratio, area cap, clearance floor."""
+    if not cfg.get("enable_board_size_search", False):
+        return cfg
+
+    min_w = cfg.get("_min_board_width_mm", 45.0)
+    min_h = cfg.get("_min_board_height_mm", 35.0)
+    min_area = min_w * min_h
+
+    w = cfg.get("board_width_mm", min_w)
+    h = cfg.get("board_height_mm", min_h)
+
+    # Clamp aspect ratio to max 2:1 in either direction
+    if w > 0 and h > 0:
+        ratio = w / h
+        if ratio > 2.0:
+            h = w / 2.0
+        elif ratio < 0.5:
+            w = h / 2.0
+
+    # Cap board area at 3x the min viable area
+    max_area = 3.0 * min_area
+    if w * h > max_area:
+        scale = (max_area / (w * h)) ** 0.5
+        w *= scale
+        h *= scale
+
+    # Round to 5mm steps
+    w = round(w / 5.0) * 5.0
+    h = round(h / 5.0) * 5.0
+
+    # Enforce minimums
+    cfg["board_width_mm"] = max(w, min_w)
+    cfg["board_height_mm"] = max(h, min_h)
+
+    # Enforce placement_clearance_mm >= 2.0 (below causes overlaps)
+    if cfg.get("placement_clearance_mm", 2.0) < 2.0:
+        cfg["placement_clearance_mm"] = 2.0
+
+    return cfg
+
+
+def mutate_config_major(
+    base: dict, rng: random.Random, param_ranges: dict = None
+) -> dict:
     """Large structural change: new seed + aggressive param shifts.
 
     Uses uniform sampling across full parameter ranges (not Gaussian
@@ -335,10 +390,10 @@ def mutate_config_major(base: dict, rng: random.Random,
     # Sample fresh from full ranges — uniform, not Gaussian
     aggressive_tunable = {
         "force_attract_k": (0.005, 0.15),
-        "force_repel_k":   (100.0, 500.0),
-        "cooling_factor":  (0.90, 0.995),
-        "placement_clearance_mm": (1.5, 5.0),
-        "orderedness":             (0.0, 1.0),
+        "force_repel_k": (100.0, 500.0),
+        "cooling_factor": (0.90, 0.995),
+        "placement_clearance_mm": (2.0, 5.0),
+        "orderedness": (0.0, 1.0),
         "max_placement_iterations": (100, 500),
     }
     if cfg.get("enable_board_size_search", False):
@@ -349,8 +404,9 @@ def mutate_config_major(base: dict, rng: random.Random,
         aggressive_tunable["board_width_mm"] = (min_w, max_w)
         aggressive_tunable["board_height_mm"] = (min_h, max_h)
 
-    keys = rng.sample(list(aggressive_tunable.keys()),
-                      rng.randint(1, len(aggressive_tunable)))
+    keys = rng.sample(
+        list(aggressive_tunable.keys()), rng.randint(1, len(aggressive_tunable))
+    )
     for key in keys:
         lo, hi = aggressive_tunable[key]
         new_val = rng.uniform(lo, hi)
@@ -368,6 +424,13 @@ def mutate_config_major(base: dict, rng: random.Random,
     # 50% chance of random scatter (vs cluster-based)
     cfg["scatter_mode"] = "random" if rng.random() < 0.5 else "cluster"
 
+    # Apply guardrails: aspect ratio, area cap, clearance floor
+    cfg = _clamp_board_guardrails(cfg)
+
+    # Enforce minimum orderedness to maintain signal flow ordering
+    if cfg.get("orderedness", 0.0) < 0.2:
+        cfg["orderedness"] = 0.2
+
     return cfg
 
 
@@ -383,33 +446,43 @@ def config_delta(base: dict, candidate: dict) -> dict:
 def quick_drc(pcb_path: str) -> dict:
     """Run kicad-cli DRC and return violation counts + locations by category."""
     import re
-    counts = {"shorts": 0, "unconnected": 0, "clearance": 0, "courtyard": 0, "total": 0}
+
+    counts = {
+        "shorts": 0,
+        "unconnected": 0,
+        "clearance": 0,
+        "courtyard": 0,
+        "solder_mask_bridge": 0,
+        "total": 0,
+    }
     violations = []  # list of {type, description, x_mm, y_mm, net1, net2}
     try:
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
             report_path = f.name
         subprocess.run(
             ["kicad-cli", "pcb", "drc", "-o", report_path, pcb_path],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         with open(report_path) as f:
             report = f.read()
         os.remove(report_path)
 
         for line in report.splitlines():
-            m = re.match(r'^\[(\w+)\]:', line)
+            m = re.match(r"^\[(\w+)\]:", line)
             if not m:
                 continue
             vtype = m.group(1)
             counts["total"] += 1
 
             # Parse location: "@(x_mm, y_mm)" pattern
-            loc_m = re.search(r'@\(([\d.\-]+)\s*mm\s*,\s*([\d.\-]+)\s*mm\)', line)
+            loc_m = re.search(r"@\(([\d.\-]+)\s*mm\s*,\s*([\d.\-]+)\s*mm\)", line)
             x_mm = float(loc_m.group(1)) if loc_m else None
             y_mm = float(loc_m.group(2)) if loc_m else None
 
             # Parse net names from the line
-            net_matches = re.findall(r'\[Net\s+\d+\]\(([^)]+)\)', line)
+            net_matches = re.findall(r"\[Net\s+\d+\]\(([^)]+)\)", line)
             net1 = net_matches[0] if len(net_matches) > 0 else None
             net2 = net_matches[1] if len(net_matches) > 1 else None
 
@@ -431,15 +504,21 @@ def quick_drc(pcb_path: str) -> dict:
                 counts["clearance"] += 1
             elif vtype == "courtyards_overlap":
                 counts["courtyard"] += 1
+            elif vtype == "solder_mask_bridge":
+                counts["clearance"] += 1  # count as clearance issue
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
     counts["violations"] = violations
     return counts
 
 
-def snapshot_pcb(pcb_path: str, output_png: str,
-                  canvas_px: int = 900, board_mm: tuple = (140.0, 90.0),
-                  frame_info: dict | None = None):
+def snapshot_pcb(
+    pcb_path: str,
+    output_png: str,
+    canvas_px: int = 900,
+    board_mm: tuple = (140.0, 90.0),
+    frame_info: dict | None = None,
+):
     """Export a fixed-scale PNG snapshot for progress GIF.
 
     Renders to a constant canvas (canvas_px square) with the board bbox
@@ -468,20 +547,46 @@ def snapshot_pcb(pcb_path: str, output_png: str,
         # Render front and back layers as separate SVGs so we can composite
         # them with alpha — prevents the opaque B.Cu ground plane from
         # hiding all F.Cu detail.
-        subprocess.run([
-            "kicad-cli", "pcb", "export", "svg",
-            "--layers", "F.Cu,F.SilkS,Edge.Cuts",
-            "--mode-single", "--fit-page-to-board",
-            "--exclude-drawing-sheet", "--drill-shape-opt", "2",
-            "-o", svg_front, pcb_path,
-        ], capture_output=True, check=True)
-        subprocess.run([
-            "kicad-cli", "pcb", "export", "svg",
-            "--layers", "B.Cu,Edge.Cuts",
-            "--mode-single", "--fit-page-to-board",
-            "--exclude-drawing-sheet", "--drill-shape-opt", "2",
-            "-o", svg_back, pcb_path,
-        ], capture_output=True, check=True)
+        subprocess.run(
+            [
+                "kicad-cli",
+                "pcb",
+                "export",
+                "svg",
+                "--layers",
+                "F.Cu,F.SilkS,Edge.Cuts",
+                "--mode-single",
+                "--fit-page-to-board",
+                "--exclude-drawing-sheet",
+                "--drill-shape-opt",
+                "2",
+                "-o",
+                svg_front,
+                pcb_path,
+            ],
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            [
+                "kicad-cli",
+                "pcb",
+                "export",
+                "svg",
+                "--layers",
+                "B.Cu,Edge.Cuts",
+                "--mode-single",
+                "--fit-page-to-board",
+                "--exclude-drawing-sheet",
+                "--drill-shape-opt",
+                "2",
+                "-o",
+                svg_back,
+                pcb_path,
+            ],
+            capture_output=True,
+            check=True,
+        )
 
         # Fixed scale: canvas is canvas_px square, board occupies 80%.
         bw, bh = board_mm
@@ -492,22 +597,43 @@ def snapshot_pcb(pcb_path: str, output_png: str,
         # Composite: white base → B.Cu at 30% opacity → F.Cu on top
         cmd = [
             "magick",
-            "-density", "300",
+            "-density",
+            "300",
             # B.Cu layer at reduced opacity
-            "(", "-background", "none", svg_back,
-                 "-resize", f"{target_w}x{target_h}!",
-                 "-channel", "A", "-evaluate", "multiply", "0.30",
-                 "+channel", ")",
+            "(",
+            "-background",
+            "none",
+            svg_back,
+            "-resize",
+            f"{target_w}x{target_h}!",
+            "-channel",
+            "A",
+            "-evaluate",
+            "multiply",
+            "0.30",
+            "+channel",
+            ")",
             # F.Cu layer at full opacity
-            "(", "-background", "none", svg_front,
-                 "-resize", f"{target_w}x{target_h}!", ")",
+            "(",
+            "-background",
+            "none",
+            svg_front,
+            "-resize",
+            f"{target_w}x{target_h}!",
+            ")",
             # White canvas as base, composite B.Cu then F.Cu
-            "-gravity", "center",
-            "(", "-size", f"{canvas_px}x{canvas_px}",
-                 "xc:white", ")",
+            "-gravity",
+            "center",
+            "(",
+            "-size",
+            f"{canvas_px}x{canvas_px}",
+            "xc:white",
+            ")",
             # Stack: canvas, back, front — composite over
             "-reverse",
-            "-compose", "over", "-flatten",
+            "-compose",
+            "over",
+            "-flatten",
         ]
 
         if frame_info:
@@ -535,15 +661,22 @@ def snapshot_pcb(pcb_path: str, output_png: str,
             status_color = "#00CC00" if kept else "#CC0000"
             status_text = "KEPT" if kept else "DISCARDED"
 
-            info_line = f"R{round_num:03d} | {time_str} | Score: {score:.1f} | {status_text}"
+            info_line = (
+                f"R{round_num:03d} | {time_str} | Score: {score:.1f} | {status_text}"
+            )
             if drc_shorts > 0:
                 info_line += f" | SHORTS: {drc_shorts}"
             font_size = max(18, canvas_px // 45)
 
             # Draw colored border (3px)
-            cmd.extend([
-                "-bordercolor", border_color, "-border", "3",
-            ])
+            cmd.extend(
+                [
+                    "-bordercolor",
+                    border_color,
+                    "-border",
+                    "3",
+                ]
+            )
 
             # Draw DRC violation markers on the board image (all types)
             drc_violations = frame_info.get("drc_violations", [])
@@ -563,29 +696,64 @@ def snapshot_pcb(pcb_path: str, output_png: str,
 
                     if vtype == "shorting_items":
                         # Red X for shorts
-                        cmd.extend([
-                            "-fill", "none", "-stroke", "#E63946", "-strokewidth", "2",
-                            "-draw", f"line {px-r},{py-r} {px+r},{py+r}",
-                            "-draw", f"line {px-r},{py+r} {px+r},{py-r}",
-                        ])
+                        cmd.extend(
+                            [
+                                "-fill",
+                                "none",
+                                "-stroke",
+                                "#E63946",
+                                "-strokewidth",
+                                "2",
+                                "-draw",
+                                f"line {px - r},{py - r} {px + r},{py + r}",
+                                "-draw",
+                                f"line {px - r},{py + r} {px + r},{py - r}",
+                            ]
+                        )
                     elif vtype == "unconnected_items":
                         # Orange circle for unconnected
-                        cmd.extend([
-                            "-fill", "none", "-stroke", "#FFA500", "-strokewidth", "1.5",
-                            "-draw", f"circle {px},{py} {px+r*0.7},{py}",
-                        ])
-                    elif vtype in ("clearance", "hole_clearance", "copper_edge_clearance"):
+                        cmd.extend(
+                            [
+                                "-fill",
+                                "none",
+                                "-stroke",
+                                "#FFA500",
+                                "-strokewidth",
+                                "1.5",
+                                "-draw",
+                                f"circle {px},{py} {px + r * 0.7},{py}",
+                            ]
+                        )
+                    elif vtype in (
+                        "clearance",
+                        "hole_clearance",
+                        "copper_edge_clearance",
+                    ):
                         # Yellow dot for clearance violations
-                        cmd.extend([
-                            "-fill", "rgba(255,255,0,0.5)", "-stroke", "none",
-                            "-draw", f"circle {px},{py} {px+r*0.5},{py}",
-                        ])
+                        cmd.extend(
+                            [
+                                "-fill",
+                                "rgba(255,255,0,0.5)",
+                                "-stroke",
+                                "none",
+                                "-draw",
+                                f"circle {px},{py} {px + r * 0.5},{py}",
+                            ]
+                        )
                     elif vtype == "courtyards_overlap":
                         # Magenta rectangle for courtyard overlaps
-                        cmd.extend([
-                            "-fill", "none", "-stroke", "#FF00FF", "-strokewidth", "1.5",
-                            "-draw", f"rectangle {px-r},{py-r} {px+r},{py+r}",
-                        ])
+                        cmd.extend(
+                            [
+                                "-fill",
+                                "none",
+                                "-stroke",
+                                "#FF00FF",
+                                "-strokewidth",
+                                "1.5",
+                                "-draw",
+                                f"rectangle {px - r},{py - r} {px + r},{py + r}",
+                            ]
+                        )
 
             # Draw semi-transparent black background band at bottom (85% opaque)
             # Account for border offset
@@ -604,31 +772,52 @@ def snapshot_pcb(pcb_path: str, output_png: str,
                 band_height = font_size + sub_font + 22
                 sub_line = f"DRC:{d_score:.0f} | Place:{p_score:.0f} | Route:{r_pct:.0f} | Via:{v_score:.0f}"
 
-            cmd.extend([
-                "-fill", "rgba(0,0,0,0.85)",
-                "-draw", f"rectangle 0,{total_h-band_height} {total_w} {total_h}",
-                "-fill", status_color,
-                "-gravity", "SouthWest",
-                "-pointsize", str(font_size),
-                "-font", "DejaVu-Sans-Bold",
-                "-annotate", f"+{font_size//2}+{font_size//2+2}",
-                info_line,
-            ])
+            cmd.extend(
+                [
+                    "-fill",
+                    "rgba(0,0,0,0.85)",
+                    "-draw",
+                    f"rectangle 0,{total_h - band_height} {total_w} {total_h}",
+                    "-fill",
+                    status_color,
+                    "-gravity",
+                    "SouthWest",
+                    "-pointsize",
+                    str(font_size),
+                    "-font",
+                    "DejaVu-Sans-Bold",
+                    "-annotate",
+                    f"+{font_size // 2}+{font_size // 2 + 2}",
+                    info_line,
+                ]
+            )
             if has_subscores:
-                cmd.extend([
-                    "-fill", "#AAAAAA",
-                    "-gravity", "SouthWest",
-                    "-pointsize", str(sub_font),
-                    "-font", "DejaVu-Sans",
-                    "-annotate", f"+{font_size//2}+{font_size + sub_font//2 + 6}",
-                    sub_line,
-                ])
+                cmd.extend(
+                    [
+                        "-fill",
+                        "#AAAAAA",
+                        "-gravity",
+                        "SouthWest",
+                        "-pointsize",
+                        str(sub_font),
+                        "-font",
+                        "DejaVu-Sans",
+                        "-annotate",
+                        f"+{font_size // 2}+{font_size + sub_font // 2 + 6}",
+                        sub_line,
+                    ]
+                )
 
         else:
             # Original border only
-            cmd.extend([
-                "-bordercolor", "#222", "-border", "3",
-            ])
+            cmd.extend(
+                [
+                    "-bordercolor",
+                    "#222",
+                    "-border",
+                    "3",
+                ]
+            )
 
         cmd.append(output_png)
 
@@ -636,8 +825,11 @@ def snapshot_pcb(pcb_path: str, output_png: str,
         os.remove(svg_front)
         os.remove(svg_back)
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"  Warning: snapshot failed for {output_png}: {e}",
-              file=sys.stderr, flush=True)
+        print(
+            f"  Warning: snapshot failed for {output_png}: {e}",
+            file=sys.stderr,
+            flush=True,
+        )
 
 
 def _parse_board_origin_from_pcb(pcb_path: str) -> tuple[float, float]:
@@ -645,7 +837,7 @@ def _parse_board_origin_from_pcb(pcb_path: str) -> tuple[float, float]:
     try:
         with open(pcb_path) as f:
             text = f.read()
-        m = re.search(r'\(gr_rect\s+\(start\s+([\d.\-]+)\s+([\d.\-]+)\)', text)
+        m = re.search(r"\(gr_rect\s+\(start\s+([\d.\-]+)\s+([\d.\-]+)\)", text)
         if m:
             return float(m.group(1)), float(m.group(2))
     except OSError:
@@ -664,8 +856,12 @@ def assemble_gif(frames_dir: Path, output_path: str, delay_cs: int = 50):
         return
     cmd = [
         "magick",
-        "-dispose", "Background",
-        "-delay", str(delay_cs), "-loop", "0",
+        "-dispose",
+        "Background",
+        "-delay",
+        str(delay_cs),
+        "-loop",
+        "0",
     ]
     cmd.extend(frames[:-1])
     cmd.extend(["-delay", "200", frames[-1]])
@@ -687,8 +883,8 @@ def _suppress_output():
     os.dup2(devnull_fd, 2)
     os.close(devnull_fd)
     old_stdout, old_stderr = sys.stdout, sys.stderr
-    sys.stdout = open(os.devnull, 'w')
-    sys.stderr = open(os.devnull, 'w')
+    sys.stdout = open(os.devnull, "w")
+    sys.stderr = open(os.devnull, "w")
     return saved_out, saved_err, old_stdout, old_stderr
 
 
@@ -721,17 +917,18 @@ def _worker_run(args: tuple) -> tuple[ExperimentScore, float, str]:
     t0 = time.monotonic()
     worker_log = None
     try:
-        from autoplacer.pipeline import FullPipeline
         from autoplacer.brain.types import ExperimentScore as ES
-        
+        from autoplacer.pipeline import FullPipeline
+
         # Try to get logger in worker (may not have logging_config in worker process)
         try:
             import logging_config as lc
+
             lc.configure_logging("INFO", str(Path(pcb_src).parent / ".experiments"))
             worker_log = lc.get_logger("worker")
         except ImportError:
             pass
-        
+
         pipeline = FullPipeline()
         result = pipeline.run(work_pcb, work_pcb, config=cfg, seed=seed)
         exp_score = result["experiment_score"]
@@ -739,7 +936,9 @@ def _worker_run(args: tuple) -> tuple[ExperimentScore, float, str]:
             exp_score.compute(score_weights, board_area_mm2=_board_area(cfg))
     except Exception as e:
         import traceback
+
         from autoplacer.brain.types import ExperimentScore as ES
+
         exp_score = ES()
         exp_score.total = -1.0
         # Capture traceback so failures are diagnosable
@@ -753,8 +952,9 @@ def _worker_run(args: tuple) -> tuple[ExperimentScore, float, str]:
     return exp_score, duration, work_pcb
 
 
-def run_experiment(pcb_path: str, work_pcb: str, cfg: dict,
-                   seed: int, quiet: bool = True) -> tuple[ExperimentScore, float]:
+def run_experiment(
+    pcb_path: str, work_pcb: str, cfg: dict, seed: int, quiet: bool = True
+) -> tuple[ExperimentScore, float]:
     """Run one full pipeline experiment in-process. Returns (score, duration_seconds)."""
     shutil.copy2(pcb_path, work_pcb)
 
@@ -794,11 +994,12 @@ def _json_default(obj):
     """JSON serializer for objects not serializable by default."""
     if isinstance(obj, set):
         return sorted(obj)
-    raise TypeError(f'Object of type {type(obj).__name__} is not JSON serializable')
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
-def save_elite_config(work_dir: Path, best_cfg: dict, best_seed: int,
-                      best_score: float) -> None:
+def save_elite_config(
+    work_dir: Path, best_cfg: dict, best_seed: int, best_score: float
+) -> None:
     """Persist best config to checkpoint file for cross-run learning."""
     checkpoint = {
         "version": 1,
@@ -820,14 +1021,18 @@ def load_elite_config(work_dir: Path) -> tuple[dict, int, float] | None:
     try:
         with open(checkpoint_path) as f:
             checkpoint = json.load(f)
-        return (checkpoint["best_cfg"], checkpoint["best_seed"],
-                checkpoint["best_score"])
+        return (
+            checkpoint["best_cfg"],
+            checkpoint["best_seed"],
+            checkpoint["best_score"],
+        )
     except (json.JSONDecodeError, KeyError):
         return None
 
 
-def save_elite_archive(work_dir: Path, cfg: dict, seed: int, score: float,
-                       max_elites: int = 5) -> None:
+def save_elite_archive(
+    work_dir: Path, cfg: dict, seed: int, score: float, max_elites: int = 5
+) -> None:
     """Append to top-N elite config archive for cross-run learning."""
     archive_path = work_dir / "elite_configs.json"
     archive = []
@@ -838,8 +1043,7 @@ def save_elite_archive(work_dir: Path, cfg: dict, seed: int, score: float,
         except (json.JSONDecodeError, ValueError):
             archive = []
 
-    entry = {"score": score, "seed": seed, "config": cfg,
-             "timestamp": time.time()}
+    entry = {"score": score, "seed": seed, "config": cfg, "timestamp": time.time()}
     archive.append(entry)
     # Keep only top-N by score (deduplicated by seed)
     seen_seeds = set()
@@ -866,8 +1070,9 @@ def load_elite_archive(work_dir: Path) -> list[dict]:
         return []
 
 
-def save_seed_bank(work_dir: Path, cfg: dict, seed: int, score: float,
-                   max_seeds: int = 10) -> None:
+def save_seed_bank(
+    work_dir: Path, cfg: dict, seed: int, score: float, max_seeds: int = 10
+) -> None:
     """Save config to persistent seed bank (survives across experiment runs).
 
     Unlike elite_configs.json (purged each run), the seed bank accumulates
@@ -883,8 +1088,7 @@ def save_seed_bank(work_dir: Path, cfg: dict, seed: int, score: float,
         except (json.JSONDecodeError, ValueError):
             bank = []
 
-    entry = {"score": score, "seed": seed, "config": cfg,
-             "timestamp": time.time()}
+    entry = {"score": score, "seed": seed, "config": cfg, "timestamp": time.time()}
     bank.append(entry)
     # Keep top-N by score, deduplicated by seed
     seen = set()
@@ -913,13 +1117,19 @@ def load_seed_bank(work_dir: Path) -> list[dict]:
 
 def _log_and_record(exp: Experiment, experiments: list, log_path: Path) -> None:
     experiments.append(exp)
-    with open(log_path, 'a') as f:
-        f.write(json.dumps(asdict(exp), default=str) + '\n')
+    with open(log_path, "a") as f:
+        f.write(json.dumps(asdict(exp), default=str) + "\n")
 
 
-def _generate_html_report(report_script: Path, work_dir: Path, output_path: Path,
-                          *, live: bool, refresh_seconds: int = 5,
-                          quiet: bool = False) -> bool:
+def _generate_html_report(
+    report_script: Path,
+    work_dir: Path,
+    output_path: Path,
+    *,
+    live: bool,
+    refresh_seconds: int = 5,
+    quiet: bool = False,
+) -> bool:
     """Generate an HTML report from the current experiment state."""
     if not report_script.exists():
         return False
@@ -940,8 +1150,7 @@ def _generate_html_report(report_script: Path, work_dir: Path, output_path: Path
             print(f"  Report saved: {output_path}")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"  Report generation failed: {e.stderr.decode()}",
-              file=sys.stderr)
+        print(f"  Report generation failed: {e.stderr.decode()}", file=sys.stderr)
         return False
 
 
@@ -1001,9 +1210,9 @@ def _write_round_detail(
     if net_failure_rates:
         detail["net_failure_rates"] = net_failure_rates
     out_path = rounds_dir / f"round_{round_num:04d}.json"
-    with open(out_path, 'w') as f:
+    with open(out_path, "w") as f:
         json.dump(detail, f, indent=2, default=str)
-        f.write('\n')
+        f.write("\n")
 
 
 def _score_sub_fields(score: ExperimentScore) -> tuple[float, float, float]:
@@ -1026,44 +1235,105 @@ def _score_sub_fields(score: ExperimentScore) -> tuple[float, float, float]:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Autonomous PCB layout experiment loop")
+        description="Autonomous PCB layout experiment loop"
+    )
     parser.add_argument("pcb", help="Input .kicad_pcb file")
-    parser.add_argument("--rounds", "-n", type=int, default=50,
-                        help="Max experiment rounds (default: 50)")
-    parser.add_argument("--workers", "-w", type=int, default=0,
-                        help="Parallel workers (0=auto: cpu_count//2)")
-    parser.add_argument("--batch-seeds", "-b", type=int, default=1,
-                        help="Parallel seeds per round for exploration (default: 1)")
-    parser.add_argument("--program", "-p", default="program.md",
-                        help="Path to program.md search space definition")
-    parser.add_argument("--output", "-o",
-                        help="Output best .kicad_pcb (default: <input>_best.kicad_pcb)")
-    parser.add_argument("--log", "-l", default="experiments.jsonl",
-                        help="Experiment log file (JSONL)")
-    parser.add_argument("--plateau", type=int, default=3,
-                        help="Minor rounds without improvement before MAJOR (default: 3)")
-    parser.add_argument("--seed", type=int, default=None,
-                        help="Master RNG seed (default: random)")
-    parser.add_argument("--quiet", "-q", action="store_true", default=True,
-                        help="Suppress pipeline output (default: on)")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                        help="Show pipeline output")
-    parser.add_argument("--status-file", default="run_status.json",
-                        help="Live run status JSON filename inside .experiments/")
-    parser.add_argument("--log-level", default="INFO", choices=["INFO", "DEBUG"],
-                        help="Logging level (default: INFO)")
-    parser.add_argument("--resume", action="store_true",
-                        help="Resume from best config checkpoint if available")
-    parser.add_argument("--unlock-all", action="store_true",
-                        help="Unlock all footprints (batteries, connectors, mounting holes)")
-    parser.add_argument("--board-size-search", action="store_true",
-                        help="Include board width/height in the parameter search space")
-    parser.add_argument("--phased", action="store_true",
-                        help="Use phased optimization: placement-only → routing → board size")
-    parser.add_argument("--population", type=int, default=1,
-                        help="Population size for evolutionary search (default: 1 = single-best)")
-    parser.add_argument("--save-all", action="store_true",
-                        help="Save every round's PCB to .experiments/rounds/ for analysis")
+    parser.add_argument(
+        "--rounds",
+        "-n",
+        type=int,
+        default=50,
+        help="Max experiment rounds (default: 50)",
+    )
+    parser.add_argument(
+        "--workers",
+        "-w",
+        type=int,
+        default=0,
+        help="Parallel workers (0=auto: cpu_count//2)",
+    )
+    parser.add_argument(
+        "--batch-seeds",
+        "-b",
+        type=int,
+        default=1,
+        help="Parallel seeds per round for exploration (default: 1)",
+    )
+    parser.add_argument(
+        "--program",
+        "-p",
+        default="program.md",
+        help="Path to program.md search space definition",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        help="Output best .kicad_pcb (default: <input>_best.kicad_pcb)",
+    )
+    parser.add_argument(
+        "--log", "-l", default="experiments.jsonl", help="Experiment log file (JSONL)"
+    )
+    parser.add_argument(
+        "--plateau",
+        type=int,
+        default=3,
+        help="Minor rounds without improvement before MAJOR (default: 3)",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None, help="Master RNG seed (default: random)"
+    )
+    parser.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        default=True,
+        help="Suppress pipeline output (default: on)",
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Show pipeline output"
+    )
+    parser.add_argument(
+        "--status-file",
+        default="run_status.json",
+        help="Live run status JSON filename inside .experiments/",
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["INFO", "DEBUG"],
+        help="Logging level (default: INFO)",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume from best config checkpoint if available",
+    )
+    parser.add_argument(
+        "--unlock-all",
+        action="store_true",
+        help="Unlock all footprints (batteries, connectors, mounting holes)",
+    )
+    parser.add_argument(
+        "--board-size-search",
+        action="store_true",
+        help="Include board width/height in the parameter search space",
+    )
+    parser.add_argument(
+        "--phased",
+        action="store_true",
+        help="Use phased optimization: placement-only → routing → board size",
+    )
+    parser.add_argument(
+        "--population",
+        type=int,
+        default=1,
+        help="Population size for evolutionary search (default: 1 = single-best)",
+    )
+    parser.add_argument(
+        "--save-all",
+        action="store_true",
+        help="Save every round's PCB to .experiments/rounds/ for analysis",
+    )
     args = parser.parse_args()
 
     if args.verbose:
@@ -1086,20 +1356,23 @@ def main():
     # Install SIGTERM handler so `kill -TERM` triggers graceful stop
     def _sigterm_handler(signum, frame):
         _request_stop(work_dir)
+
     signal.signal(signal.SIGTERM, _sigterm_handler)
-    
+
     # Initialize logging after work_dir is set
     global log
     if LOGGING_AVAILABLE:
         logging_config.configure_logging(args.log_level, str(work_dir))
         log = logging_config.get_logger("autoexperiment")
-        log.info("experiment_started",
-               pcb=args.pcb,
-               rounds=args.rounds,
-               workers=n_workers,
-               seed=master_seed,
-               log_level=args.log_level)
-    
+        log.info(
+            "experiment_started",
+            pcb=args.pcb,
+            rounds=args.rounds,
+            workers=n_workers,
+            seed=master_seed,
+            log_level=args.log_level,
+        )
+
     best_dir = work_dir / "best"
     best_dir.mkdir(exist_ok=True)
     rounds_dir = work_dir / "rounds"
@@ -1108,6 +1381,7 @@ def main():
     # Clear any frames from previous runs so the GIF doesn't include stale data
     if frames_dir.exists():
         import glob as _glob
+
         for f in _glob.glob(str(frames_dir / "frame_*.png")):
             os.remove(f)
     frames_dir.mkdir(exist_ok=True)
@@ -1115,9 +1389,12 @@ def main():
     # Pre-flight check: verify snapshot tools are available
     for tool_name in ("kicad-cli", "magick"):
         if shutil.which(tool_name) is None:
-            print(f"  WARNING: '{tool_name}' not found on PATH — "
-                  f"board progression frames will not be generated",
-                  file=sys.stderr, flush=True)
+            print(
+                f"  WARNING: '{tool_name}' not found on PATH — "
+                f"board progression frames will not be generated",
+                file=sys.stderr,
+                flush=True,
+            )
 
     # Per-worker scratch directories (avoid file conflicts in parallel mode)
     workers_dir = work_dir / "workers"
@@ -1127,7 +1404,7 @@ def main():
     # Baseline uses w0
     baseline_pcb = str(workers_dir / "w0" / "experiment.kicad_pcb")
 
-    output_path = args.output or str(Path(args.pcb).with_suffix('')) + "_best.kicad_pcb"
+    output_path = args.output or str(Path(args.pcb).with_suffix("")) + "_best.kicad_pcb"
     log_path = work_dir / args.log
     status_json_path = work_dir / args.status_file
     status_txt_path = work_dir / "run_status.txt"
@@ -1156,8 +1433,11 @@ def main():
     try:
         with open(args.pcb) as f:
             pcb_text = f.read()
-        m = re.search(r'\(gr_rect\s+\(start\s+([\d.\-]+)\s+([\d.\-]+)\)\s+'
-                      r'\(end\s+([\d.\-]+)\s+([\d.\-]+)\)', pcb_text)
+        m = re.search(
+            r"\(gr_rect\s+\(start\s+([\d.\-]+)\s+([\d.\-]+)\)\s+"
+            r"\(end\s+([\d.\-]+)\s+([\d.\-]+)\)",
+            pcb_text,
+        )
         if m:
             x0, y0, x1, y1 = (float(v) for v in m.groups())
             board_mm = (abs(x1 - x0), abs(y1 - y0))
@@ -1191,17 +1471,20 @@ def main():
     # Compute minimum viable board size from component area (for search bounds)
     if BASE_CONFIG.get("enable_board_size_search", False):
         try:
-            from autoplacer.hardware.adapter import KiCadAdapter
             from autoplacer.brain.placement import compute_min_board_size
+            from autoplacer.hardware.adapter import KiCadAdapter
+
             _tmp_adapter = KiCadAdapter(args.pcb, config=BASE_CONFIG)
             _tmp_state = _tmp_adapter.load()
             _overhead = BASE_CONFIG.get("board_size_overhead_factor", 2.5)
             _min_w, _min_h = compute_min_board_size(_tmp_state, _overhead)
             BASE_CONFIG["_min_board_width_mm"] = _min_w
             BASE_CONFIG["_min_board_height_mm"] = _min_h
-            print(f"Min viable board: {_min_w:.0f} x {_min_h:.0f} mm "
-                  f"(search range: {_min_w:.0f}-{max(_min_w+10, _min_w*2):.0f} x "
-                  f"{_min_h:.0f}-{max(_min_h+10, _min_h*2):.0f})")
+            print(
+                f"Min viable board: {_min_w:.0f} x {_min_h:.0f} mm "
+                f"(search range: {_min_w:.0f}-{max(_min_w + 10, _min_w * 2):.0f} x "
+                f"{_min_h:.0f}-{max(_min_h + 10, _min_h * 2):.0f})"
+            )
             del _tmp_adapter, _tmp_state
         except Exception as e:
             print(f"  WARNING: could not compute min board size: {e}")
@@ -1210,6 +1493,13 @@ def main():
 
     # Run baseline or resume from checkpoint
     best_cfg = dict(BASE_CONFIG)
+    # Override baseline board size with computed minimum viable
+    if BASE_CONFIG.get("enable_board_size_search", False):
+        min_w = BASE_CONFIG.get("_min_board_width_mm", 0)
+        min_h = BASE_CONFIG.get("_min_board_height_mm", 0)
+        if min_w > 0 and min_h > 0:
+            best_cfg["board_width_mm"] = min_w
+            best_cfg["board_height_mm"] = min_h
     if net_priority:
         best_cfg["net_priority"] = net_priority
     best_seed = 0
@@ -1222,44 +1512,65 @@ def main():
             if net_priority:
                 best_cfg["net_priority"] = net_priority
             best_total = loaded_score
-            print(f"Resumed from checkpoint: score={loaded_score:.2f}, seed={best_seed}")
+            print(
+                f"Resumed from checkpoint: score={loaded_score:.2f}, seed={best_seed}"
+            )
 
     if best_total is None:
         print("Round   0/-- [BASE ] running baseline...", flush=True)
         best_score, base_dur = run_experiment(
-            args.pcb, baseline_pcb, best_cfg, best_seed, quiet=args.quiet)
+            args.pcb, baseline_pcb, best_cfg, best_seed, quiet=args.quiet
+        )
         base_drc = quick_drc(baseline_pcb)
         if score_weights:
-            best_score.compute(score_weights, drc_dict=base_drc,
-                               board_area_mm2=_board_area(best_cfg))
+            best_score.compute(
+                score_weights, drc_dict=base_drc, board_area_mm2=_board_area(best_cfg)
+            )
         else:
-            best_score.compute(drc_dict=base_drc,
-                               board_area_mm2=_board_area(best_cfg))
+            best_score.compute(drc_dict=base_drc, board_area_mm2=_board_area(best_cfg))
 
-        print(f"  -> baseline score={best_score.total:6.2f} shorts={base_drc['shorts']} "
-              f"drc={base_drc['total']} ({base_dur:.1f}s)", flush=True)
+        print(
+            f"  -> baseline score={best_score.total:6.2f} shorts={base_drc['shorts']} "
+            f"drc={base_drc['total']} ({base_dur:.1f}s)",
+            flush=True,
+        )
 
         shutil.copy2(baseline_pcb, str(best_dir / "best.kicad_pcb"))
         best_total = best_score.total
     else:
-        base_drc = {"shorts": 0, "unconnected": 0, "clearance": 0, "courtyard": 0, "total": 0}
+        base_drc = {
+            "shorts": 0,
+            "unconnected": 0,
+            "clearance": 0,
+            "courtyard": 0,
+            "total": 0,
+        }
         base_dur = 0.0
         best_score = ExperimentScore()
         best_score.total = best_total
 
-    _log_event("baseline_complete",
-               score=best_score.total,
-               shorts=base_drc["shorts"],
-               drc=base_drc["total"],
-               duration_s=base_dur)
+    _log_event(
+        "baseline_complete",
+        score=best_score.total,
+        shorts=base_drc["shorts"],
+        drc=base_drc["total"],
+        duration_s=base_dur,
+    )
 
     # Capture baseline frame for GIF
     _apply_group_labels(baseline_pcb, BASE_CONFIG)
     baseline_elapsed = time.monotonic() - loop_t0
-    snapshot_pcb(baseline_pcb, str(frames_dir / "frame_0000.png"),
-                 board_mm=board_mm,
-                 frame_info={"round_num": 0, "score": best_score.total,
-                             "kept": False, "timestamp": baseline_elapsed})
+    snapshot_pcb(
+        baseline_pcb,
+        str(frames_dir / "frame_0000.png"),
+        board_mm=board_mm,
+        frame_info={
+            "round_num": 0,
+            "score": best_score.total,
+            "kept": False,
+            "timestamp": baseline_elapsed,
+        },
+    )
 
     experiments: list[Experiment] = []
     minor_stagnant = 0
@@ -1321,9 +1632,13 @@ def main():
         total = args.rounds
         phase_a_rounds = max(3, total // 5)  # 20% for placement exploration
         phase_b_rounds = max(5, total * 3 // 5)  # 60% for full pipeline
-        phase_c_rounds = total - phase_a_rounds - phase_b_rounds  # remaining for board size
-        print(f"  PHASED MODE: A={phase_a_rounds} placement-only, "
-              f"B={phase_b_rounds} full pipeline, C={phase_c_rounds} board size")
+        phase_c_rounds = (
+            total - phase_a_rounds - phase_b_rounds
+        )  # remaining for board size
+        print(
+            f"  PHASED MODE: A={phase_a_rounds} placement-only, "
+            f"B={phase_b_rounds} full pipeline, C={phase_c_rounds} board size"
+        )
         # Phase A: lower placement gates to explore more freely, skip routing
         best_cfg["min_placement_score"] = 10.0
         # We'll use the existing loop but track phase transitions
@@ -1344,9 +1659,11 @@ def main():
                 if new_phase == "B" and current_phase == "A":
                     # Gate: only proceed if placement quality is adequate
                     if best_score.placement.total < 40.0:
-                        print(f"  Phase A->B gate: placement_score "
-                              f"{best_score.placement.total:.1f} < 40 — "
-                              f"extending Phase A by 3 rounds")
+                        print(
+                            f"  Phase A->B gate: placement_score "
+                            f"{best_score.placement.total:.1f} < 40 — "
+                            f"extending Phase A by 3 rounds"
+                        )
                         # Shift transitions forward
                         phase_transitions = {
                             round_num + 3: "B",
@@ -1354,22 +1671,30 @@ def main():
                         }
                         continue
                     best_cfg["min_placement_score"] = 20.0  # restore normal gate
-                    print(f"  Entering Phase B: full pipeline "
-                          f"(placement_score={best_score.placement.total:.1f})")
+                    print(
+                        f"  Entering Phase B: full pipeline "
+                        f"(placement_score={best_score.placement.total:.1f})"
+                    )
                     minor_stagnant = 0
                     current_phase = "B"
                 elif new_phase == "C" and current_phase == "B":
                     # Gate: only optimize board size if routing works
                     r_pct = 0.0
                     if best_score.total_nets > 0:
-                        r_pct = ((best_score.total_nets - best_score.failed_nets)
-                                 / best_score.total_nets) * 100
+                        r_pct = (
+                            (best_score.total_nets - best_score.failed_nets)
+                            / best_score.total_nets
+                        ) * 100
                     if r_pct < 80.0:
-                        print(f"  Phase B->C gate: route_completion "
-                              f"{r_pct:.1f}% < 80% — skipping board size phase")
+                        print(
+                            f"  Phase B->C gate: route_completion "
+                            f"{r_pct:.1f}% < 80% — skipping board size phase"
+                        )
                     else:
-                        print(f"  Entering Phase C: board size optimization "
-                              f"(route_completion={r_pct:.1f}%)")
+                        print(
+                            f"  Entering Phase C: board size optimization "
+                            f"(route_completion={r_pct:.1f}%)"
+                        )
                         best_cfg["enable_board_size_search"] = True
                         minor_stagnant = 0
                     current_phase = "C"
@@ -1377,27 +1702,34 @@ def main():
             if _check_stop_request(work_dir):
                 _log_event("stop_requested", round_num=round_num)
                 _write_live_status(
-                    status_json_path, status_txt_path,
-                    phase="stopping", args=args, start_ts=loop_t0,
-                    round_num=round_num, best_total=best_total,
-                    kept_count=kept_count, minor_stagnant=minor_stagnant,
-                    n_workers=n_workers, in_flight=0,
+                    status_json_path,
+                    status_txt_path,
+                    phase="stopping",
+                    args=args,
+                    start_ts=loop_t0,
+                    round_num=round_num,
+                    best_total=best_total,
+                    kept_count=kept_count,
+                    minor_stagnant=minor_stagnant,
+                    n_workers=n_workers,
+                    in_flight=0,
                     completed_durations=completed_durations,
                     last_completion_ts=last_completion_ts,
-                    latest_score=best_total, latest_marker="stop requested",
+                    latest_score=best_total,
+                    latest_marker="stop requested",
                 )
                 stop_file = work_dir / "stop.now"
                 if stop_file.exists():
                     stop_file.unlink()
                 break
-            
+
             batch_size = min(n_workers, args.rounds - round_num, max(args.plateau, 1))
             batch_seeds = args.batch_seeds
 
             # Generate batch of candidates
             # batch_seeds > 1: 1 from best_cfg (exploit), rest from baseline (explore)
             batch: list[tuple[str, dict, int, dict]] = []  # (mode, cfg, seed, delta)
-            
+
             # First candidate: exploit (mutate from best)
             if minor_stagnant >= args.plateau:
                 mode = "major"
@@ -1413,13 +1745,14 @@ def main():
                 candidate_seed = exp_seed
             delta = config_delta(BASE_CONFIG, candidate_cfg)
             batch.append((mode, candidate_cfg, candidate_seed, delta))
-            
+
             # Additional seeds: explore from baseline
             for _ in range(1, min(batch_seeds, batch_size)):
                 explore_seed = rng.randint(0, 2**31)
                 explore_cfg = mutate_config_major(dict(BASE_CONFIG), rng, param_ranges)
                 explore_cfg["scatter_mode"] = "random"  # explore always scatters
                 explore_cfg["randomize_group_layout"] = True
+                explore_cfg = _clamp_board_guardrails(explore_cfg)
                 if net_priority:
                     explore_cfg["net_priority"] = net_priority
                 explore_delta = config_delta(BASE_CONFIG, explore_cfg)
@@ -1453,6 +1786,15 @@ def main():
                 if i < n_elite_inject:
                     # Use elite config with fresh seed
                     elite_cfg = dict(elite_cfgs[i % len(elite_cfgs)])
+                    # Validate elite config against current min-board constraints
+                    e_min_w = BASE_CONFIG.get("_min_board_width_mm", 45.0)
+                    e_min_h = BASE_CONFIG.get("_min_board_height_mm", 35.0)
+                    e_w = elite_cfg.get("board_width_mm", 0)
+                    e_h = elite_cfg.get("board_height_mm", 0)
+                    if e_w < e_min_w * 0.8 or e_h < e_min_h * 0.8:
+                        # Elite config board size is too small — skip it
+                        elite_cfg["board_width_mm"] = max(e_w, e_min_w)
+                        elite_cfg["board_height_mm"] = max(e_h, e_min_h)
                     elite_seed = rng.randint(0, 2**31)
                     if net_priority:
                         elite_cfg["net_priority"] = net_priority
@@ -1460,9 +1802,12 @@ def main():
                     batch[idx] = ("elite", elite_cfg, elite_seed, elite_delta)
                 else:
                     explore_seed = rng.randint(0, 2**31)
-                    explore_cfg = mutate_config_major(dict(BASE_CONFIG), rng, param_ranges)
+                    explore_cfg = mutate_config_major(
+                        dict(BASE_CONFIG), rng, param_ranges
+                    )
                     explore_cfg["scatter_mode"] = "random"  # explore always scatters
                     explore_cfg["randomize_group_layout"] = True
+                    explore_cfg = _clamp_board_guardrails(explore_cfg)
                     if net_priority:
                         explore_cfg["net_priority"] = net_priority
                     explore_delta = config_delta(BASE_CONFIG, explore_cfg)
@@ -1473,7 +1818,9 @@ def main():
                 # Single-worker: run in-process (no subprocess overhead)
                 mode, candidate_cfg, candidate_seed, delta = batch[0]
                 work_pcb = str(workers_dir / "w0" / "experiment.kicad_pcb")
-                delta_str = " ".join(f"{k}={v}" for k, v in delta.items()) or "(no delta)"
+                delta_str = (
+                    " ".join(f"{k}={v}" for k, v in delta.items()) or "(no delta)"
+                )
                 round_num += 1
                 t_label = f"Round {round_num:3d}/{args.rounds} [{mode[:5].upper():5s}]"
                 print(f"{t_label} running... {delta_str[:80]}", flush=True)
@@ -1495,16 +1842,27 @@ def main():
                     latest_marker=f"round {round_num} started ({mode})",
                 )
                 score, duration = run_experiment(
-                    args.pcb, work_pcb, candidate_cfg, candidate_seed,
-                    quiet=args.quiet)
+                    args.pcb, work_pcb, candidate_cfg, candidate_seed, quiet=args.quiet
+                )
                 drc = score.pipeline_drc or quick_drc(work_pcb)
                 if score_weights:
-                    score.compute(score_weights,
-                                  board_area_mm2=_board_area(candidate_cfg))
+                    score.compute(
+                        score_weights, board_area_mm2=_board_area(candidate_cfg)
+                    )
                 else:
                     score.compute(board_area_mm2=_board_area(candidate_cfg))
-                results = [(score, duration, work_pcb, drc, mode, candidate_cfg,
-                            candidate_seed, delta)]
+                results = [
+                    (
+                        score,
+                        duration,
+                        work_pcb,
+                        drc,
+                        mode,
+                        candidate_cfg,
+                        candidate_seed,
+                        delta,
+                    )
+                ]
             else:
                 # Multi-worker: submit batch, announce, collect
                 delta_strs = [
@@ -1512,18 +1870,24 @@ def main():
                     for _, _, _, d in batch
                 ]
                 for i, (mode, _, _, delta) in enumerate(batch):
-                    print(f"  W{i} [{mode[:5].upper():5s}] {delta_strs[i][:60]}",
-                          flush=True)
+                    print(
+                        f"  W{i} [{mode[:5].upper():5s}] {delta_strs[i][:60]}",
+                        flush=True,
+                    )
 
                 worker_args = [
-                    (args.pcb,
-                     str(workers_dir / f"w{i}" / "experiment.kicad_pcb"),
-                     cfg, seed, score_weights, _SCRIPT_DIR)
+                    (
+                        args.pcb,
+                        str(workers_dir / f"w{i}" / "experiment.kicad_pcb"),
+                        cfg,
+                        seed,
+                        score_weights,
+                        _SCRIPT_DIR,
+                    )
                     for i, (_, cfg, seed, _) in enumerate(batch)
                 ]
                 futures = {
-                    pool.submit(_worker_run, wa): i
-                    for i, wa in enumerate(worker_args)
+                    pool.submit(_worker_run, wa): i for i, wa in enumerate(worker_args)
                 }
                 _write_live_status(
                     status_json_path,
@@ -1565,29 +1929,50 @@ def main():
                         duration = 0.0
                     drc = score.pipeline_drc or quick_drc(work_pcb)
                     if score.total == -1.0:
-                        err_msg = getattr(score, '_error', 'unknown error')
+                        err_msg = getattr(score, "_error", "unknown error")
                         print(f"  Worker {i} CRASHED: {err_msg[:200]}", flush=True)
                     if score_weights:
-                        score.compute(score_weights,
-                                      board_area_mm2=_board_area(candidate_cfg))
+                        score.compute(
+                            score_weights, board_area_mm2=_board_area(candidate_cfg)
+                        )
                     else:
                         score.compute(board_area_mm2=_board_area(candidate_cfg))
-                    results.append((score, duration, work_pcb, drc, mode,
-                                    candidate_cfg, candidate_seed, delta))
+                    results.append(
+                        (
+                            score,
+                            duration,
+                            work_pcb,
+                            drc,
+                            mode,
+                            candidate_cfg,
+                            candidate_seed,
+                            delta,
+                        )
+                    )
 
             # Process all results from this batch
             remaining_in_batch = len(results)
-            for (score, duration, work_pcb, drc, mode,
-                 candidate_cfg, candidate_seed, delta) in results:
+            for (
+                score,
+                duration,
+                work_pcb,
+                drc,
+                mode,
+                candidate_cfg,
+                candidate_seed,
+                delta,
+            ) in results:
                 if n_workers > 1:
                     round_num += 1
 
                 kept = score.total > best_total
                 # Gate: reject rounds where routing was skipped or mostly failed
-                if getattr(score, 'skipped_routing', False):
+                if getattr(score, "skipped_routing", False):
                     kept = False
                 elif score.total_nets > 0:
-                    r_pct = ((score.total_nets - score.failed_nets) / score.total_nets) * 100
+                    r_pct = (
+                        (score.total_nets - score.failed_nets) / score.total_nets
+                    ) * 100
                     if r_pct < 10.0:
                         kept = False
                 if kept:
@@ -1603,29 +1988,39 @@ def main():
                     save_elite_archive(work_dir, best_cfg, best_seed, best_total)
                     save_seed_bank(work_dir, best_cfg, best_seed, best_total)
                     marker = f"NEW BEST +{improvement:.2f}"
-                    _log_event("new_best",
-                               round_num=round_num,
-                               score=score.total,
-                               improvement=improvement,
-                               shorts=drc["shorts"])
+                    _log_event(
+                        "new_best",
+                        round_num=round_num,
+                        score=score.total,
+                        improvement=improvement,
+                        shorts=drc["shorts"],
+                    )
                 else:
                     minor_stagnant += 1
                     marker = f"discard (stagnant={minor_stagnant})"
-                    _log_event("round_discarded",
-                               round_num=round_num,
-                               score=score.total,
-                               stagnant_rounds=minor_stagnant)
+                    _log_event(
+                        "round_discarded",
+                        round_num=round_num,
+                        score=score.total,
+                        stagnant_rounds=minor_stagnant,
+                    )
 
                 elapsed = time.monotonic() - loop_t0
                 avg_round = elapsed / max(round_num, 1)
                 eta_s = avg_round * (args.rounds - round_num)
                 eta_str = f"{int(eta_s // 60)}m{int(eta_s % 60):02d}s"
-                print(f"  -> score={score.total:6.2f} best={best_total:6.2f} "
-                      f"shorts={drc['shorts']:3d} drc={drc['total']:4d} "
-                      f"({duration:.1f}s) [{marker}]", flush=True)
-                print(f"     [progress {round_num}/{args.rounds}  kept={kept_count}  "
-                      f"elapsed={int(elapsed//60)}m{int(elapsed%60):02d}s  "
-                      f"ETA={eta_str}]", flush=True)
+                print(
+                    f"  -> score={score.total:6.2f} best={best_total:6.2f} "
+                    f"shorts={drc['shorts']:3d} drc={drc['total']:4d} "
+                    f"({duration:.1f}s) [{marker}]",
+                    flush=True,
+                )
+                print(
+                    f"     [progress {round_num}/{args.rounds}  kept={kept_count}  "
+                    f"elapsed={int(elapsed // 60)}m{int(elapsed % 60):02d}s  "
+                    f"ETA={eta_str}]",
+                    flush=True,
+                )
 
                 route_pct, trace_eff, via_sc = _score_sub_fields(score)
                 exp = Experiment(
@@ -1652,7 +2047,7 @@ def main():
                     routing_ms=round(score.routing_ms, 1),
                     nets_routed=score.routed_nets,
                     failed_net_names=score.failed_net_names,
-                    skipped_routing=getattr(score, 'skipped_routing', False),
+                    skipped_routing=getattr(score, "skipped_routing", False),
                     edge_compliance=round(score.placement.edge_compliance, 1),
                     trace_count=score.trace_count,
                     via_count=score.via_count,
@@ -1664,13 +2059,23 @@ def main():
                 _log_and_record(exp, experiments, log_path)
                 # Compute running failure rates for observability
                 _net_failure_rates = (
-                    {name: round(count / round_num, 3)
-                     for name, count in net_fail_counts.items()}
-                    if round_num > 0 else {}
+                    {
+                        name: round(count / round_num, 3)
+                        for name, count in net_fail_counts.items()
+                    }
+                    if round_num > 0
+                    else {}
                 )
                 _write_round_detail(
-                    rounds_dir, round_num, score, candidate_cfg,
-                    drc, duration, kept, mode, candidate_seed,
+                    rounds_dir,
+                    round_num,
+                    score,
+                    candidate_cfg,
+                    drc,
+                    duration,
+                    kept,
+                    mode,
+                    candidate_seed,
                     net_failure_rates=_net_failure_rates,
                 )
                 completed_durations.append(duration)
@@ -1699,22 +2104,35 @@ def main():
                 frame_png = str(frames_dir / f"frame_{round_num:04d}.png")
                 # Snapshot the current round's layout (not just the best),
                 # so the GIF shows what each round actually tried.
-                frame_pcb = work_pcb if os.path.exists(work_pcb) else str(best_dir / "best.kicad_pcb")
+                frame_pcb = (
+                    work_pcb
+                    if os.path.exists(work_pcb)
+                    else str(best_dir / "best.kicad_pcb")
+                )
                 # Save round PCB for post-hoc analysis when --save-all is set
-                if getattr(args, 'save_all', False) and os.path.exists(work_pcb):
-                    shutil.copy2(work_pcb, str(rounds_dir / f"round_{round_num:04d}.kicad_pcb"))
+                if getattr(args, "save_all", False) and os.path.exists(work_pcb):
+                    shutil.copy2(
+                        work_pcb, str(rounds_dir / f"round_{round_num:04d}.kicad_pcb")
+                    )
                 # Apply group labels before rendering the snapshot
                 _apply_group_labels(frame_pcb, BASE_CONFIG)
-                snapshot_pcb(frame_pcb, frame_png,
-                             board_mm=board_mm,
-                             frame_info={"round_num": round_num, "score": score.total,
-                                         "kept": kept, "timestamp": frame_elapsed,
-                                         "drc_shorts": drc["shorts"],
-                                         "drc_violations": drc.get("violations", []),
-                                         "placement_score": score.placement.total,
-                                         "drc_score": score.drc_score.total,
-                                         "route_pct": route_pct,
-                                         "via_score": via_sc})
+                snapshot_pcb(
+                    frame_pcb,
+                    frame_png,
+                    board_mm=board_mm,
+                    frame_info={
+                        "round_num": round_num,
+                        "score": score.total,
+                        "kept": kept,
+                        "timestamp": frame_elapsed,
+                        "drc_shorts": drc["shorts"],
+                        "drc_violations": drc.get("violations", []),
+                        "placement_score": score.placement.total,
+                        "drc_score": score.drc_score.total,
+                        "route_pct": route_pct,
+                        "via_score": via_sc,
+                    },
+                )
                 seen_report_paths: set[Path] = set()
                 for live_report_path in live_report_paths:
                     if live_report_path in seen_report_paths:
@@ -1747,12 +2165,14 @@ def main():
         try:
             subprocess.run(
                 ["python3", str(plot_script), str(log_path), str(dashboard_path)],
-                check=True, capture_output=True,
+                check=True,
+                capture_output=True,
             )
             print(f"  Dashboard saved: {dashboard_path}")
         except subprocess.CalledProcessError as e:
-            print(f"  Dashboard regeneration failed: {e.stderr.decode()}",
-                  file=sys.stderr)
+            print(
+                f"  Dashboard regeneration failed: {e.stderr.decode()}", file=sys.stderr
+            )
 
     # Copy best result to output
     best_pcb = str(best_dir / "best.kicad_pcb")
@@ -1767,8 +2187,10 @@ def main():
     print()
     print(f"=== Done: {len(experiments)} experiments ===")
     print(f"Best score: {best_score.summary()}")
-    print(f"Best config delta from default: "
-          f"{json.dumps(config_delta(BASE_CONFIG, best_cfg), indent=2)}")
+    print(
+        f"Best config delta from default: "
+        f"{json.dumps(config_delta(BASE_CONFIG, best_cfg), indent=2)}"
+    )
     print(f"Best seed: {best_seed}")
     print(f"Output: {output_path}")
     print(f"Log:    {log_path}")
@@ -1797,11 +2219,13 @@ def main():
             shutil.copy2(report_path, live_report_path)
             print(f"  Report copy:  {live_report_path}")
 
-    _log_event("experiment_completed",
-               total_rounds=len(experiments),
-               best_score=best_total,
-               kept_count=kept_count,
-               total_elapsed_s=time.monotonic() - loop_t0)
+    _log_event(
+        "experiment_completed",
+        total_rounds=len(experiments),
+        best_score=best_total,
+        kept_count=kept_count,
+        total_elapsed_s=time.monotonic() - loop_t0,
+    )
 
 
 if __name__ == "__main__":
