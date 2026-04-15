@@ -6,7 +6,7 @@ These serve as the interchange format between Brain and Hardware layers.
 from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import IntEnum
-from math import hypot, atan2, pi
+from math import hypot, atan2, pi, sqrt
 from typing import Optional, NamedTuple
 
 
@@ -70,12 +70,21 @@ class Component:
         return self.width_mm * self.height_mm
 
     def bbox(self, clearance: float = 0.0) -> tuple[Point, Point]:
-        """Return (top_left, bottom_right) with optional clearance margin."""
+        """Return (top_left, bottom_right) with optional clearance margin.
+
+        Centers the bounding box on body_center (courtyard geometric center)
+        when available, falling back to pos (footprint origin).  This is
+        critical for components where the origin differs from the courtyard
+        center (e.g. battery holders, some connectors) — using pos would
+        produce a shifted bbox that misses real overlaps.
+        """
         hw = self.width_mm / 2 + clearance
         hh = self.height_mm / 2 + clearance
+        cx = self.body_center.x if self.body_center else self.pos.x
+        cy = self.body_center.y if self.body_center else self.pos.y
         return (
-            Point(self.pos.x - hw, self.pos.y - hh),
-            Point(self.pos.x + hw, self.pos.y + hh),
+            Point(cx - hw, cy - hh),
+            Point(cx + hw, cy + hh),
         )
 
 
@@ -170,16 +179,20 @@ class PlacementScore:
     rotation_score: float = 0.0     # pad alignment quality
     board_containment: float = 0.0  # % of pads/bodies inside board outline
     courtyard_overlap: float = 0.0  # 100 = no overlaps
+    smt_opposite_tht: float = 100.0  # SMT-over-THT board space utilization
+    group_coherence: float = 100.0  # functional group compactness (100 = perfect)
 
     def compute_total(self, weights: Optional[dict] = None) -> float:
         w = weights or {
-            "net_distance": 0.25,        # connected parts close together
-            "crossover_score": 0.20,     # fewer crossings = easier routing
-            "compactness": 0.12,         # tighter layouts = smaller boards
+            "net_distance": 0.22,        # connected parts close together
+            "crossover_score": 0.18,     # fewer crossings = easier routing
+            "compactness": 0.05,         # tighter layouts = smaller boards
             "edge_compliance": 0.10,
             "rotation_score": 0.03,
-            "board_containment": 0.15,
-            "courtyard_overlap": 0.15,
+            "board_containment": 0.12,
+            "courtyard_overlap": 0.10,
+            "smt_opposite_tht": 0.10,   # SMT on opposite side of THT
+            "group_coherence": 0.10,    # functional groups stay compact
         }
         self.total = sum(
             getattr(self, k) * v for k, v in w.items()
@@ -314,3 +327,66 @@ class ExperimentScore:
                 f"traces={self.trace_count} vias={self.via_count} "
                 f"length={self.total_trace_length_mm:.0f}mm "
                 f"placement={self.placement.total:.1f}")
+
+
+# ---------------------------------------------------------------------------
+# Hierarchical group placement data structures
+# ---------------------------------------------------------------------------
+
+@dataclass
+class FunctionalGroup:
+    """A functional group of components that belong together (e.g. one IC and
+    its supporting passives, as defined by a schematic sub-sheet)."""
+    name: str                          # Human-readable name (e.g. "USB INPUT")
+    leader_ref: str                    # Primary component reference (e.g. "U1")
+    member_refs: list[str]             # All component refs including leader
+    inter_group_nets: list[str] = field(default_factory=list)  # Nets connecting to other groups
+
+
+@dataclass
+class GroupSet:
+    """Complete set of functional groups for a project."""
+    groups: list[FunctionalGroup] = field(default_factory=list)
+    ungrouped_refs: list[str] = field(default_factory=list)  # Components not in any group
+    source: str = "auto"               # "schematic", "netlist", "manual", "auto"
+
+    def ref_to_group(self) -> dict[str, FunctionalGroup]:
+        """Build reverse map: component ref -> its FunctionalGroup."""
+        mapping = {}
+        for group in self.groups:
+            for ref in group.member_refs:
+                mapping[ref] = group
+        return mapping
+
+    def ref_to_leader(self) -> dict[str, str]:
+        """Build reverse map: component ref -> group leader ref."""
+        mapping = {}
+        for group in self.groups:
+            for ref in group.member_refs:
+                mapping[ref] = group.leader_ref
+        return mapping
+
+
+@dataclass
+class PlacedGroup:
+    """A functional group after intra-group placement.
+
+    Component positions are stored relative to the group origin (0, 0).
+    The bounding_box gives the overall envelope of the placed group.
+    """
+    group: FunctionalGroup
+    bounding_box: tuple[float, float]  # (width, height) in mm
+    component_positions: dict[str, tuple[float, float, float]]  # ref -> (rel_x, rel_y, rotation)
+    component_layers: dict[str, Layer] = field(default_factory=dict)  # ref -> layer
+
+    @property
+    def width(self) -> float:
+        return self.bounding_box[0]
+
+    @property
+    def height(self) -> float:
+        return self.bounding_box[1]
+
+    @property
+    def area(self) -> float:
+        return self.bounding_box[0] * self.bounding_box[1]

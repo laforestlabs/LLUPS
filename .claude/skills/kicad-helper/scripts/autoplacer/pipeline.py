@@ -8,15 +8,39 @@ import os
 import time
 from typing import Any
 
-from .brain.types import BoardState, PlacementScore, ExperimentScore, DRCScore
+from .brain.types import (
+    BoardState, PlacementScore, ExperimentScore, DRCScore, Point,
+)
 from .brain.placement import PlacementSolver, PlacementScorer, compute_min_board_size
+from .brain.placement import _update_pad_positions
+from .brain.groups import resolve_groups, derive_signal_flow_order
+from .brain.group_placer import GroupPlacer
 from .freerouting_runner import route_with_freerouting, count_board_tracks
 from .hardware.adapter import KiCadAdapter
 from .config import DEFAULT_CONFIG, LLUPS_CONFIG
 
 
+def _override_board_outline(state: BoardState, cfg: dict):
+    """Override board outline from config if board size search is active."""
+    if cfg.get("enable_board_size_search", False):
+        w = cfg.get("board_width_mm", 90.0)
+        h = cfg.get("board_height_mm", 58.0)
+        cx = (state.board_outline[0].x + state.board_outline[1].x) / 2
+        cy = (state.board_outline[0].y + state.board_outline[1].y) / 2
+        state.board_outline = (
+            Point(cx - w / 2, cy - h / 2),
+            Point(cx + w / 2, cy + h / 2),
+        )
+
+
 class PlacementEngine:
-    """Run placement optimization: edge-first + clustering + force-directed."""
+    """Run placement optimization.
+
+    Supports two modes:
+      - hierarchical (default): group-based placement — place within groups
+        first, then arrange groups on the board as rigid blocks.
+      - flat (legacy): global force-directed placement with clustering.
+    """
 
     def run(self, pcb_path: str, output_path: str = None,
             config: dict = None, seed: int = 0) -> dict:
@@ -24,17 +48,7 @@ class PlacementEngine:
         adapter = KiCadAdapter(pcb_path, config=cfg)
         state = adapter.load()
 
-        # Override board outline if board size search is active
-        if cfg.get("enable_board_size_search", False):
-            from .brain.types import Point
-            w = cfg.get("board_width_mm", 90.0)
-            h = cfg.get("board_height_mm", 58.0)
-            cx = (state.board_outline[0].x + state.board_outline[1].x) / 2
-            cy = (state.board_outline[0].y + state.board_outline[1].y) / 2
-            state.board_outline = (
-                Point(cx - w / 2, cy - h / 2),
-                Point(cx + w / 2, cy + h / 2),
-            )
+        _override_board_outline(state, cfg)
 
         print(f"Loaded {len(state.components)} components, {len(state.nets)} nets")
 
@@ -44,33 +58,29 @@ class PlacementEngine:
         print(f"  Min viable board: {min_w:.0f} x {min_h:.0f} mm "
               f"(overhead={overhead:.1f}x)")
 
-        solver = PlacementSolver(state, cfg, seed=seed)
-        new_comps = solver.solve()
+        # Choose placement strategy
+        use_hierarchical = cfg.get("hierarchical_placement", True)
 
-        # Score placement; if degenerate (score=0), retry once with defaults
+        if use_hierarchical:
+            new_comps = self._run_hierarchical(
+                pcb_path, adapter, state, cfg, seed)
+        else:
+            new_comps = self._run_flat(state, cfg, seed)
+
+        # Score placement; if degenerate (score=0), retry once with flat fallback
         state.components = new_comps
         scorer = PlacementScorer(state, cfg)
         score = scorer.score()
         if score.total < 1.0:
-            print("  Placement degenerate (score=0), retrying with default config...")
+            print("  Placement degenerate (score=0), retrying with flat placement...")
+            state2 = adapter.load()
+            _override_board_outline(state2, cfg)
             fallback_cfg = {**cfg}
             for k in ("force_attract_k", "force_repel_k", "cooling_factor",
                        "placement_clearance_mm", "orderedness"):
                 if k in DEFAULT_CONFIG:
                     fallback_cfg[k] = DEFAULT_CONFIG[k]
-            state2 = adapter.load()
-            if cfg.get("enable_board_size_search", False):
-                from .brain.types import Point
-                w2 = cfg.get("board_width_mm", 90.0)
-                h2 = cfg.get("board_height_mm", 58.0)
-                cx2 = (state2.board_outline[0].x + state2.board_outline[1].x) / 2
-                cy2 = (state2.board_outline[0].y + state2.board_outline[1].y) / 2
-                state2.board_outline = (
-                    Point(cx2 - w2 / 2, cy2 - h2 / 2),
-                    Point(cx2 + w2 / 2, cy2 + h2 / 2),
-                )
-            solver2 = PlacementSolver(state2, fallback_cfg, seed=seed + 1)
-            new_comps = solver2.solve()
+            new_comps = self._run_flat(state2, fallback_cfg, seed + 1)
             state.components = new_comps
             score = PlacementScorer(state, cfg).score()
 
@@ -102,6 +112,141 @@ class PlacementEngine:
             "min_board_width_mm": min_w,
             "min_board_height_mm": min_h,
         }
+
+    def _run_flat(self, state: BoardState, cfg: dict, seed: int
+                  ) -> dict[str, 'Component']:
+        """Legacy flat placement: global force-directed with clustering."""
+        solver = PlacementSolver(state, cfg, seed=seed)
+        return solver.solve()
+
+    def _run_hierarchical(self, pcb_path: str, adapter: 'KiCadAdapter',
+                          state: BoardState, cfg: dict, seed: int
+                          ) -> dict[str, 'Component']:
+        """Hierarchical group-based placement.
+
+        1. Extract functional groups
+        2. Place components within each group (intra-group)
+        3. Arrange groups on the board (inter-group)
+        4. Apply global positions and run post-processing
+        """
+        import copy
+        import os
+
+        # --- Step 1: Extract functional groups ---
+        project_dir = os.path.dirname(os.path.abspath(pcb_path))
+        component_refs = list(state.components.keys())
+        group_set = resolve_groups(
+            project_dir, component_refs, state.nets, cfg, seed=seed)
+
+        if not group_set.groups:
+            print("  No functional groups found — falling back to flat placement")
+            return self._run_flat(state, cfg, seed)
+
+        # Derive signal flow order
+        flow_order = cfg.get("signal_flow_order", [])
+        if not flow_order:
+            flow_order = derive_signal_flow_order(group_set, state.nets)
+        print(f"  Signal flow: {' -> '.join(flow_order)}")
+
+        # --- Step 2: Intra-group placement ---
+        solver = PlacementSolver(state, cfg, seed=seed)
+        placed_groups = []
+        for group in group_set.groups:
+            print(f"  Placing group '{group.name}' ({len(group.member_refs)} components)...")
+            pg = solver.solve_group(group, state.components, state.nets)
+            placed_groups.append(pg)
+            print(f"    -> {pg.width:.1f} x {pg.height:.1f} mm block")
+
+        # --- Step 3: Inter-group placement ---
+        print(f"  Arranging {len(placed_groups)} groups on board...")
+        ungrouped_comps = {ref: state.components[ref]
+                           for ref in group_set.ungrouped_refs
+                           if ref in state.components}
+
+        group_placer = GroupPlacer(state, cfg, seed=seed)
+        global_positions = group_placer.place_groups(
+            placed_groups, ungrouped_comps, state.nets,
+            signal_flow_order=flow_order)
+
+        # --- Step 4: Apply global positions to components ---
+        new_comps = copy.deepcopy(state.components)
+        for ref, (gx, gy, rot, layer) in global_positions.items():
+            if ref not in new_comps:
+                continue
+            comp = new_comps[ref]
+            old_pos = Point(comp.pos.x, comp.pos.y)
+            old_rot = comp.rotation
+            comp.pos = Point(gx, gy)
+            comp.rotation = rot
+            comp.layer = layer
+            _update_pad_positions(comp, old_pos, old_rot)
+
+        # --- Step 5: Post-processing (reuse existing solver infrastructure) ---
+        # Run a short global refinement pass: overlap resolution, clamping,
+        # edge pinning.  The solver's solve() method is too heavy — we just
+        # need the cleanup steps.
+        post_solver = PlacementSolver(state, cfg, seed=seed)
+
+        # Assign layers (large THT to back)
+        post_solver._assign_layers(new_comps)
+
+        # Pin edge components (connectors, mounting holes)
+        post_solver._pin_edge_components(new_comps)
+
+        # Align large pairs
+        post_solver._align_large_pairs(new_comps)
+
+        # Resolve overlaps
+        post_solver._resolve_overlaps(new_comps)
+        post_solver._re_snap_aligned_pairs(new_comps)
+
+        # Snap to grid
+        post_solver._snap_to_grid(new_comps)
+        post_solver._re_snap_aligned_pairs(new_comps)
+
+        # Final overlap resolution
+        post_solver._resolve_overlaps(new_comps)
+        post_solver._re_snap_aligned_pairs(new_comps)
+
+        # Hard clamp — nothing outside the board
+        post_solver._clamp_to_board(new_comps)
+        post_solver._clamp_pads_to_board(new_comps)
+
+        # Validate pad containment
+        tl, br = state.board_outline
+        inset = cfg.get("pad_inset_margin_mm", 0.3)
+        for clamp_pass in range(3):
+            any_outside = False
+            for comp in new_comps.values():
+                for pad in comp.pads:
+                    if (pad.pos.x < tl.x + inset or pad.pos.x > br.x - inset or
+                            pad.pos.y < tl.y + inset or pad.pos.y > br.y - inset):
+                        any_outside = True
+                        break
+                if any_outside:
+                    break
+            if not any_outside:
+                break
+            post_solver._clamp_to_board(new_comps)
+            post_solver._clamp_pads_to_board(new_comps)
+            if clamp_pass == 2:
+                print("  WARNING: some pads still outside board after 3 clamp passes")
+
+        # Restore pinned positions
+        post_solver._restore_pinned_positions(new_comps)
+        post_solver._resolve_overlaps(new_comps)
+        post_solver._restore_pinned_positions(new_comps)
+        post_solver._clamp_pads_to_board(new_comps)
+
+        # Final score
+        state.components = new_comps
+        final = PlacementScorer(state, cfg).score()
+        print(f"  Final placement score: {final.total:.1f} "
+              f"(nets={final.net_distance:.0f} "
+              f"cross={final.crossover_score:.0f} "
+              f"xovers={final.crossover_count})")
+
+        return new_comps
 
 
 class RoutingEngine:
@@ -168,7 +313,7 @@ class FullPipeline:
         # Placement validation gate: skip routing if placement is degenerate
         min_score = cfg.get("min_placement_score", 20.0)
         min_containment = cfg.get("min_board_containment", 90.0)
-        min_courtyard = cfg.get("min_courtyard_overlap_score", 10.0)
+        min_courtyard = cfg.get("min_courtyard_overlap_score", 50.0)
 
         skip_reason = None
         p_score = placement.get("score", 0)

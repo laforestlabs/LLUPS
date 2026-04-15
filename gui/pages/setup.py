@@ -99,6 +99,78 @@ def setup_page():
                 "computed from total component area."
             )
 
+            ui.separator().classes("my-2")
+            ui.label("Placement Features").classes(
+                "text-sm font-bold text-gray-300 mb-1")
+
+            ui.switch("SMT opposite THT attraction",
+                      value=state.toggles["smt_opposite_tht"],
+                      on_change=lambda e: state.toggles.update(
+                          {"smt_opposite_tht": e.value}
+                      )).tooltip(
+                "Attract front-side SMT components toward the XY shadow of "
+                "back-side THT footprints to maximize board space utilization."
+            )
+
+            ui.switch("Align large paired components",
+                      value=state.toggles["align_large_pairs"],
+                      on_change=lambda e: state.toggles.update(
+                          {"align_large_pairs": e.value}
+                      )).tooltip(
+                "Detect pairs of large, similarly-sized components (e.g. "
+                "battery holders) and force them side-by-side."
+            )
+
+            ui.switch("Randomize group layout",
+                      value=state.toggles["randomize_group_layout"],
+                      on_change=lambda e: state.toggles.update(
+                          {"randomize_group_layout": e.value}
+                      )).tooltip(
+                "Widen cluster radius variation (0.3-1.8x vs 0.8-1.2x) "
+                "for more diverse placement exploration."
+            )
+
+            ui.separator().classes("my-2")
+            ui.label("Routing Features").classes(
+                "text-sm font-bold text-gray-300 mb-1")
+
+            ui.switch("Skip GND routing (use ground plane)",
+                      value=state.toggles["skip_gnd_routing"],
+                      on_change=lambda e: state.toggles.update(
+                          {"skip_gnd_routing": e.value}
+                      )).tooltip(
+                "Exclude GND net from FreeRouting. GND connects via "
+                "copper zone pour instead of discrete traces."
+            )
+
+            ui.separator().classes("my-2")
+            ui.label("Mutation Strategy").classes(
+                "text-sm font-bold text-gray-300 mb-1")
+
+            ui.select(
+                label="Scatter Mode",
+                options=["cluster", "random"],
+                value=state.toggles["scatter_mode"],
+                on_change=lambda e: state.toggles.update(
+                    {"scatter_mode": e.value}
+                ),
+            ).tooltip(
+                "'cluster' groups components by connectivity (exploit). "
+                "'random' scatters uniformly (explore)."
+            ).classes("w-48")
+
+            ui.number(
+                "Reheat Strength",
+                value=state.toggles["reheat_strength"],
+                min=0.0, max=0.5, step=0.05,
+                on_change=lambda e: state.toggles.update(
+                    {"reheat_strength": e.value}
+                ),
+            ).tooltip(
+                "Temperature reheat factor applied at 50% of force sim. "
+                "0 = no reheat, 0.1 = mild perturbation kick."
+            ).classes("w-48")
+
         # ── Presets ──
         with ui.tab_panel(presets_tab):
             _presets_panel(state)

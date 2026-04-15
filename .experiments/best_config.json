@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "timestamp": 1776167305.2495127,
+  "timestamp": 1776228094.6852431,
   "best_cfg": {
     "signal_width_mm": 0.127,
     "power_width_mm": 0.127,
@@ -44,6 +44,8 @@
     "connector_edge_inset_mm": 0.7568,
     "orderedness": 0.1387,
     "tht_backside_min_area_mm2": 50.0,
+    "smt_opposite_tht": true,
+    "align_large_pairs": true,
     "min_placement_score": 20.0,
     "component_zones": {
       "J1": {
@@ -98,6 +100,8 @@
     "gnd_zone_net": "GND",
     "gnd_zone_layer": "B.Cu",
     "gnd_zone_margin_mm": 0.5,
+    "group_source": "auto",
+    "hierarchical_placement": true,
     "ic_groups": {
       "U1": [
         "C1",
@@ -158,6 +162,6 @@
     "_min_board_width_mm": 125.0,
     "_min_board_height_mm": 80.0
   },
-  "best_seed": 552520583,
-  "best_score": 85.69414610031207
+  "best_seed": 1239124783,
+  "best_score": 91.3214668770077
 }

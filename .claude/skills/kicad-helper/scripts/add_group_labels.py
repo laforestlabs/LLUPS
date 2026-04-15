@@ -24,6 +24,7 @@ Options:
 """
 import argparse
 import json
+import math
 import re
 import sys
 import uuid
@@ -32,6 +33,7 @@ from pathlib import Path
 
 # Marker prefix for idempotent label management
 GROUP_LABEL_MARKER = "group_label_"
+GROUP_BOX_MARKER = "group_box_"
 
 
 def parse_footprints(pcb_text: str) -> dict:
@@ -140,9 +142,9 @@ def silk_layer_for(copper_layer: str) -> str:
 
 
 def remove_existing_group_labels(pcb_text: str) -> str:
-    """Remove any previously-added group labels (idempotent)."""
-    # Remove gr_text blocks that contain our marker in their uuid
-    pattern = re.compile(
+    """Remove any previously-added group labels and boxes (idempotent)."""
+    # Remove gr_text blocks that contain our label marker in their uuid
+    text_pattern = re.compile(
         r'\t\(gr_text\s+"[^"]*"\s*\n'
         r'(?:\t\t[^\n]*\n)*?'
         r'\t\t\(uuid\s+"' + GROUP_LABEL_MARKER + r'[^"]*"\)\n'
@@ -150,7 +152,18 @@ def remove_existing_group_labels(pcb_text: str) -> str:
         r'\t\)\n',
         re.MULTILINE
     )
-    return pattern.sub('', pcb_text)
+    pcb_text = text_pattern.sub('', pcb_text)
+    # Remove gr_poly blocks that contain our box marker in their uuid
+    poly_pattern = re.compile(
+        r'\t\(gr_poly\s*\n'
+        r'(?:\t\t[^\n]*\n)*?'
+        r'\t\t\(uuid\s+"' + GROUP_BOX_MARKER + r'[^"]*"\)\n'
+        r'(?:\t\t[^\n]*\n)*?'
+        r'\t\)\n',
+        re.MULTILINE
+    )
+    pcb_text = poly_pattern.sub('', pcb_text)
+    return pcb_text
 
 
 def make_gr_text(label: str, x: float, y: float, layer: str,
@@ -169,6 +182,47 @@ def make_gr_text(label: str, x: float, y: float, layer: str,
         f'\t\t\t)\n'
         f'\t\t\t(justify left)\n'
         f'\t\t)\n'
+        f'\t)\n'
+    )
+
+
+def make_gr_poly_roundrect(x0: float, y0: float, x1: float, y1: float,
+                           radius: float, layer: str, stroke_width: float,
+                           uid: str) -> str:
+    """Generate a KiCad gr_poly S-expression for a rounded rectangle.
+
+    Uses 8 points per corner (32 total) to approximate arc corners.
+    """
+    r = min(radius, (x1 - x0) / 2, (y1 - y0) / 2)
+    pts = []
+    # Generate corner arcs (clockwise from top-left)
+    corners = [
+        (x0 + r, y0 + r, math.pi, math.pi / 2),        # top-left
+        (x1 - r, y0 + r, math.pi / 2, 0),               # top-right
+        (x1 - r, y1 - r, 0, -math.pi / 2),              # bottom-right
+        (x0 + r, y1 - r, -math.pi / 2, -math.pi),       # bottom-left
+    ]
+    n_arc = 8  # points per corner arc
+    for cx, cy, a_start, a_end in corners:
+        for i in range(n_arc):
+            t = a_start + (a_end - a_start) * i / (n_arc - 1)
+            px = cx + r * math.cos(t)
+            py = cy - r * math.sin(t)  # KiCad Y-down
+            pts.append(f'\t\t\t(xy {px:.3f} {py:.3f})')
+
+    pts_str = '\n'.join(pts)
+    return (
+        f'\t(gr_poly\n'
+        f'\t\t(pts\n'
+        f'{pts_str}\n'
+        f'\t\t)\n'
+        f'\t\t(stroke\n'
+        f'\t\t\t(width {stroke_width})\n'
+        f'\t\t\t(type solid)\n'
+        f'\t\t)\n'
+        f'\t\t(fill no)\n'
+        f'\t\t(layer "{layer}")\n'
+        f'\t\t(uuid "{uid}")\n'
         f'\t)\n'
     )
 
@@ -201,12 +255,14 @@ def _component_rects(footprints: dict, ic_groups: dict, ic_ref: str) -> list:
 def add_group_labels(pcb_path: str, ic_groups: dict, group_labels: dict,
                      font_height: float = 0.0, font_width: float = 0.0,
                      font_thickness: float = 0.15, offset_y: float = 1.5,
+                     box_padding: float = 1.0, box_radius: float = 0.8,
+                     box_stroke: float = 0.15,
                      in_place: bool = False, dry_run: bool = False) -> str:
-    """Add silkscreen group labels to a KiCad PCB file.
+    """Add silkscreen group labels with rounded rectangle boxes to a KiCad PCB.
 
-    Labels are placed near each IC group with collision detection:
-    tries above, below, left, right, and diagonal positions to avoid
-    overlapping components. Font size auto-scales to group width when
+    For each IC group, draws a rounded rectangle around the group's
+    bounding box (with padding) and a text label centered on the top
+    edge of the box.  Font size auto-scales to group width when
     font_height/font_width are 0 (default).
 
     Args:
@@ -216,7 +272,10 @@ def add_group_labels(pcb_path: str, ic_groups: dict, group_labels: dict,
         font_height: Text height in mm (0 = auto-scale to group size)
         font_width: Text width in mm (0 = auto-scale to group size)
         font_thickness: Stroke thickness in mm
-        offset_y: Vertical offset from group edge in mm
+        offset_y: Vertical offset from group edge in mm (fallback positioning)
+        box_padding: Padding around group bounding box for the box (mm)
+        box_radius: Corner radius for the rounded rectangle (mm)
+        box_stroke: Stroke width for the box outline (mm)
         in_place: Overwrite input file if True
         dry_run: Only print positions, don't modify
 
@@ -232,17 +291,15 @@ def add_group_labels(pcb_path: str, ic_groups: dict, group_labels: dict,
         print("ERROR: No footprints found in PCB file", file=sys.stderr)
         sys.exit(1)
 
-    # Remove old group labels (idempotent)
+    # Remove old group labels and boxes (idempotent)
     pcb_text = remove_existing_group_labels(pcb_text)
 
     # Compute group bounding boxes
     bounds = compute_group_bounds(footprints, ic_groups)
 
-    # Collect all placed label rects for inter-label collision
-    placed_rects = []
-
-    # Generate label texts
+    # Generate labels and boxes
     labels_to_add = []
+    boxes_to_add = []
     for ic_ref in sorted(bounds.keys()):
         if ic_ref not in group_labels:
             continue
@@ -260,48 +317,33 @@ def add_group_labels(pcb_path: str, ic_groups: dict, group_labels: dict,
             fh = font_height
             fw = font_width
 
-        # Try candidate positions: above, below, left, right, diagonal offsets
-        cx, cy = b["cx"], b["cy"]
-        candidates = [
-            (cx, b["min_y"] - offset_y),                          # above center
-            (cx, b["max_y"] + offset_y + fh),                     # below center
-            (b["min_x"] - offset_y - len(label_text) * fw * 0.7, cy),  # left
-            (b["max_x"] + offset_y, cy),                          # right
-            (b["min_x"], b["min_y"] - offset_y),                  # above-left
-            (b["max_x"], b["min_y"] - offset_y),                  # above-right
-            (b["min_x"], b["max_y"] + offset_y + fh),             # below-left
-        ]
+        # Box around the group bounding box (with padding)
+        bx0 = b["min_x"] - box_padding - 1.5  # extra margin for component size
+        by0 = b["min_y"] - box_padding - 1.0
+        bx1 = b["max_x"] + box_padding + 1.5
+        by1 = b["max_y"] + box_padding + 1.0
 
-        comp_rects = _component_rects(footprints, ic_groups, ic_ref)
+        box_uid = f"{GROUP_BOX_MARKER}{ic_ref.lower()}_{uuid.uuid4().hex[:8]}"
+        boxes_to_add.append({
+            "ic_ref": ic_ref,
+            "x0": bx0, "y0": by0, "x1": bx1, "y1": by1,
+            "layer": silk,
+            "uid": box_uid,
+        })
 
-        best_pos = candidates[0]  # fallback to above-center
-        for cx_try, cy_try in candidates:
-            lr = _label_rect(cx_try, cy_try, label_text, fh, fw)
-            collision = False
-            for cr in comp_rects:
-                if _rects_overlap(lr, cr):
-                    collision = True
-                    break
-            if not collision:
-                for pr in placed_rects:
-                    if _rects_overlap(lr, pr):
-                        collision = True
-                        break
-            if not collision:
-                best_pos = (cx_try, cy_try)
-                break
+        # Position label centered on the top edge of the box
+        text_w = len(label_text) * fw * 0.7
+        lx = (bx0 + bx1) / 2 - text_w / 2  # left-justified from center
+        ly = by0  # on the top edge line
 
-        lx, ly = best_pos
-        uid = f"{GROUP_LABEL_MARKER}{ic_ref.lower()}_{uuid.uuid4().hex[:8]}"
-        placed_rects.append(_label_rect(lx, ly, label_text, fh, fw))
-
+        label_uid = f"{GROUP_LABEL_MARKER}{ic_ref.lower()}_{uuid.uuid4().hex[:8]}"
         labels_to_add.append({
             "ic_ref": ic_ref,
             "text": label_text,
             "x": lx,
             "y": ly,
             "layer": silk,
-            "uid": uid,
+            "uid": label_uid,
             "font_h": fh,
             "font_w": fw,
         })
@@ -314,21 +356,25 @@ def add_group_labels(pcb_path: str, ic_groups: dict, group_labels: dict,
     if dry_run:
         return pcb_path
 
-    # Build gr_text S-expressions
-    gr_texts = ""
+    # Build S-expressions for boxes and labels
+    gr_elements = ""
+    for box in boxes_to_add:
+        gr_elements += make_gr_poly_roundrect(
+            box["x0"], box["y0"], box["x1"], box["y1"],
+            box_radius, box["layer"], box_stroke, box["uid"]
+        )
     for lbl in labels_to_add:
-        gr_texts += make_gr_text(
+        gr_elements += make_gr_text(
             lbl["text"], lbl["x"], lbl["y"], lbl["layer"],
             lbl["font_h"], lbl["font_w"], font_thickness, lbl["uid"]
         )
 
     # Insert before the final closing paren
-    # Find the last top-level closing paren
     insert_pos = pcb_text.rfind("\n)")
     if insert_pos == -1:
         print("ERROR: Could not find insertion point in PCB file", file=sys.stderr)
         sys.exit(1)
-    pcb_text = pcb_text[:insert_pos] + "\n" + gr_texts + pcb_text[insert_pos:]
+    pcb_text = pcb_text[:insert_pos] + "\n" + gr_elements + pcb_text[insert_pos:]
 
     # Write output
     if in_place:

@@ -17,14 +17,23 @@ They are related but not identical.
 placement_total =
   0.25*net_distance +
   0.20*crossover_score +
-  0.12*compactness +
+  0.10*compactness +
   0.10*edge_compliance +
   0.03*rotation_score +
   0.15*board_containment +
-  0.15*courtyard_overlap
+  0.12*courtyard_overlap +
+  0.05*smt_opposite_tht
 ```
 
 All terms are normalized to a 0-100 range by scorer functions.
+
+### SMT-Opposite-THT Scoring
+
+Measures the fraction of front-side SMT component area that overlaps (in XY
+projection) with back-side THT bounding boxes. Higher overlap means better
+dual-sided board space utilization. Returns 100 when feature is disabled or no
+back-side THT exists; 50 baseline when SMT has no overlap; scales linearly to
+100 at full coverage. Controlled by `smt_opposite_tht` config toggle.
 
 ### Courtyard Overlap Scoring
 

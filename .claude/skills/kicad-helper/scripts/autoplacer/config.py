@@ -83,6 +83,19 @@ DEFAULT_CONFIG = {
     # them near their THT group leaders, achieving dual-sided board usage.
     "tht_backside_min_area_mm2": 50.0,
 
+    # SMT opposite THT — when True, actively attract SMT components on F.Cu
+    # toward XY regions occupied by large back-side THT components.  This
+    # uses board space efficiently by placing SMT on the opposite side of
+    # THT footprints.  Adds an attraction force (0.3× force_attract_k) and
+    # a small scoring bonus (~5% weight) for SMT-over-THT overlap.
+    "smt_opposite_tht": True,
+
+    # Align large pairs — when True, detect pairs of large non-passive
+    # components with similar footprints and force them to be placed
+    # side-by-side (aligned on one axis).  Only applies to components
+    # with area above tht_backside_min_area_mm2.
+    "align_large_pairs": True,
+
     # Minimum placement score to proceed to routing.
     # Below this threshold routing is skipped (saves 15-30s on degenerate layouts).
     "min_placement_score": 20.0,
@@ -125,9 +138,25 @@ DEFAULT_CONFIG = {
     "gnd_zone_layer": "B.Cu",
     "gnd_zone_margin_mm": 0.5,
 
+    # --- Functional group settings ---
+    # Group source: how to discover functional groups.
+    #   "auto"      — try schematic sheets first, fall back to netlist analysis
+    #   "schematic" — only use schematic hierarchical sheets
+    #   "netlist"   — only use netlist community detection
+    #   "manual"    — only use ic_groups from config
+    # Manual ic_groups overrides are always applied on top of auto-detected
+    # groups regardless of this setting.
+    "group_source": "auto",
+
+    # When True, use hierarchical group-based placement: place components
+    # within each functional group first, then arrange groups on the board
+    # as rigid blocks.  When False, use flat global placement (legacy).
+    "hierarchical_placement": True,
+
     # Explicit IC groups (IC + supporting components that should stay together).
     # Each key is the group leader (typically an IC reference), value is a list
-    # of supporting component references.
+    # of supporting component references.  Optional — when group_source is
+    # "auto" or "schematic", groups are auto-discovered from .kicad_sch files.
     "ic_groups": {},
 
     # Human-readable group labels for silkscreen annotation.

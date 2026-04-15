@@ -90,6 +90,10 @@ Configs are merged via `{**DEFAULT_CONFIG, **LLUPS_CONFIG, **(user_overrides or 
 | `tht_backside_min_area_mm2` | THT area threshold for back-layer assignment (default 50mm²) |
 | `board_size_overhead_factor` | Min board area = component area × factor (default 2.5) |
 | `enable_board_size_search` | Enable board dimension search in autoexperiment |
+| `smt_opposite_tht` | Attract front-side SMT components toward back-side THT shadows (default True) |
+| `align_large_pairs` | Force large similarly-sized component pairs side-by-side (default True) |
+| `unlock_all_footprints` | Allow edge/corner-pinned components to move freely during force sim (default True) |
+| `skip_gnd_routing` | Exclude GND net from FreeRouting, rely on copper zone pour (default True) |
 
 ## Rotation & Flip Conventions
 

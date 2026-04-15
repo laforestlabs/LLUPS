@@ -25,7 +25,12 @@ class ExperimentRunner:
     @property
     def is_running(self) -> bool:
         if self._process is not None:
-            return self._process.poll() is None
+            if self._process.poll() is None:
+                return True
+            # Process object exists but exited — clean up
+            self._process = None
+            self._cleanup_stale_state()
+            return False
         # Check for orphaned process
         if self._pid_file.exists():
             try:
@@ -33,8 +38,24 @@ class ExperimentRunner:
                 os.kill(pid, 0)  # Check if alive
                 return True
             except (ValueError, ProcessLookupError, PermissionError):
-                self._pid_file.unlink(missing_ok=True)
+                self._cleanup_stale_state()
         return False
+
+    def _cleanup_stale_state(self) -> None:
+        """Remove stale PID/stop files and mark status as done."""
+        self._pid_file.unlink(missing_ok=True)
+        (self.experiments_dir / "stop.now").unlink(missing_ok=True)
+        status_path = self.experiments_dir / "run_status.json"
+        if status_path.exists():
+            try:
+                with open(status_path) as f:
+                    status = json.load(f)
+                if status.get("phase") in ("running", "stopping"):
+                    status["phase"] = "done"
+                    with open(status_path, "w") as f:
+                        json.dump(status, f, indent=2)
+            except (json.JSONDecodeError, OSError):
+                pass
 
     def start(self, pcb_file: str, rounds: int, workers: int = 0,
               plateau: int = 3, seed: int | None = None,
@@ -98,7 +119,14 @@ class ExperimentRunner:
         return self._process.pid
 
     def stop(self) -> None:
-        """Request graceful stop via signal file."""
+        """Request graceful stop via signal file.
+
+        If the process is already dead, cleans up stale state instead.
+        """
+        if not self.is_running:
+            # Process already gone — just clean up stale files
+            self._cleanup_stale_state()
+            return
         stop_file = self.experiments_dir / "stop.now"
         stop_file.touch()
 
@@ -140,7 +168,8 @@ class ExperimentRunner:
                 self._process.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 self._process.kill()
-        self._pid_file.unlink(missing_ok=True)
+        self._process = None
+        self._cleanup_stale_state()
 
     def read_status(self) -> dict:
         """Read current run_status.json."""

@@ -137,6 +137,12 @@ DEFAULT_SCORE_WEIGHTS = {
 DEFAULT_TOGGLES = {
     "unlock_all_footprints": False,
     "enable_board_size_search": False,
+    "smt_opposite_tht": True,
+    "align_large_pairs": True,
+    "skip_gnd_routing": True,
+    "randomize_group_layout": False,
+    "scatter_mode": "cluster",
+    "reheat_strength": 0.1,
 }
 
 
