@@ -1,13 +1,13 @@
 # KiCad
 *.kicad_prl
 fp-info-cache
-fp-lib-table
 *-backups/
 *-rescue.lib
 *-rescue.dcm
 _autosave-*
 *.kicad_pcb-bak
 *.sch-bak
+*.kicad_sch.bak
 
 # Gerber / fabrication output
 gerber/
@@ -26,6 +26,11 @@ __pycache__/
 *.pyo
 .venv/
 
+# Generated reports and snapshots (large, regenerable)
+report.html
+LLUPS_best.kicad_pcb
+BOM.xlsx
+
 # Scoring results and renders (regenerated per run)
 .claude/skills/kicad-helper/scripts/results/
 
@@ -33,7 +38,7 @@ __pycache__/
 .experiments_old_broken_routing/
 renders/
 
-# Experiment temp files (only keep JSONL, dashboard, best board, and progress GIF)
+# Experiment temp files
 .experiments/experiment.kicad_pcb
 .experiments/experiment.kicad_pro
 .experiments/experiment_best.kicad_pcb
@@ -45,9 +50,26 @@ renders/
 .experiments/frames/
 .experiments/rounds/
 .experiments/workers/
-.experiments/llups.db
 .experiments/baseline.kicad_pcb
 .experiments/baseline.kicad_pro
+
+# SQLite database and WAL-mode temp files
+.experiments/llups.db
+.experiments/llups.db-shm
+.experiments/llups.db-wal
+
+# Generated experiment reports and renders
+.experiments/report.html
+.experiments/round_renders/
+.experiments/failure_heatmap.png
+.experiments/progress.gif
+.experiments/experiments_dashboard.png
+.experiments/experiments.png
+
+# Catch-all for old/one-off experiment data
+.experiments/baseline_*
+.experiments/post_*
+.experiments/test_fixes*
 
 # Claude local settings
 .claude/settings.local.json
@@ -56,4 +78,3 @@ renders/
 .DS_Store
 Thumbs.db
 desktop.ini
-*.kicad_sch.bak
