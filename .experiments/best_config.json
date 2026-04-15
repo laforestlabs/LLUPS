@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "timestamp": 1776228094.6852431,
+  "timestamp": 1776230596.6903586,
   "best_cfg": {
     "signal_width_mm": 0.127,
     "power_width_mm": 0.127,
@@ -162,6 +162,6 @@
     "_min_board_width_mm": 125.0,
     "_min_board_height_mm": 80.0
   },
-  "best_seed": 1239124783,
-  "best_score": 91.3214668770077
+  "best_seed": 789742116,
+  "best_score": 84.69189642968851
 }

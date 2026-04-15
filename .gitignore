@@ -33,7 +33,7 @@ __pycache__/
 .experiments_old_broken_routing/
 renders/
 
-# Experiment temp files (only keep JSONL, dashboard, best board, and progress GIF)
+# Experiment temp files (only keep JSONL, best board, configs, and seed bank)
 .experiments/experiment.kicad_pcb
 .experiments/experiment.kicad_pro
 .experiments/experiment_best.kicad_pcb
@@ -45,9 +45,21 @@ renders/
 .experiments/frames/
 .experiments/rounds/
 .experiments/workers/
-.experiments/llups.db
+.experiments/renders/
 .experiments/baseline.kicad_pcb
 .experiments/baseline.kicad_pro
+
+# Experiment generated outputs (regenerated each run)
+.experiments/report.html
+.experiments/*.png
+.experiments/*.gif
+.experiments/llups.db
+.experiments/llups.db-shm
+.experiments/llups.db-wal
+
+# Root-level generated outputs
+report.html
+LLUPS_best.kicad_pcb
 
 # Claude local settings
 .claude/settings.local.json
