@@ -14,9 +14,54 @@ import json
 import os
 import re
 import signal
+import site
 import subprocess
 import sys
 import tempfile
+
+
+def _kicad_subprocess_env() -> dict:
+    """Build subprocess env that can import KiCad's pcbnew module.
+
+    In virtualenvs, KiCad's site-packages path may not be visible to child
+    Python processes. This adds common KiCad locations to PYTHONPATH.
+    """
+    env = os.environ.copy()
+
+    candidates = []
+    ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+    candidates.extend(
+        [
+            f"/usr/lib/python{ver}/site-packages",
+            f"/usr/lib64/python{ver}/site-packages",
+            "/usr/lib/python3/dist-packages",
+            "/usr/lib64/python3/dist-packages",
+        ]
+    )
+    try:
+        candidates.extend(site.getsitepackages())
+    except Exception:
+        pass
+    try:
+        candidates.append(site.getusersitepackages())
+    except Exception:
+        pass
+
+    existing = [p for p in env.get("PYTHONPATH", "").split(os.pathsep) if p]
+    merged = list(existing)
+    for p in candidates:
+        if not p:
+            continue
+        if (
+            os.path.exists(os.path.join(p, "pcbnew.py"))
+            or os.path.isdir(os.path.join(p, "pcbnew"))
+        ) and p not in merged:
+            merged.append(p)
+
+    if merged:
+        env["PYTHONPATH"] = os.pathsep.join(merged)
+
+    return env
 
 
 def _run_pcbnew_script(script: str) -> None:
@@ -25,6 +70,7 @@ def _run_pcbnew_script(script: str) -> None:
         [sys.executable, "-c", script],
         capture_output=True,
         text=True,
+        env=_kicad_subprocess_env(),
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -91,6 +137,7 @@ def count_board_tracks(kicad_pcb_path: str) -> dict:
         ],
         capture_output=True,
         text=True,
+        env=_kicad_subprocess_env(),
     )
     if result.returncode != 0:
         return {"traces": 0, "vias": 0, "total_length_mm": 0.0}

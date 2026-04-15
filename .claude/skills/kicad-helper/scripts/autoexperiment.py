@@ -27,6 +27,7 @@ import random
 import re
 import shutil
 import signal
+import site
 import subprocess
 import sys
 import tempfile
@@ -39,6 +40,73 @@ from pathlib import Path
 _SCRIPT_DIR = str(Path(__file__).parent.absolute())
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
+
+
+def _ensure_kicad_python_path() -> None:
+    """Ensure KiCad Python bindings (pcbnew) are importable, especially in venvs.
+
+    KiCad often installs pcbnew into the system site-packages
+    (e.g. /usr/lib64/pythonX.Y/site-packages), which is not always visible
+    inside a virtualenv. We auto-detect and append likely locations.
+    """
+    try:
+        import pcbnew  # noqa: F401
+
+        return
+    except Exception:
+        pass
+
+    candidates = []
+
+    # Common Linux locations for KiCad's pcbnew.py
+    ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+    candidates.extend(
+        [
+            f"/usr/lib/python{ver}/site-packages",
+            f"/usr/lib64/python{ver}/site-packages",
+            "/usr/lib/python3/dist-packages",
+            "/usr/lib64/python3/dist-packages",
+        ]
+    )
+
+    # Also include discovered site-packages for this interpreter
+    try:
+        candidates.extend(site.getsitepackages())
+    except Exception:
+        pass
+    try:
+        candidates.append(site.getusersitepackages())
+    except Exception:
+        pass
+
+    # Deduplicate while preserving order
+    seen = set()
+    uniq = []
+    for p in candidates:
+        if not p or p in seen:
+            continue
+        seen.add(p)
+        uniq.append(p)
+
+    for p in uniq:
+        pcbnew_py = Path(p) / "pcbnew.py"
+        pcbnew_pkg = Path(p) / "pcbnew"
+        if pcbnew_py.exists() or pcbnew_pkg.exists():
+            if p not in sys.path:
+                sys.path.append(p)
+
+    # Final check to surface clean actionable error if still unavailable
+    try:
+        import pcbnew  # noqa: F401
+    except Exception as e:
+        raise ModuleNotFoundError(
+            "KiCad Python module 'pcbnew' not found. "
+            "Install KiCad bindings or set PYTHONPATH to KiCad site-packages "
+            "(for example: /usr/lib64/python3.13/site-packages)."
+        ) from e
+
+
+_ensure_kicad_python_path()
 
 from autoplacer.brain.types import ExperimentScore
 from autoplacer.config import DEFAULT_CONFIG, LLUPS_CONFIG
@@ -505,7 +573,8 @@ def quick_drc(pcb_path: str) -> dict:
             elif vtype == "courtyards_overlap":
                 counts["courtyard"] += 1
             elif vtype == "solder_mask_bridge":
-                counts["clearance"] += 1  # count as clearance issue
+                counts["solder_mask_bridge"] += 1
+                counts["clearance"] += 1  # also count as clearance issue
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
     counts["violations"] = violations
@@ -912,6 +981,9 @@ def _worker_run(args: tuple) -> tuple[ExperimentScore, float, str]:
     if script_dir not in sys.path:
         sys.path.insert(0, script_dir)
 
+    # Ensure KiCad python bindings are visible in spawned workers too
+    _ensure_kicad_python_path()
+
     shutil.copy2(pcb_src, work_pcb)
     saved = _suppress_output()
     t0 = time.monotonic()
@@ -1282,15 +1354,19 @@ def main():
     parser.add_argument(
         "--seed", type=int, default=None, help="Master RNG seed (default: random)"
     )
-    parser.add_argument(
+    verbosity_group = parser.add_mutually_exclusive_group()
+    verbosity_group.add_argument(
         "--quiet",
         "-q",
         action="store_true",
-        default=True,
-        help="Suppress pipeline output (default: on)",
+        default=False,
+        help="Suppress pipeline output",
     )
-    parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Show pipeline output"
+    verbosity_group.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Show pipeline output",
     )
     parser.add_argument(
         "--status-file",
@@ -1339,8 +1415,8 @@ def main():
     if args.verbose:
         args.quiet = False
 
-    # Worker count: auto = all logical cores (no cap), user can override with --workers
-    n_workers = args.workers or mp.cpu_count()
+    # Worker count: auto = half logical cores (min 1), user can override with --workers
+    n_workers = args.workers or max(1, mp.cpu_count() // 2)
 
     # Setup
     master_seed = args.seed if args.seed is not None else random.randint(0, 2**31)
@@ -1509,12 +1585,22 @@ def main():
         loaded = load_elite_config(work_dir)
         if loaded:
             best_cfg, best_seed, loaded_score = loaded
+            # Refresh dynamic minima from current run context
+            if BASE_CONFIG.get("enable_board_size_search", False):
+                best_cfg["_min_board_width_mm"] = BASE_CONFIG.get(
+                    "_min_board_width_mm", best_cfg.get("_min_board_width_mm", 45.0)
+                )
+                best_cfg["_min_board_height_mm"] = BASE_CONFIG.get(
+                    "_min_board_height_mm", best_cfg.get("_min_board_height_mm", 35.0)
+                )
+                best_cfg = _clamp_board_guardrails(best_cfg)
             if net_priority:
                 best_cfg["net_priority"] = net_priority
             best_total = loaded_score
             print(
                 f"Resumed from checkpoint: score={loaded_score:.2f}, seed={best_seed}"
             )
+            print("Baseline run skipped due to --resume")
 
     if best_total is None:
         print("Round   0/-- [BASE ] running baseline...", flush=True)
@@ -1608,13 +1694,16 @@ def main():
         # Don't let stale gate values from older runs block routing
         ecfg["min_placement_score"] = BASE_CONFIG.get("min_placement_score", 20.0)
         elite_cfgs.append(ecfg)
-    # Deduplicate by seed
-    seen_seeds = set()
+    # Deduplicate by stable config serialization
+    seen_cfg_keys = set()
     unique_elites = []
     for ecfg in elite_cfgs:
-        s = id(ecfg)  # fallback for unhashable configs
-        if s not in seen_seeds:
-            seen_seeds.add(s)
+        try:
+            key = json.dumps(ecfg, sort_keys=True, default=_json_default)
+        except TypeError:
+            key = str(ecfg)
+        if key not in seen_cfg_keys:
+            seen_cfg_keys.add(key)
             unique_elites.append(ecfg)
     elite_cfgs = unique_elites
     if elite_cfgs:
@@ -1652,6 +1741,7 @@ def main():
         current_phase = "B"  # default: full pipeline
 
     with ProcessPoolExecutor(max_workers=n_workers, mp_context=ctx) as pool:
+        stall_announced = False
         while round_num < args.rounds:
             # Phase transitions
             if round_num in phase_transitions:
@@ -1822,7 +1912,10 @@ def main():
                     " ".join(f"{k}={v}" for k, v in delta.items()) or "(no delta)"
                 )
                 round_num += 1
-                t_label = f"Round {round_num:3d}/{args.rounds} [{mode[:5].upper():5s}]"
+                t_label = (
+                    f"Round {round_num:3d}/{args.rounds} "
+                    f"[P{current_phase}] [{mode[:5].upper():5s}]"
+                )
                 print(f"{t_label} running... {delta_str[:80]}", flush=True)
                 _write_live_status(
                     status_json_path,
@@ -1869,9 +1962,20 @@ def main():
                     " ".join(f"{k}={v}" for k, v in d.items()) or "(no delta)"
                     for _, _, _, d in batch
                 ]
+                mode_counts = {}
+                for m, _, _, _ in batch:
+                    mode_counts[m] = mode_counts.get(m, 0) + 1
+                mode_summary = ", ".join(
+                    f"{k}={v}" for k, v in sorted(mode_counts.items())
+                )
+                print(
+                    f"Batch start: round={round_num + 1}-{round_num + len(batch)}/{args.rounds} "
+                    f"[P{current_phase}] workers={len(batch)} modes: {mode_summary}",
+                    flush=True,
+                )
                 for i, (mode, _, _, delta) in enumerate(batch):
                     print(
-                        f"  W{i} [{mode[:5].upper():5s}] {delta_strs[i][:60]}",
+                        f"  W{i} [P{current_phase}] [{mode[:5].upper():5s}] {delta_strs[i][:60]}",
                         flush=True,
                     )
 
@@ -2099,6 +2203,24 @@ def main():
                     latest_score=score.total,
                     latest_marker=marker,
                 )
+                avg_round_s = _safe_mean(completed_durations, default=0.0)
+                idle_s = (
+                    (time.monotonic() - last_completion_ts)
+                    if last_completion_ts is not None
+                    else (time.monotonic() - loop_t0)
+                )
+                idle_threshold_s = max(120.0, avg_round_s * 3.0)
+                maybe_stuck = (
+                    in_flight > 0 and idle_s > idle_threshold_s and round_num > 0
+                )
+                if maybe_stuck and not stall_announced:
+                    print(
+                        f"  WARNING: workers may be stalled (idle {int(idle_s)}s > threshold {int(idle_threshold_s)}s)",
+                        flush=True,
+                    )
+                    stall_announced = True
+                elif not maybe_stuck and stall_announced:
+                    stall_announced = False
 
                 frame_elapsed = time.monotonic() - loop_t0
                 frame_png = str(frames_dir / f"frame_{round_num:04d}.png")
