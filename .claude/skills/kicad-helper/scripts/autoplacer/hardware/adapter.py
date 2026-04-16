@@ -481,41 +481,31 @@ class KiCadAdapter:
         board = self.board
 
         component_map = state.components or {}
-        left_mm = 0.0
-        top_mm = 0.0
+
+        outline_left_mm = state.board_outline[0].x
+        outline_top_mm = state.board_outline[0].y
+        outline_right_mm = state.board_outline[1].x
+        outline_bottom_mm = state.board_outline[1].y
+
         if component_map:
-            min_x_mm = min(
-                min(
-                    [comp.pos.x - comp.width_mm / 2]
-                    + [pad.pos.x for pad in comp.pads]
-                    + (
-                        [comp.body_center.x - comp.width_mm / 2]
-                        if comp.body_center is not None
-                        else []
-                    )
-                )
-                for comp in component_map.values()
-            )
-            min_y_mm = min(
-                min(
-                    [comp.pos.y - comp.height_mm / 2]
-                    + [pad.pos.y for pad in comp.pads]
-                    + (
-                        [comp.body_center.y - comp.height_mm / 2]
-                        if comp.body_center is not None
-                        else []
-                    )
-                )
-                for comp in component_map.values()
-            )
-            left_mm = min(0.0, min_x_mm)
-            top_mm = min(0.0, min_y_mm)
+            for comp in component_map.values():
+                body_tl, body_br = comp.bbox()
+                outline_left_mm = min(outline_left_mm, body_tl.x)
+                outline_top_mm = min(outline_top_mm, body_tl.y)
+                outline_right_mm = max(outline_right_mm, body_br.x)
+                outline_bottom_mm = max(outline_bottom_mm, body_br.y)
+
+                for pad in comp.pads:
+                    outline_left_mm = min(outline_left_mm, pad.pos.x)
+                    outline_top_mm = min(outline_top_mm, pad.pos.y)
+                    outline_right_mm = max(outline_right_mm, pad.pos.x)
+                    outline_bottom_mm = max(outline_bottom_mm, pad.pos.y)
 
         self._apply_board_outline(
-            state.board_width,
-            state.board_height,
-            left_mm=left_mm,
-            top_mm=top_mm,
+            max(1.0, outline_right_mm - outline_left_mm),
+            max(1.0, outline_bottom_mm - outline_top_mm),
+            left_mm=outline_left_mm,
+            top_mm=outline_top_mm,
         )
 
         component_map = state.components or {}

@@ -24,7 +24,6 @@ from .types import (
     BoardState,
     Component,
     InterfacePort,
-    Layer,
     Net,
     Pad,
     Point,
@@ -64,6 +63,7 @@ class LocalEnvelope:
     width_mm: float
     height_mm: float
     margin_mm: float
+    source_board_outline: tuple[Point, Point] | None = None
 
     @property
     def board_outline(self) -> tuple[Point, Point]:
@@ -211,6 +211,7 @@ def extract_leaf_board_state(
             width_mm=envelope.width_mm,
             height_mm=envelope.height_mm,
             margin_mm=envelope.margin_mm,
+            source_board_outline=envelope.source_board_outline,
         ),
         translation=translation,
         notes=notes,
@@ -405,33 +406,27 @@ def _derive_local_envelope(
     top_left = Point(min_x - margin_mm, min_y - margin_mm)
     bottom_right = Point(max_x + margin_mm, max_y + margin_mm)
 
+    source_board_outline: tuple[Point, Point] | None = None
     if board_outline is not None:
         board_tl, board_br = board_outline
-        edge_pinned = _find_edge_pinned_connector(components, board_outline)
-        if edge_pinned is not None:
-            edge_name, comp = edge_pinned
-            if edge_name == "left":
-                top_left = Point(board_tl.x, top_left.y)
-                bottom_right = Point(
-                    board_tl.x + (max_x - board_tl.x) + margin_mm, bottom_right.y
-                )
-            elif edge_name == "right":
-                top_left = Point(
-                    min(top_left.x, board_br.x - ((board_br.x - min_x) + margin_mm)),
-                    top_left.y,
-                )
-                bottom_right = Point(board_br.x, bottom_right.y)
-            elif edge_name == "top":
-                top_left = Point(top_left.x, board_tl.y)
-                bottom_right = Point(
-                    bottom_right.x, board_tl.y + (max_y - board_tl.y) + margin_mm
-                )
-            elif edge_name == "bottom":
-                top_left = Point(
-                    top_left.x,
-                    min(top_left.y, board_br.y - ((board_br.y - min_y) + margin_mm)),
-                )
-                bottom_right = Point(bottom_right.x, board_br.y)
+        source_board_outline = (
+            Point(board_tl.x, board_tl.y),
+            Point(board_br.x, board_br.y),
+        )
+
+        left_offset = max(0.0, min_x - board_tl.x)
+        right_offset = max(0.0, board_br.x - max_x)
+        top_offset = max(0.0, min_y - board_tl.y)
+        bottom_offset = max(0.0, board_br.y - max_y)
+
+        top_left = Point(
+            min_x - min(left_offset, margin_mm),
+            min_y - min(top_offset, margin_mm),
+        )
+        bottom_right = Point(
+            max_x + min(right_offset, margin_mm),
+            max_y + min(bottom_offset, margin_mm),
+        )
 
     width = max(1.0, bottom_right.x - top_left.x)
     height = max(1.0, bottom_right.y - top_left.y)
@@ -442,41 +437,8 @@ def _derive_local_envelope(
         width_mm=width,
         height_mm=height,
         margin_mm=margin_mm,
+        source_board_outline=source_board_outline,
     )
-
-
-def _find_edge_pinned_connector(
-    components: dict[str, Component],
-    board_outline: tuple[Point, Point],
-) -> tuple[str, Component] | None:
-    board_tl, board_br = board_outline
-    tolerance_mm = 2.5
-
-    best: tuple[float, str, Component] | None = None
-    for comp in components.values():
-        if comp.kind != "connector":
-            continue
-
-        body_tl, body_br = comp.bbox()
-        distances = {
-            "left": abs(body_tl.x - board_tl.x),
-            "right": abs(board_br.x - body_br.x),
-            "top": abs(body_tl.y - board_tl.y),
-            "bottom": abs(board_br.y - body_br.y),
-        }
-        edge_name = min(distances, key=distances.get)
-        distance = distances[edge_name]
-
-        if distance > tolerance_mm:
-            continue
-
-        if best is None or distance < best[0]:
-            best = (distance, edge_name, comp)
-
-    if best is None:
-        return None
-
-    return (best[1], best[2])
 
 
 def _translate_components(
