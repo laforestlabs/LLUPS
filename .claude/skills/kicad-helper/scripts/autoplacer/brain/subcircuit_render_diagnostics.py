@@ -23,6 +23,8 @@ The helpers are designed to degrade gracefully when optional external tools
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -47,6 +49,27 @@ except Exception:  # pragma: no cover - best-effort import
 
 
 DEFAULT_VIEWS = ("copper_both", "front_all")
+
+
+_NOISY_STDERR_PATTERNS = (
+    "Adding duplicate image handler",
+    "swig/python detected a memory leak",
+)
+
+
+@contextlib.contextmanager
+def _suppress_noisy_stderr() -> Any:
+    """Suppress known non-actionable KiCad/wx stderr noise during rendering."""
+    original_stderr = sys.stderr
+    buffer = io.StringIO()
+    try:
+        sys.stderr = buffer
+        yield
+    finally:
+        sys.stderr = original_stderr
+        for line in buffer.getvalue().splitlines():
+            if not any(pattern in line for pattern in _NOISY_STDERR_PATTERNS):
+                print(line, file=original_stderr)
 
 
 def ensure_renders_dir(artifact_dir: str | Path) -> Path:
@@ -102,7 +125,8 @@ def render_leaf_board_views(
     temp_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        rendered = render_all(str(pcb), str(temp_dir), list(views))
+        with _suppress_noisy_stderr():
+            rendered = render_all(str(pcb), str(temp_dir), list(views))
         for view_name, src_path in rendered.items():
             src = Path(src_path)
             if not src.exists():

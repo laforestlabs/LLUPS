@@ -1,0 +1,496 @@
+{
+  "anchor_validation": {
+    "all_required_ports_anchored": true,
+    "anchor_count": 1,
+    "anchored_optional_ports": [],
+    "anchored_required_ports": [
+      "VBUS"
+    ],
+    "extra_anchor_ports": [],
+    "missing_required_ports": [],
+    "optional_port_count": 0,
+    "port_count": 1,
+    "required_port_count": 1
+  },
+  "artifact_paths": {
+    "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d",
+    "base_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits",
+    "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d/debug.json",
+    "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d/metadata.json",
+    "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d/layout.kicad_pcb",
+    "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d/solved_layout.json"
+  },
+  "bounding_box": {
+    "height_mm": 23.290000000000003,
+    "width_mm": 33.25
+  },
+  "components": {
+    "C1": {
+      "body_center": {
+        "x": 12.5,
+        "y": 12.21875
+      },
+      "height_mm": 2.05,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "/VBUS",
+          "pad_id": "1",
+          "pos": {
+            "x": 12.5,
+            "y": 11.268749999999997
+          },
+          "ref": "C1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "2",
+          "pos": {
+            "x": 12.5,
+            "y": 13.168749999999996
+          },
+          "ref": "C1"
+        }
+      ],
+      "pos": {
+        "x": 12.5,
+        "y": 12.21875
+      },
+      "ref": "C1",
+      "rotation": 270.0,
+      "value": "10u",
+      "width_mm": 3.49
+    },
+    "F1": {
+      "body_center": {
+        "x": 26.990000000000002,
+        "y": 9.8
+      },
+      "height_mm": 1.99,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "/VBUS",
+          "pad_id": "1",
+          "pos": {
+            "x": 26.990000000000002,
+            "y": 10.7375
+          },
+          "ref": "F1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(F1-Pad2)",
+          "pad_id": "2",
+          "pos": {
+            "x": 26.990000000000002,
+            "y": 8.862499999999994
+          },
+          "ref": "F1"
+        }
+      ],
+      "pos": {
+        "x": 26.990000000000002,
+        "y": 9.8
+      },
+      "ref": "F1",
+      "rotation": 90.0,
+      "value": "2A_PTC",
+      "width_mm": 3.45
+    },
+    "J1": {
+      "body_center": {
+        "x": 9.378307724557828,
+        "y": 2.295
+      },
+      "height_mm": 10.64,
+      "is_through_hole": true,
+      "kind": "connector",
+      "layer": "B.Cu",
+      "locked": false,
+      "opening_direction": 90.0,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "A1",
+          "pos": {
+            "x": 12.353307724557826,
+            "y": 6.32
+          },
+          "ref": "J1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(F1-Pad2)",
+          "pad_id": "A4",
+          "pos": {
+            "x": 11.503307724557828,
+            "y": 6.32
+          },
+          "ref": "J1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(J1-CC1)",
+          "pad_id": "A5",
+          "pos": {
+            "x": 10.653307724557827,
+            "y": 6.32
+          },
+          "ref": "J1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(F1-Pad2)",
+          "pad_id": "A9",
+          "pos": {
+            "x": 7.253307724557828,
+            "y": 6.3199999999999985
+          },
+          "ref": "J1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "A12",
+          "pos": {
+            "x": 6.403307724557827,
+            "y": 6.3199999999999985
+          },
+          "ref": "J1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "B1",
+          "pos": {
+            "x": 6.403307724557827,
+            "y": 7.67
+          },
+          "ref": "J1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(F1-Pad2)",
+          "pad_id": "B4",
+          "pos": {
+            "x": 7.253307724557828,
+            "y": 7.67
+          },
+          "ref": "J1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(J1-CC2)",
+          "pad_id": "B5",
+          "pos": {
+            "x": 8.103307724557826,
+            "y": 7.67
+          },
+          "ref": "J1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(F1-Pad2)",
+          "pad_id": "B9",
+          "pos": {
+            "x": 11.503307724557828,
+            "y": 7.67
+          },
+          "ref": "J1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "B12",
+          "pos": {
+            "x": 12.353307724557826,
+            "y": 7.67
+          },
+          "ref": "J1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "S1",
+          "pos": {
+            "x": 13.703307724557828,
+            "y": 7.3000000000000025
+          },
+          "ref": "J1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "S1",
+          "pos": {
+            "x": 13.703307724557828,
+            "y": 10.680000000000001
+          },
+          "ref": "J1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "S1",
+          "pos": {
+            "x": 5.0533077245578255,
+            "y": 7.299999999999999
+          },
+          "ref": "J1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "S1",
+          "pos": {
+            "x": 5.0533077245578255,
+            "y": 10.680000000000001
+          },
+          "ref": "J1"
+        }
+      ],
+      "pos": {
+        "x": 12.353307724557826,
+        "y": 6.32
+      },
+      "ref": "J1",
+      "rotation": 180.0,
+      "value": "USB_C",
+      "width_mm": 10.26
+    },
+    "R1": {
+      "body_center": {
+        "x": 18.0,
+        "y": 20.0
+      },
+      "height_mm": 1.95,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "Net-(R1-Pad1)",
+          "pad_id": "1",
+          "pos": {
+            "x": 17.490000000000002,
+            "y": 20.0
+          },
+          "ref": "R1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "2",
+          "pos": {
+            "x": 18.51,
+            "y": 20.0
+          },
+          "ref": "R1"
+        }
+      ],
+      "pos": {
+        "x": 18.0,
+        "y": 20.0
+      },
+      "ref": "R1",
+      "rotation": 0.0,
+      "value": "5.1k",
+      "width_mm": 1.03
+    },
+    "R2": {
+      "body_center": {
+        "x": 13.0,
+        "y": 16.81875
+      },
+      "height_mm": 1.95,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "Net-(R2-Pad1)",
+          "pad_id": "1",
+          "pos": {
+            "x": 12.490000000000002,
+            "y": 16.81875
+          },
+          "ref": "R2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "2",
+          "pos": {
+            "x": 13.510000000000002,
+            "y": 16.81875
+          },
+          "ref": "R2"
+        }
+      ],
+      "pos": {
+        "x": 13.0,
+        "y": 16.81875
+      },
+      "ref": "R2",
+      "rotation": 0.0,
+      "value": "5.1k",
+      "width_mm": 1.03
+    },
+    "U1": {
+      "body_center": {
+        "x": 19.0,
+        "y": 14.0
+      },
+      "height_mm": 3.49,
+      "is_through_hole": false,
+      "kind": "ic",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "Net-(J1-CC1)",
+          "pad_id": "1",
+          "pos": {
+            "x": 19.95,
+            "y": 12.862499999999997
+          },
+          "ref": "U1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "2",
+          "pos": {
+            "x": 19.0,
+            "y": 12.862499999999997
+          },
+          "ref": "U1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(J1-CC2)",
+          "pad_id": "3",
+          "pos": {
+            "x": 18.05,
+            "y": 12.862499999999997
+          },
+          "ref": "U1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(R2-Pad1)",
+          "pad_id": "4",
+          "pos": {
+            "x": 18.05,
+            "y": 15.137499999999996
+          },
+          "ref": "U1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "/VBUS",
+          "pad_id": "5",
+          "pos": {
+            "x": 19.0,
+            "y": 15.137499999999996
+          },
+          "ref": "U1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(R1-Pad1)",
+          "pad_id": "6",
+          "pos": {
+            "x": 19.95,
+            "y": 15.137499999999996
+          },
+          "ref": "U1"
+        }
+      ],
+      "pos": {
+        "x": 19.0,
+        "y": 14.0
+      },
+      "ref": "U1",
+      "rotation": 270.0,
+      "value": "USBLC6-2SC6",
+      "width_mm": 4.19
+    }
+  },
+  "config_hash": "{\"align_large_pairs\": true, \"board_height_mm\": 58.0, \"board_size_overhead_factor\": 2.0, \"board_width_mm\": 90.0, \"component_zones\": {\"BT1\": {\"zone\": \"bottom\"}, \"BT2\": {\"zone\": \"bottom\"}, \"H4\": {\"corner\": \"top-left\"}, \"H86\": {\"corner\": \"bottom-right\"}, \"J1\": {\"edge\": \"left\"}, \"J2\": {\"edge\": \"right\"}, \"J3\": {\"edge\": \"right\"}}, \"connector_edge_inset_mm\": 1.0, \"connector_gap_mm\": 2.0, \"cooling_factor\": 0.97, \"courtyard_padding_mm\": 0.5, \"edge_jitter_mm\": 5.0, \"edge_margin_mm\": 6.0, \"enable_board_size_search\": true, \"force_attract_k\": 0.02, \"force_repel_k\": 200.0, \"freerouting_ignore_nets\": [\"GND\"], \"freerouting_jar\": \"/home/jason/.local/lib/freerouting-1.9.0.jar\", \"freerouting_max_passes\": 40, \"freerouting_timeout_s\": 60, \"gnd_zone_layer\": \"B.Cu\", \"gnd_zone_margin_mm\": 0.5, \"gnd_zone_net\": \"GND\", \"group_labels\": {\"U1\": \"USB INPUT\", \"U2\": \"CHARGER\", \"U3\": \"BATT PROT\", \"U4\": \"BOOST 5V\", \"U5\": \"LDO 3.3V\"}, \"group_source\": \"auto\", \"hierarchical_placement\": true, \"ic_groups\": {\"BT1\": [\"BT2\"], \"U1\": [\"C1\", \"R1\", \"R2\", \"F1\", \"J1\"], \"U2\": [\"C2\", \"C3\", \"C4\", \"R3\", \"R4\", \"R5\", \"R6\", \"R7\", \"R8\", \"RT1\", \"D1\", \"D2\"], \"U3\": [\"Q1\", \"U6\"], \"U4\": [\"C5\", \"C6\", \"C7\", \"L1\", \"D3\"], \"U5\": [\"C8\", \"R9\", \"R10\", \"R11\", \"J2\", \"J3\"]}, \"intra_cluster_iters\": 80, \"max_placement_iterations\": 300, \"min_placement_score\": 20.0, \"net_priority\": {}, \"orderedness\": 0.3, \"pad_inset_margin_mm\": 0.3, \"placement_clearance_mm\": 2.5, \"placement_convergence_threshold\": 0.5, \"placement_grid_mm\": 1.0, \"placement_score_every_n\": 1, \"power_nets\": \"{'/3V3', '+3V3', 'GND', '/5V', '5V', '/VBUS', '/VSYS_BOOST', 'VBUS', '/VSYS', '3V3', '+5V', '/EN', 'VBAT', '/VBAT', '3.3V', '/CELL_NEG'}\", \"power_width_mm\": 0.127, \"randomize_group_layout\": false, \"reheat_strength\": 0.1, \"scatter_mode\": \"cluster\", \"signal_flow_order\": [\"U1\", \"U2\", \"U3\", \"U4\", \"U5\"], \"signal_width_mm\": 0.127, \"skip_gnd_routing\": true, \"smt_opposite_tht\": true, \"thermal_radius_mm\": 3.0, \"thermal_refs\": [\"U2\", \"U4\"], \"tht_backside_min_area_mm2\": 50.0, \"unlock_all_footprints\": true, \"via_drill_mm\": 0.3, \"via_size_mm\": 0.6}",
+  "frozen": true,
+  "instance_path": "/c6773def-39c2-4618-add5-8cf158f64b0e",
+  "interface_anchors": [
+    {
+      "layer": "F.Cu",
+      "pad_ref": [
+        "F1",
+        "1"
+      ],
+      "port_name": "VBUS",
+      "pos": {
+        "x": 26.990000000000002,
+        "y": 10.7375
+      }
+    }
+  ],
+  "notes": [
+    "round_index=0",
+    "seed=1654615998",
+    "routing={\"enabled\": false, \"failed\": false, \"failed_internal_nets\": [], \"reason\": \"routing_disabled\", \"routed_internal_nets\": [], \"router\": \"disabled\", \"skipped\": true, \"total_length_mm\": 0.0, \"traces\": 0, \"vias\": 0}",
+    "interface_port_count=1",
+    "interface_anchor_count=1",
+    "all_required_ports_anchored=True"
+  ],
+  "parent_instance_path": "/",
+  "ports": [
+    {
+      "access_policy": "interface_only",
+      "bus_index": null,
+      "cardinality": 1,
+      "description": "normalized from schematic sheet pin",
+      "direction": "bidirectional",
+      "name": "VBUS",
+      "net_name": "VBUS",
+      "preferred_side": "right",
+      "required": true,
+      "role": "bidir"
+    }
+  ],
+  "project_dir": "/home/jason/Documents/LLUPS",
+  "schema_version": "subcircuits.layout.v1",
+  "score": 83.04668626255018,
+  "sheet_file": "USB_INPUT.kicad_sch",
+  "sheet_name": "USB INPUT",
+  "solver_version": "subcircuits-m3-placement",
+  "source_hash": "/c6773def-39c2-4618-add5-8cf158f64b0e",
+  "subcircuit_id": {
+    "instance_path": "/c6773def-39c2-4618-add5-8cf158f64b0e",
+    "parent_instance_path": "/",
+    "sheet_file": "USB_INPUT.kicad_sch",
+    "sheet_name": "USB INPUT"
+  },
+  "traces": [],
+  "vias": []
+}

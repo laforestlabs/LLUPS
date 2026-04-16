@@ -474,6 +474,7 @@ class KiCadAdapter:
         - rewrites the board outline to match the subcircuit-local board size
         - moves footprints that exist in `state.components`
         - optionally removes footprints not present in the subcircuit state
+        - strips non-outline board drawings/text from the source board
         - optionally clears existing tracks/vias and copper zones
         - recreates traces/vias from the provided `BoardState`
         """
@@ -486,20 +487,6 @@ class KiCadAdapter:
         outline_top_mm = state.board_outline[0].y
         outline_right_mm = state.board_outline[1].x
         outline_bottom_mm = state.board_outline[1].y
-
-        if component_map:
-            for comp in component_map.values():
-                body_tl, body_br = comp.bbox()
-                outline_left_mm = min(outline_left_mm, body_tl.x)
-                outline_top_mm = min(outline_top_mm, body_tl.y)
-                outline_right_mm = max(outline_right_mm, body_br.x)
-                outline_bottom_mm = max(outline_bottom_mm, body_br.y)
-
-                for pad in comp.pads:
-                    outline_left_mm = min(outline_left_mm, pad.pos.x)
-                    outline_top_mm = min(outline_top_mm, pad.pos.y)
-                    outline_right_mm = max(outline_right_mm, pad.pos.x)
-                    outline_bottom_mm = max(outline_bottom_mm, pad.pos.y)
 
         self._apply_board_outline(
             max(1.0, outline_right_mm - outline_left_mm),
@@ -532,6 +519,17 @@ class KiCadAdapter:
                 )
             )
             fp.SetOrientationDegrees(comp.rotation)
+
+        to_remove = []
+        for drawing in board.GetDrawings():
+            try:
+                if drawing.GetLayer() == pcbnew.Edge_Cuts:
+                    continue
+            except Exception:
+                pass
+            to_remove.append(drawing)
+        for drawing in to_remove:
+            board.Remove(drawing)
 
         if clear_existing_tracks:
             to_remove = [track for track in board.GetTracks()]

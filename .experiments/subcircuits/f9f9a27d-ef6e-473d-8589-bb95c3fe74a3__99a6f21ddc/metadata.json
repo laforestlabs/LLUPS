@@ -1,0 +1,117 @@
+{
+  "access_policy": "interface_only",
+  "artifact_paths": {
+    "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc",
+    "base_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits",
+    "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/debug.json",
+    "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/metadata.json",
+    "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/layout.kicad_pcb",
+    "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/solved_layout.json"
+  },
+  "component_refs": [
+    "U3",
+    "U6",
+    "Q1"
+  ],
+  "config_hash": "fcf5866bd72e01fa3f5f0f593b7c1b74ab3fa365fe12cd491d7a0f76399990fb",
+  "external_nets": [
+    "/CELL_NEG",
+    "/EN",
+    "/VBAT",
+    "GND"
+  ],
+  "instance_path": "/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3",
+  "interface_ports": [
+    {
+      "access_policy": "interface_only",
+      "bus_index": null,
+      "cardinality": 1,
+      "description": "normalized from schematic sheet pin",
+      "direction": "bidirectional",
+      "name": "EN",
+      "net_name": "EN",
+      "preferred_side": "right",
+      "required": true,
+      "role": "bidir"
+    },
+    {
+      "access_policy": "interface_only",
+      "bus_index": null,
+      "cardinality": 1,
+      "description": "normalized from schematic sheet pin",
+      "direction": "bidirectional",
+      "name": "VBAT",
+      "net_name": "VBAT",
+      "preferred_side": "right",
+      "required": true,
+      "role": "bidir"
+    }
+  ],
+  "internal_nets": [
+    "Net-(Q1A-D)",
+    "Net-(Q1A-G)",
+    "Net-(Q1B-G)"
+  ],
+  "internal_trace_count": 0,
+  "internal_via_count": 0,
+  "local_board_outline": {
+    "bottom_right_x": 21.189999999999998,
+    "bottom_right_y": 19.490000000000002,
+    "height_mm": 19.490000000000002,
+    "top_left_x": 0.0,
+    "top_left_y": 0.0,
+    "width_mm": 21.189999999999998
+  },
+  "local_translation": {
+    "x": -40.905,
+    "y": -1.255
+  },
+  "notes": [
+    "exported by export_subcircuit_artifacts.py",
+    "root_schematic=/home/jason/Documents/LLUPS/LLUPS.kicad_sch",
+    "component_count=3",
+    "internal_pad_count=6",
+    "external_pad_count=8",
+    "trace_count=0",
+    "via_count=0",
+    "board_width_mm=21.190",
+    "board_height_mm=19.490",
+    "solve_score=84.650",
+    "routed_internal_nets=0",
+    "failed_internal_nets=0",
+    "leaf=BATT PROT",
+    "instance_path=/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3",
+    "component_count=3",
+    "internal_nets=3",
+    "external_nets=4",
+    "ignored_nets=0",
+    "margin_mm=5.000",
+    "leaf=BATT PROT",
+    "instance_path=/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3",
+    "seed=0",
+    "component_count=3",
+    "interface_anchor_count=0",
+    "score_total=84.650",
+    "bbox_width_mm=11.678",
+    "bbox_height_mm=9.490",
+    "routed_internal_nets=0",
+    "failed_internal_nets=0",
+    "route_trace_count=0",
+    "route_via_count=0",
+    "route_length_mm=0.000"
+  ],
+  "parent_instance_path": "/",
+  "project_dir": "/home/jason/Documents/LLUPS",
+  "schema_version": "subcircuits.v1",
+  "schematic_path": "/home/jason/Documents/LLUPS/BATT_PROT.kicad_sch",
+  "sheet_file": "BATT_PROT.kicad_sch",
+  "sheet_name": "BATT PROT",
+  "solver_version": "subcircuits-m3-export",
+  "source_hash": "06c107768c7b78d09023bb5731e83f4207b919c3174b9fa3c845838672f13248",
+  "subcircuit_id": {
+    "instance_path": "/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3",
+    "parent_instance_path": "/",
+    "sheet_file": "BATT_PROT.kicad_sch",
+    "sheet_name": "BATT PROT"
+  }
+}

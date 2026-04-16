@@ -1,0 +1,164 @@
+** Drc report for leaf_pre_freerouting.kicad_pcb **
+** Created on 2026-04-16T01:15:25-0400 **
+** Report includes: Errors, Warnings **
+
+** Found 20 DRC violations **
+[copper_edge_clearance]: Board edge clearance violation
+    Rule: board setup constraints edge; error
+    @(33.2500 mm, 20.2650 mm): Segment on Edge.Cuts
+    @(17.7000 mm, 20.1350 mm): Pad 2 [GND] of C1 on F.Cu
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1500 mm)
+    Rule: netclass 'Default'; error
+    @(12.3533 mm, 6.3200 mm): PTH pad A1 [GND] of J1
+    @(11.5033 mm, 6.3200 mm): PTH pad A4 [Net-(F1-Pad2)] of J1
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1500 mm)
+    Rule: netclass 'Default'; error
+    @(11.5033 mm, 6.3200 mm): PTH pad A4 [Net-(F1-Pad2)] of J1
+    @(10.6533 mm, 6.3200 mm): PTH pad A5 [Net-(J1-CC1)] of J1
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1500 mm)
+    Rule: netclass 'Default'; error
+    @(10.6533 mm, 6.3200 mm): PTH pad A5 [Net-(J1-CC1)] of J1
+    @(9.8033 mm, 6.3200 mm): PTH pad A6 [unconnected-(J1-D+-PadA6)] of J1
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1500 mm)
+    Rule: netclass 'Default'; error
+    @(9.8033 mm, 6.3200 mm): PTH pad A6 [unconnected-(J1-D+-PadA6)] of J1
+    @(8.9533 mm, 6.3200 mm): PTH pad A7 [unconnected-(J1-D--PadA7)] of J1
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1500 mm)
+    Rule: netclass 'Default'; error
+    @(8.9533 mm, 6.3200 mm): PTH pad A7 [unconnected-(J1-D--PadA7)] of J1
+    @(8.1033 mm, 6.3200 mm): PTH pad A8 [unconnected-(J1-SBU1-PadA8)] of J1
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1500 mm)
+    Rule: netclass 'Default'; error
+    @(8.1033 mm, 6.3200 mm): PTH pad A8 [unconnected-(J1-SBU1-PadA8)] of J1
+    @(7.2533 mm, 6.3200 mm): PTH pad A9 [Net-(F1-Pad2)] of J1
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1500 mm)
+    Rule: netclass 'Default'; error
+    @(7.2533 mm, 6.3200 mm): PTH pad A9 [Net-(F1-Pad2)] of J1
+    @(6.4033 mm, 6.3200 mm): PTH pad A12 [GND] of J1
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1500 mm)
+    Rule: netclass 'Default'; error
+    @(6.4033 mm, 7.6700 mm): PTH pad B1 [GND] of J1
+    @(7.2533 mm, 7.6700 mm): PTH pad B4 [Net-(F1-Pad2)] of J1
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1500 mm)
+    Rule: netclass 'Default'; error
+    @(7.2533 mm, 7.6700 mm): PTH pad B4 [Net-(F1-Pad2)] of J1
+    @(8.1033 mm, 7.6700 mm): PTH pad B5 [Net-(J1-CC2)] of J1
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1500 mm)
+    Rule: netclass 'Default'; error
+    @(8.1033 mm, 7.6700 mm): PTH pad B5 [Net-(J1-CC2)] of J1
+    @(8.9533 mm, 7.6700 mm): PTH pad B6 [unconnected-(J1-D+-PadB6)] of J1
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1500 mm)
+    Rule: netclass 'Default'; error
+    @(8.9533 mm, 7.6700 mm): PTH pad B6 [unconnected-(J1-D+-PadB6)] of J1
+    @(9.8033 mm, 7.6700 mm): PTH pad B7 [unconnected-(J1-D--PadB7)] of J1
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1500 mm)
+    Rule: netclass 'Default'; error
+    @(9.8033 mm, 7.6700 mm): PTH pad B7 [unconnected-(J1-D--PadB7)] of J1
+    @(10.6533 mm, 7.6700 mm): PTH pad B8 [unconnected-(J1-SBU2-PadB8)] of J1
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1500 mm)
+    Rule: netclass 'Default'; error
+    @(10.6533 mm, 7.6700 mm): PTH pad B8 [unconnected-(J1-SBU2-PadB8)] of J1
+    @(11.5033 mm, 7.6700 mm): PTH pad B9 [Net-(F1-Pad2)] of J1
+[clearance]: Clearance violation (netclass 'Default' clearance 0.2000 mm; actual 0.1500 mm)
+    Rule: netclass 'Default'; error
+    @(11.5033 mm, 7.6700 mm): PTH pad B9 [Net-(F1-Pad2)] of J1
+    @(12.3533 mm, 7.6700 mm): PTH pad B12 [GND] of J1
+[silk_overlap]: Silkscreen overlap
+    Rule: board setup constraints silk; warning
+    @(9.6659 mm, 14.9700 mm): Reference field of R2
+    @(9.8196 mm, 14.1800 mm): Segment of R2 on F.Silkscreen
+[lib_footprint_mismatch]: Footprint 'R_0402_1005Metric' does not match copy in library 'Resistor_SMD'.
+    Local override; warning
+    @(25.9691 mm, 11.9350 mm): Footprint R1
+[lib_footprint_mismatch]: Footprint 'R_0402_1005Metric' does not match copy in library 'Resistor_SMD'.
+    Local override; warning
+    @(9.6659 mm, 13.8000 mm): Footprint R2
+[lib_footprint_mismatch]: Footprint 'USB_C_Receptacle_GCT_USB4085' does not match copy in library 'Connector_USB'.
+    Local override; warning
+    @(12.3533 mm, 6.3200 mm): Footprint J1
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; warning
+    @(33.2500 mm, -3.0250 mm): Segment on Edge.Cuts
+    @(29.5400 mm, 2.5000 mm): PCB text 'CHARGER' on F.Silkscreen
+
+** Found 19 unconnected pads **
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(14.4225 mm, 14.9375 mm): Pad 1 [/VBUS] of F1 on F.Cu
+    @(17.7000 mm, 18.2350 mm): Pad 1 [/VBUS] of C1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(17.7000 mm, 18.2350 mm): Pad 1 [/VBUS] of C1 on F.Cu
+    @(20.8425 mm, 14.9525 mm): Pad 5 [/VBUS] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(5.0533 mm, 10.6800 mm): PTH pad S1 [GND] of J1
+    @(6.4033 mm, 7.6700 mm): PTH pad B1 [GND] of J1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(5.0533 mm, 10.6800 mm): PTH pad S1 [GND] of J1
+    @(9.1559 mm, 13.8000 mm): Pad 2 [GND] of R2 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(6.4033 mm, 7.6700 mm): PTH pad B1 [GND] of J1
+    @(6.4033 mm, 6.3200 mm): PTH pad A12 [GND] of J1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(12.3533 mm, 7.6700 mm): PTH pad B12 [GND] of J1
+    @(12.3533 mm, 6.3200 mm): PTH pad A1 [GND] of J1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(13.7033 mm, 10.6800 mm): PTH pad S1 [GND] of J1
+    @(12.3533 mm, 7.6700 mm): PTH pad B12 [GND] of J1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(13.7033 mm, 10.6800 mm): PTH pad S1 [GND] of J1
+    @(9.1559 mm, 13.8000 mm): Pad 2 [GND] of R2 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(17.7000 mm, 20.1350 mm): Pad 2 [GND] of C1 on F.Cu
+    @(20.8425 mm, 12.6775 mm): Pad 2 [GND] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(20.8425 mm, 12.6775 mm): Pad 2 [GND] of U1 on F.Cu
+    @(13.7033 mm, 10.6800 mm): PTH pad S1 [GND] of J1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(25.9691 mm, 11.4250 mm): Pad 2 [GND] of R1 on F.Cu
+    @(20.8425 mm, 12.6775 mm): Pad 2 [GND] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(7.2533 mm, 6.3200 mm): PTH pad A9 [Net-(F1-Pad2)] of J1
+    @(7.2533 mm, 7.6700 mm): PTH pad B4 [Net-(F1-Pad2)] of J1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(11.5033 mm, 6.3200 mm): PTH pad A4 [Net-(F1-Pad2)] of J1
+    @(7.2533 mm, 6.3200 mm): PTH pad A9 [Net-(F1-Pad2)] of J1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(11.5033 mm, 7.6700 mm): PTH pad B9 [Net-(F1-Pad2)] of J1
+    @(11.5033 mm, 6.3200 mm): PTH pad A4 [Net-(F1-Pad2)] of J1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(14.4225 mm, 13.0625 mm): Pad 2 [Net-(F1-Pad2)] of F1 on F.Cu
+    @(11.5033 mm, 7.6700 mm): PTH pad B9 [Net-(F1-Pad2)] of J1
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(10.6533 mm, 6.3200 mm): PTH pad A5 [Net-(J1-CC1)] of J1
+    @(21.7925 mm, 12.6775 mm): Pad 1 [Net-(J1-CC1)] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(8.1033 mm, 7.6700 mm): PTH pad B5 [Net-(J1-CC2)] of J1
+    @(19.8925 mm, 12.6775 mm): Pad 3 [Net-(J1-CC2)] of U1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(21.7925 mm, 14.9525 mm): Pad 6 [Net-(R1-Pad1)] of U1 on F.Cu
+    @(25.9691 mm, 12.4450 mm): Pad 1 [Net-(R1-Pad1)] of R1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(10.1759 mm, 13.8000 mm): Pad 1 [Net-(R2-Pad1)] of R2 on F.Cu
+    @(19.8925 mm, 14.9525 mm): Pad 4 [Net-(R2-Pad1)] of U1 on F.Cu
+
+** Found 0 Footprint errors **
+
+** End of Report **

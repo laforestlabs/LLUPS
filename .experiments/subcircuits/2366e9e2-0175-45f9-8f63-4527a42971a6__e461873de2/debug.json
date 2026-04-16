@@ -1,0 +1,1640 @@
+{
+  "extra": {
+    "all_rounds": [
+      {
+        "placement": {
+          "aspect_ratio": 52.55559890753023,
+          "board_containment": 100.0,
+          "compactness": 37.21502813777492,
+          "courtyard_overlap": 100.0,
+          "crossover_count": 3,
+          "crossover_score": 85.18518518518519,
+          "edge_compliance": 100.0,
+          "group_coherence": 100.0,
+          "net_distance": 63.445205695522866,
+          "rotation_score": 100.0,
+          "smt_opposite_tht": 50.0,
+          "total": 80.66335909448037
+        },
+        "round_index": 0,
+        "routed": true,
+        "routing": {
+          "enabled": true,
+          "failed": false,
+          "failed_internal_nets": [],
+          "reason": "",
+          "routed_internal_nets": [
+            "/3V3"
+          ],
+          "router": "lightweight_internal",
+          "skipped": false,
+          "total_length_mm": 30.22163517632113,
+          "traces": 4,
+          "vias": 0
+        },
+        "score": 80.66335909448037,
+        "seed": 547268981
+      }
+    ],
+    "best_round": {
+      "placement": {
+        "aspect_ratio": 52.55559890753023,
+        "board_containment": 100.0,
+        "compactness": 37.21502813777492,
+        "courtyard_overlap": 100.0,
+        "crossover_count": 3,
+        "crossover_score": 85.18518518518519,
+        "edge_compliance": 100.0,
+        "group_coherence": 100.0,
+        "net_distance": 63.445205695522866,
+        "rotation_score": 100.0,
+        "smt_opposite_tht": 50.0,
+        "total": 80.66335909448037
+      },
+      "round_index": 0,
+      "routed": true,
+      "routing": {
+        "enabled": true,
+        "failed": false,
+        "failed_internal_nets": [],
+        "reason": "",
+        "routed_internal_nets": [
+          "/3V3"
+        ],
+        "router": "lightweight_internal",
+        "skipped": false,
+        "total_length_mm": 30.22163517632113,
+        "traces": 4,
+        "vias": 0
+      },
+      "score": 80.66335909448037,
+      "seed": 547268981
+    },
+    "best_round_routing": {
+      "enabled": true,
+      "failed": false,
+      "failed_internal_nets": [],
+      "reason": "",
+      "routed_internal_nets": [
+        "/3V3"
+      ],
+      "router": "lightweight_internal",
+      "skipped": false,
+      "total_length_mm": 30.22163517632113,
+      "traces": 4,
+      "vias": 0
+    },
+    "canonical_solved_layout": {
+      "anchor_validation": {
+        "all_required_ports_anchored": true,
+        "anchor_count": 5,
+        "anchored_optional_ports": [],
+        "anchored_required_ports": [
+          "5V",
+          "CHG_N",
+          "EN",
+          "NTC_SENSE",
+          "VBAT"
+        ],
+        "extra_anchor_ports": [],
+        "missing_required_ports": [],
+        "optional_port_count": 0,
+        "port_count": 5,
+        "required_port_count": 5
+      },
+      "artifact_paths": {
+        "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2",
+        "base_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits",
+        "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/debug.json",
+        "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/metadata.json",
+        "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/layout.kicad_pcb",
+        "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/solved_layout.json"
+      },
+      "bounding_box": {
+        "height_mm": 25.629999999999995,
+        "width_mm": 49.949999999999996
+      },
+      "components": {
+        "C8": {
+          "body_center": {
+            "x": 26.8,
+            "y": 7.6403150468739645
+          },
+          "height_mm": 1.01,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/3V3",
+              "pad_id": "1",
+              "pos": {
+                "x": 26.8,
+                "y": 8.12031504687397
+              },
+              "ref": "C8"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "2",
+              "pos": {
+                "x": 26.8,
+                "y": 7.1603150468739605
+              },
+              "ref": "C8"
+            }
+          ],
+          "pos": {
+            "x": 26.8,
+            "y": 7.6403150468739645
+          },
+          "ref": "C8",
+          "rotation": 90.0,
+          "value": "1u",
+          "width_mm": 1.91
+        },
+        "J2": {
+          "body_center": {
+            "x": 20.032114404167658,
+            "y": 2.8149999999999995
+          },
+          "height_mm": 3.63,
+          "is_through_hole": true,
+          "kind": "connector",
+          "layer": "B.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/5V",
+              "pad_id": "1",
+              "pos": {
+                "x": 14.952114404167673,
+                "y": 2.8149999999999995
+              },
+              "ref": "J2"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/3V3",
+              "pad_id": "2",
+              "pos": {
+                "x": 12.412114404167667,
+                "y": 2.8149999999999995
+              },
+              "ref": "J2"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "3",
+              "pos": {
+                "x": 9.872114404167675,
+                "y": 2.8149999999999995
+              },
+              "ref": "J2"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/EN",
+              "pad_id": "4",
+              "pos": {
+                "x": 7.332114404167669,
+                "y": 2.8149999999999995
+              },
+              "ref": "J2"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/VBAT",
+              "pad_id": "5",
+              "pos": {
+                "x": 4.792114404167677,
+                "y": 2.8149999999999995
+              },
+              "ref": "J2"
+            }
+          ],
+          "pos": {
+            "x": 14.952114404167673,
+            "y": 2.815
+          },
+          "ref": "J2",
+          "rotation": 90.0,
+          "value": "Output",
+          "width_mm": 13.79
+        },
+        "J3": {
+          "body_center": {
+            "x": 33.2714981626934,
+            "y": 22.814999999999994
+          },
+          "height_mm": 3.63,
+          "is_through_hole": true,
+          "kind": "connector",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/VBAT",
+              "pad_id": "1",
+              "pos": {
+                "x": 30.7314981626934,
+                "y": 22.814999999999994
+              },
+              "ref": "J3"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/NTC_SENSE",
+              "pad_id": "2",
+              "pos": {
+                "x": 33.2714981626934,
+                "y": 22.814999999999994
+              },
+              "ref": "J3"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/CHG_N",
+              "pad_id": "3",
+              "pos": {
+                "x": 35.81149816269339,
+                "y": 22.814999999999994
+              },
+              "ref": "J3"
+            }
+          ],
+          "pos": {
+            "x": 30.7314981626934,
+            "y": 22.814999999999994
+          },
+          "ref": "J3",
+          "rotation": 90.0,
+          "value": "Debug",
+          "width_mm": 8.71
+        },
+        "R10": {
+          "body_center": {
+            "x": 19.68906249999999,
+            "y": 9.0
+          },
+          "height_mm": 1.03,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "Net-(U4-FB)",
+              "pad_id": "1",
+              "pos": {
+                "x": 20.199062499999997,
+                "y": 9.0
+              },
+              "ref": "R10"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "2",
+              "pos": {
+                "x": 19.179062499999986,
+                "y": 9.0
+              },
+              "ref": "R10"
+            }
+          ],
+          "pos": {
+            "x": 19.68906249999999,
+            "y": 9.0
+          },
+          "ref": "R10",
+          "rotation": 180.0,
+          "value": "10k",
+          "width_mm": 1.95
+        },
+        "R11": {
+          "body_center": {
+            "x": 24.0,
+            "y": 20.71747794696348
+          },
+          "height_mm": 1.03,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/VSYS",
+              "pad_id": "1",
+              "pos": {
+                "x": 23.490000000000002,
+                "y": 20.71747794696348
+              },
+              "ref": "R11"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/EN",
+              "pad_id": "2",
+              "pos": {
+                "x": 24.509999999999998,
+                "y": 20.71747794696348
+              },
+              "ref": "R11"
+            }
+          ],
+          "pos": {
+            "x": 24.0,
+            "y": 20.71747794696348
+          },
+          "ref": "R11",
+          "rotation": 0.0,
+          "value": "100k",
+          "width_mm": 1.95
+        },
+        "R9": {
+          "body_center": {
+            "x": 24.239062499999996,
+            "y": 11.16563009374793
+          },
+          "height_mm": 1.03,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/5V",
+              "pad_id": "1",
+              "pos": {
+                "x": 24.239062499999996,
+                "y": 11.675630093747932
+              },
+              "ref": "R9"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "Net-(U4-FB)",
+              "pad_id": "2",
+              "pos": {
+                "x": 24.239062499999996,
+                "y": 10.655630093747922
+              },
+              "ref": "R9"
+            }
+          ],
+          "pos": {
+            "x": 24.239062499999996,
+            "y": 11.165630093747927
+          },
+          "ref": "R9",
+          "rotation": 90.0,
+          "value": "75k",
+          "width_mm": 1.95
+        },
+        "U5": {
+          "body_center": {
+            "x": 22.0,
+            "y": 15.9362495804888
+          },
+          "height_mm": 3.49,
+          "is_through_hole": false,
+          "kind": "ic",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/5V",
+              "pad_id": "1",
+              "pos": {
+                "x": 20.862499999999997,
+                "y": 14.986249580488797
+              },
+              "ref": "U5"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "2",
+              "pos": {
+                "x": 20.862499999999997,
+                "y": 15.9362495804888
+              },
+              "ref": "U5"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/EN",
+              "pad_id": "3",
+              "pos": {
+                "x": 20.862499999999997,
+                "y": 16.886249580488794
+              },
+              "ref": "U5"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/3V3",
+              "pad_id": "5",
+              "pos": {
+                "x": 23.137500000000003,
+                "y": 14.986249580488797
+              },
+              "ref": "U5"
+            }
+          ],
+          "pos": {
+            "x": 22.0,
+            "y": 15.9362495804888
+          },
+          "ref": "U5",
+          "rotation": 0.0,
+          "value": "AP2112K-3.3",
+          "width_mm": 4.19
+        }
+      },
+      "config_hash": "{\"align_large_pairs\": true, \"board_height_mm\": 58.0, \"board_size_overhead_factor\": 2.0, \"board_width_mm\": 90.0, \"component_zones\": {\"BT1\": {\"zone\": \"bottom\"}, \"BT2\": {\"zone\": \"bottom\"}, \"H4\": {\"corner\": \"top-left\"}, \"H86\": {\"corner\": \"bottom-right\"}, \"J1\": {\"edge\": \"left\"}, \"J2\": {\"edge\": \"right\"}, \"J3\": {\"edge\": \"right\"}}, \"connector_edge_inset_mm\": 1.0, \"connector_gap_mm\": 2.0, \"cooling_factor\": 0.97, \"courtyard_padding_mm\": 0.5, \"edge_jitter_mm\": 5.0, \"edge_margin_mm\": 6.0, \"enable_board_size_search\": true, \"force_attract_k\": 0.02, \"force_repel_k\": 200.0, \"freerouting_ignore_nets\": [\"GND\"], \"freerouting_jar\": \"/home/jason/.local/lib/freerouting-1.9.0.jar\", \"freerouting_max_passes\": 40, \"freerouting_timeout_s\": 60, \"gnd_zone_layer\": \"B.Cu\", \"gnd_zone_margin_mm\": 0.5, \"gnd_zone_net\": \"GND\", \"group_labels\": {\"U1\": \"USB INPUT\", \"U2\": \"CHARGER\", \"U3\": \"BATT PROT\", \"U4\": \"BOOST 5V\", \"U5\": \"LDO 3.3V\"}, \"group_source\": \"auto\", \"hierarchical_placement\": true, \"ic_groups\": {\"BT1\": [\"BT2\"], \"U1\": [\"C1\", \"R1\", \"R2\", \"F1\", \"J1\"], \"U2\": [\"C2\", \"C3\", \"C4\", \"R3\", \"R4\", \"R5\", \"R6\", \"R7\", \"R8\", \"RT1\", \"D1\", \"D2\"], \"U3\": [\"Q1\", \"U6\"], \"U4\": [\"C5\", \"C6\", \"C7\", \"L1\", \"D3\"], \"U5\": [\"C8\", \"R9\", \"R10\", \"R11\", \"J2\", \"J3\"]}, \"intra_cluster_iters\": 80, \"max_placement_iterations\": 300, \"min_placement_score\": 20.0, \"net_priority\": {}, \"orderedness\": 0.3, \"pad_inset_margin_mm\": 0.3, \"placement_clearance_mm\": 2.5, \"placement_convergence_threshold\": 0.5, \"placement_grid_mm\": 1.0, \"placement_score_every_n\": 1, \"power_nets\": \"{'5V', '/5V', '+3V3', '/VSYS_BOOST', '/VBAT', 'VBAT', 'VBUS', '/3V3', '/CELL_NEG', 'GND', '3V3', '3.3V', '+5V', '/VSYS', '/EN', '/VBUS'}\", \"power_width_mm\": 0.127, \"randomize_group_layout\": false, \"reheat_strength\": 0.1, \"scatter_mode\": \"cluster\", \"signal_flow_order\": [\"U1\", \"U2\", \"U3\", \"U4\", \"U5\"], \"signal_width_mm\": 0.127, \"skip_gnd_routing\": true, \"smt_opposite_tht\": true, \"thermal_radius_mm\": 3.0, \"thermal_refs\": [\"U2\", \"U4\"], \"tht_backside_min_area_mm2\": 50.0, \"unlock_all_footprints\": true, \"via_drill_mm\": 0.3, \"via_size_mm\": 0.6}",
+      "frozen": true,
+      "instance_path": "/2366e9e2-0175-45f9-8f63-4527a42971a6",
+      "interface_anchors": [
+        {
+          "layer": "F.Cu",
+          "pad_ref": [
+            "J2",
+            "1"
+          ],
+          "port_name": "5V",
+          "pos": {
+            "x": 14.952114404167673,
+            "y": 2.8149999999999995
+          }
+        },
+        {
+          "layer": "F.Cu",
+          "pad_ref": [
+            "J3",
+            "3"
+          ],
+          "port_name": "CHG_N",
+          "pos": {
+            "x": 35.81149816269339,
+            "y": 22.814999999999994
+          }
+        },
+        {
+          "layer": "F.Cu",
+          "pad_ref": [
+            "J2",
+            "4"
+          ],
+          "port_name": "EN",
+          "pos": {
+            "x": 7.332114404167669,
+            "y": 2.8149999999999995
+          }
+        },
+        {
+          "layer": "F.Cu",
+          "pad_ref": [
+            "J3",
+            "2"
+          ],
+          "port_name": "NTC_SENSE",
+          "pos": {
+            "x": 33.2714981626934,
+            "y": 22.814999999999994
+          }
+        },
+        {
+          "layer": "F.Cu",
+          "pad_ref": [
+            "J2",
+            "5"
+          ],
+          "port_name": "VBAT",
+          "pos": {
+            "x": 4.792114404167677,
+            "y": 2.8149999999999995
+          }
+        }
+      ],
+      "notes": [
+        "round_index=0",
+        "seed=547268981",
+        "routing={\"enabled\": true, \"failed\": false, \"failed_internal_nets\": [], \"reason\": \"\", \"routed_internal_nets\": [\"/3V3\"], \"router\": \"lightweight_internal\", \"skipped\": false, \"total_length_mm\": 30.22163517632113, \"traces\": 4, \"vias\": 0}",
+        "interface_port_count=5",
+        "interface_anchor_count=5",
+        "all_required_ports_anchored=True"
+      ],
+      "parent_instance_path": "/",
+      "ports": [
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "5V",
+          "net_name": "5V",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        },
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "CHG_N",
+          "net_name": "CHG_N",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        },
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "EN",
+          "net_name": "EN",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        },
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "NTC_SENSE",
+          "net_name": "NTC_SENSE",
+          "preferred_side": "right",
+          "required": true,
+          "role": "analog"
+        },
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "VBAT",
+          "net_name": "VBAT",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        }
+      ],
+      "project_dir": "/home/jason/Documents/LLUPS",
+      "schema_version": "subcircuits.layout.v1",
+      "score": 80.66335909448037,
+      "sheet_file": "LDO_3_3V.kicad_sch",
+      "sheet_name": "LDO 3.3V",
+      "solver_version": "subcircuits-m3-placement",
+      "source_hash": "/2366e9e2-0175-45f9-8f63-4527a42971a6",
+      "subcircuit_id": {
+        "instance_path": "/2366e9e2-0175-45f9-8f63-4527a42971a6",
+        "parent_instance_path": "/",
+        "sheet_file": "LDO_3_3V.kicad_sch",
+        "sheet_name": "LDO 3.3V"
+      },
+      "traces": [
+        {
+          "end": {
+            "x": 23.137500000000003,
+            "y": 8.12031504687397
+          },
+          "layer": "F.Cu",
+          "length_mm": 3.662499999999998,
+          "net": "/3V3",
+          "start": {
+            "x": 26.8,
+            "y": 8.12031504687397
+          },
+          "width_mm": 0.127
+        },
+        {
+          "end": {
+            "x": 23.137500000000003,
+            "y": 14.986249580488797
+          },
+          "layer": "F.Cu",
+          "length_mm": 6.865934533614828,
+          "net": "/3V3",
+          "start": {
+            "x": 23.137500000000003,
+            "y": 8.12031504687397
+          },
+          "width_mm": 0.127
+        },
+        {
+          "end": {
+            "x": 12.412114404167667,
+            "y": 8.12031504687397
+          },
+          "layer": "F.Cu",
+          "length_mm": 14.387885595832334,
+          "net": "/3V3",
+          "start": {
+            "x": 26.8,
+            "y": 8.12031504687397
+          },
+          "width_mm": 0.127
+        },
+        {
+          "end": {
+            "x": 12.412114404167667,
+            "y": 2.8149999999999995
+          },
+          "layer": "F.Cu",
+          "length_mm": 5.30531504687397,
+          "net": "/3V3",
+          "start": {
+            "x": 12.412114404167667,
+            "y": 8.12031504687397
+          },
+          "width_mm": 0.127
+        }
+      ],
+      "vias": []
+    },
+    "canonical_solved_layout_path": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/solved_layout.json",
+    "interface_anchor_validation": {
+      "all_required_ports_anchored": true,
+      "anchor_count": 5,
+      "anchored_optional_ports": [],
+      "anchored_required_ports": [
+        "5V",
+        "CHG_N",
+        "EN",
+        "NTC_SENSE",
+        "VBAT"
+      ],
+      "extra_anchor_ports": [],
+      "missing_required_ports": [],
+      "optional_port_count": 0,
+      "port_count": 5,
+      "required_port_count": 5
+    },
+    "leaf_board_state": {
+      "component_refs": [
+        "R9",
+        "R10",
+        "R11",
+        "U5",
+        "C8",
+        "J2",
+        "J3"
+      ],
+      "interface_ports": [
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "5V",
+          "net_name": "5V",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        },
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "CHG_N",
+          "net_name": "CHG_N",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        },
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "EN",
+          "net_name": "EN",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        },
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "NTC_SENSE",
+          "net_name": "NTC_SENSE",
+          "preferred_side": "right",
+          "required": true,
+          "role": "analog"
+        },
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "VBAT",
+          "net_name": "VBAT",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        }
+      ],
+      "local_board_outline": {
+        "bottom_right": {
+          "x": 49.949999999999996,
+          "y": 25.629999999999995
+        },
+        "height_mm": 25.629999999999995,
+        "top_left": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "width_mm": 49.949999999999996
+      },
+      "net_partition": {
+        "external": [
+          "/5V",
+          "/CHG_N",
+          "/EN",
+          "/NTC_SENSE",
+          "/VBAT",
+          "/VSYS",
+          "GND",
+          "Net-(U4-FB)"
+        ],
+        "ignored": [],
+        "internal": [
+          "/3V3"
+        ]
+      },
+      "notes": [
+        "leaf=LDO 3.3V",
+        "instance_path=/2366e9e2-0175-45f9-8f63-4527a42971a6",
+        "component_count=7",
+        "internal_nets=1",
+        "external_nets=8",
+        "ignored_nets=0",
+        "margin_mm=5.000"
+      ],
+      "subcircuit": {
+        "instance_path": "/2366e9e2-0175-45f9-8f63-4527a42971a6",
+        "parent_instance_path": "/",
+        "sheet_file": "LDO_3_3V.kicad_sch",
+        "sheet_name": "LDO 3.3V"
+      },
+      "trace_count": 0,
+      "translation": {
+        "x": -56.025,
+        "y": 4.8149999999999995
+      },
+      "via_count": 0
+    },
+    "solve_summary": {
+      "best_round": {
+        "placement": {
+          "aspect_ratio": 52.55559890753023,
+          "board_containment": 100.0,
+          "compactness": 37.21502813777492,
+          "courtyard_overlap": 100.0,
+          "crossover_count": 3,
+          "crossover_score": 85.18518518518519,
+          "edge_compliance": 100.0,
+          "group_coherence": 100.0,
+          "net_distance": 63.445205695522866,
+          "rotation_score": 100.0,
+          "smt_opposite_tht": 50.0,
+          "total": 80.66335909448037
+        },
+        "round_index": 0,
+        "routed": true,
+        "routing": {
+          "enabled": true,
+          "failed": false,
+          "failed_internal_nets": [],
+          "reason": "",
+          "routed_internal_nets": [
+            "/3V3"
+          ],
+          "router": "lightweight_internal",
+          "skipped": false,
+          "total_length_mm": 30.22163517632113,
+          "traces": 4,
+          "vias": 0
+        },
+        "score": 80.66335909448037,
+        "seed": 547268981
+      },
+      "extraction": {
+        "component_refs": [
+          "R9",
+          "R10",
+          "R11",
+          "U5",
+          "C8",
+          "J2",
+          "J3"
+        ],
+        "interface_ports": [
+          {
+            "access_policy": "interface_only",
+            "bus_index": null,
+            "cardinality": 1,
+            "description": "normalized from schematic sheet pin",
+            "direction": "bidirectional",
+            "name": "5V",
+            "net_name": "5V",
+            "preferred_side": "right",
+            "required": true,
+            "role": "bidir"
+          },
+          {
+            "access_policy": "interface_only",
+            "bus_index": null,
+            "cardinality": 1,
+            "description": "normalized from schematic sheet pin",
+            "direction": "bidirectional",
+            "name": "CHG_N",
+            "net_name": "CHG_N",
+            "preferred_side": "right",
+            "required": true,
+            "role": "bidir"
+          },
+          {
+            "access_policy": "interface_only",
+            "bus_index": null,
+            "cardinality": 1,
+            "description": "normalized from schematic sheet pin",
+            "direction": "bidirectional",
+            "name": "EN",
+            "net_name": "EN",
+            "preferred_side": "right",
+            "required": true,
+            "role": "bidir"
+          },
+          {
+            "access_policy": "interface_only",
+            "bus_index": null,
+            "cardinality": 1,
+            "description": "normalized from schematic sheet pin",
+            "direction": "bidirectional",
+            "name": "NTC_SENSE",
+            "net_name": "NTC_SENSE",
+            "preferred_side": "right",
+            "required": true,
+            "role": "analog"
+          },
+          {
+            "access_policy": "interface_only",
+            "bus_index": null,
+            "cardinality": 1,
+            "description": "normalized from schematic sheet pin",
+            "direction": "bidirectional",
+            "name": "VBAT",
+            "net_name": "VBAT",
+            "preferred_side": "right",
+            "required": true,
+            "role": "bidir"
+          }
+        ],
+        "local_board_outline": {
+          "bottom_right": {
+            "x": 49.949999999999996,
+            "y": 25.629999999999995
+          },
+          "height_mm": 25.629999999999995,
+          "top_left": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "width_mm": 49.949999999999996
+        },
+        "net_partition": {
+          "external": [
+            "/5V",
+            "/CHG_N",
+            "/EN",
+            "/NTC_SENSE",
+            "/VBAT",
+            "/VSYS",
+            "GND",
+            "Net-(U4-FB)"
+          ],
+          "ignored": [],
+          "internal": [
+            "/3V3"
+          ]
+        },
+        "notes": [
+          "leaf=LDO 3.3V",
+          "instance_path=/2366e9e2-0175-45f9-8f63-4527a42971a6",
+          "component_count=7",
+          "internal_nets=1",
+          "external_nets=8",
+          "ignored_nets=0",
+          "margin_mm=5.000"
+        ],
+        "subcircuit": {
+          "instance_path": "/2366e9e2-0175-45f9-8f63-4527a42971a6",
+          "parent_instance_path": "/",
+          "sheet_file": "LDO_3_3V.kicad_sch",
+          "sheet_name": "LDO 3.3V"
+        },
+        "trace_count": 0,
+        "translation": {
+          "x": -56.025,
+          "y": 4.8149999999999995
+        },
+        "via_count": 0
+      },
+      "instance_path": "/2366e9e2-0175-45f9-8f63-4527a42971a6",
+      "rounds": [
+        {
+          "placement": {
+            "aspect_ratio": 52.55559890753023,
+            "board_containment": 100.0,
+            "compactness": 37.21502813777492,
+            "courtyard_overlap": 100.0,
+            "crossover_count": 3,
+            "crossover_score": 85.18518518518519,
+            "edge_compliance": 100.0,
+            "group_coherence": 100.0,
+            "net_distance": 63.445205695522866,
+            "rotation_score": 100.0,
+            "smt_opposite_tht": 50.0,
+            "total": 80.66335909448037
+          },
+          "round_index": 0,
+          "routed": true,
+          "routing": {
+            "enabled": true,
+            "failed": false,
+            "failed_internal_nets": [],
+            "reason": "",
+            "routed_internal_nets": [
+              "/3V3"
+            ],
+            "router": "lightweight_internal",
+            "skipped": false,
+            "total_length_mm": 30.22163517632113,
+            "traces": 4,
+            "vias": 0
+          },
+          "score": 80.66335909448037,
+          "seed": 547268981
+        }
+      ],
+      "sheet_name": "LDO 3.3V",
+      "summary": "LDO 3.3V [/2366e9e2-0175-45f9-8f63-4527a42971a6] refs=7 internal_nets=1 external_nets=8 traces=0 vias=0 size=49.9x25.6mm"
+    },
+    "solved_local_placement": {
+      "component_count": 7,
+      "components": {
+        "C8": {
+          "body_center": {
+            "x": 26.8,
+            "y": 7.6403150468739645
+          },
+          "height_mm": 1.01,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/3V3",
+              "pad_id": "1",
+              "pos": {
+                "x": 26.8,
+                "y": 8.12031504687397
+              },
+              "ref": "C8"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "2",
+              "pos": {
+                "x": 26.8,
+                "y": 7.1603150468739605
+              },
+              "ref": "C8"
+            }
+          ],
+          "pos": {
+            "x": 26.8,
+            "y": 7.6403150468739645
+          },
+          "ref": "C8",
+          "rotation": 90.0,
+          "value": "1u",
+          "width_mm": 1.91
+        },
+        "J2": {
+          "body_center": {
+            "x": 20.032114404167658,
+            "y": 2.8149999999999995
+          },
+          "height_mm": 3.63,
+          "is_through_hole": true,
+          "kind": "connector",
+          "layer": "B.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/5V",
+              "pad_id": "1",
+              "pos": {
+                "x": 14.952114404167673,
+                "y": 2.8149999999999995
+              },
+              "ref": "J2"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/3V3",
+              "pad_id": "2",
+              "pos": {
+                "x": 12.412114404167667,
+                "y": 2.8149999999999995
+              },
+              "ref": "J2"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "3",
+              "pos": {
+                "x": 9.872114404167675,
+                "y": 2.8149999999999995
+              },
+              "ref": "J2"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/EN",
+              "pad_id": "4",
+              "pos": {
+                "x": 7.332114404167669,
+                "y": 2.8149999999999995
+              },
+              "ref": "J2"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/VBAT",
+              "pad_id": "5",
+              "pos": {
+                "x": 4.792114404167677,
+                "y": 2.8149999999999995
+              },
+              "ref": "J2"
+            }
+          ],
+          "pos": {
+            "x": 14.952114404167673,
+            "y": 2.815
+          },
+          "ref": "J2",
+          "rotation": 90.0,
+          "value": "Output",
+          "width_mm": 13.79
+        },
+        "J3": {
+          "body_center": {
+            "x": 33.2714981626934,
+            "y": 22.814999999999994
+          },
+          "height_mm": 3.63,
+          "is_through_hole": true,
+          "kind": "connector",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/VBAT",
+              "pad_id": "1",
+              "pos": {
+                "x": 30.7314981626934,
+                "y": 22.814999999999994
+              },
+              "ref": "J3"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/NTC_SENSE",
+              "pad_id": "2",
+              "pos": {
+                "x": 33.2714981626934,
+                "y": 22.814999999999994
+              },
+              "ref": "J3"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/CHG_N",
+              "pad_id": "3",
+              "pos": {
+                "x": 35.81149816269339,
+                "y": 22.814999999999994
+              },
+              "ref": "J3"
+            }
+          ],
+          "pos": {
+            "x": 30.7314981626934,
+            "y": 22.814999999999994
+          },
+          "ref": "J3",
+          "rotation": 90.0,
+          "value": "Debug",
+          "width_mm": 8.71
+        },
+        "R10": {
+          "body_center": {
+            "x": 19.68906249999999,
+            "y": 9.0
+          },
+          "height_mm": 1.03,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "Net-(U4-FB)",
+              "pad_id": "1",
+              "pos": {
+                "x": 20.199062499999997,
+                "y": 9.0
+              },
+              "ref": "R10"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "2",
+              "pos": {
+                "x": 19.179062499999986,
+                "y": 9.0
+              },
+              "ref": "R10"
+            }
+          ],
+          "pos": {
+            "x": 19.68906249999999,
+            "y": 9.0
+          },
+          "ref": "R10",
+          "rotation": 180.0,
+          "value": "10k",
+          "width_mm": 1.95
+        },
+        "R11": {
+          "body_center": {
+            "x": 24.0,
+            "y": 20.71747794696348
+          },
+          "height_mm": 1.03,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/VSYS",
+              "pad_id": "1",
+              "pos": {
+                "x": 23.490000000000002,
+                "y": 20.71747794696348
+              },
+              "ref": "R11"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/EN",
+              "pad_id": "2",
+              "pos": {
+                "x": 24.509999999999998,
+                "y": 20.71747794696348
+              },
+              "ref": "R11"
+            }
+          ],
+          "pos": {
+            "x": 24.0,
+            "y": 20.71747794696348
+          },
+          "ref": "R11",
+          "rotation": 0.0,
+          "value": "100k",
+          "width_mm": 1.95
+        },
+        "R9": {
+          "body_center": {
+            "x": 24.239062499999996,
+            "y": 11.16563009374793
+          },
+          "height_mm": 1.03,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/5V",
+              "pad_id": "1",
+              "pos": {
+                "x": 24.239062499999996,
+                "y": 11.675630093747932
+              },
+              "ref": "R9"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "Net-(U4-FB)",
+              "pad_id": "2",
+              "pos": {
+                "x": 24.239062499999996,
+                "y": 10.655630093747922
+              },
+              "ref": "R9"
+            }
+          ],
+          "pos": {
+            "x": 24.239062499999996,
+            "y": 11.165630093747927
+          },
+          "ref": "R9",
+          "rotation": 90.0,
+          "value": "75k",
+          "width_mm": 1.95
+        },
+        "U5": {
+          "body_center": {
+            "x": 22.0,
+            "y": 15.9362495804888
+          },
+          "height_mm": 3.49,
+          "is_through_hole": false,
+          "kind": "ic",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/5V",
+              "pad_id": "1",
+              "pos": {
+                "x": 20.862499999999997,
+                "y": 14.986249580488797
+              },
+              "ref": "U5"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "2",
+              "pos": {
+                "x": 20.862499999999997,
+                "y": 15.9362495804888
+              },
+              "ref": "U5"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/EN",
+              "pad_id": "3",
+              "pos": {
+                "x": 20.862499999999997,
+                "y": 16.886249580488794
+              },
+              "ref": "U5"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/3V3",
+              "pad_id": "5",
+              "pos": {
+                "x": 23.137500000000003,
+                "y": 14.986249580488797
+              },
+              "ref": "U5"
+            }
+          ],
+          "pos": {
+            "x": 22.0,
+            "y": 15.9362495804888
+          },
+          "ref": "U5",
+          "rotation": 0.0,
+          "value": "AP2112K-3.3",
+          "width_mm": 4.19
+        }
+      }
+    }
+  },
+  "leaf_extraction": {
+    "artifact_slug": "2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2",
+    "component_refs": [
+      "R9",
+      "R10",
+      "R11",
+      "U5",
+      "C8",
+      "J2",
+      "J3"
+    ],
+    "external_nets": [
+      "/5V",
+      "/CHG_N",
+      "/EN",
+      "/NTC_SENSE",
+      "/VBAT",
+      "/VSYS",
+      "GND",
+      "Net-(U4-FB)"
+    ],
+    "interface_ports": [
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "5V",
+        "net_name": "5V",
+        "preferred_side": "right",
+        "required": true,
+        "role": "bidir"
+      },
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "CHG_N",
+        "net_name": "CHG_N",
+        "preferred_side": "right",
+        "required": true,
+        "role": "bidir"
+      },
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "EN",
+        "net_name": "EN",
+        "preferred_side": "right",
+        "required": true,
+        "role": "bidir"
+      },
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "NTC_SENSE",
+        "net_name": "NTC_SENSE",
+        "preferred_side": "right",
+        "required": true,
+        "role": "analog"
+      },
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "VBAT",
+        "net_name": "VBAT",
+        "preferred_side": "right",
+        "required": true,
+        "role": "bidir"
+      }
+    ],
+    "internal_nets": [
+      "/3V3"
+    ],
+    "internal_trace_count": 0,
+    "internal_via_count": 0,
+    "local_board_outline": {
+      "bottom_right_x": 49.949999999999996,
+      "bottom_right_y": 25.629999999999995,
+      "height_mm": 25.629999999999995,
+      "top_left_x": 0.0,
+      "top_left_y": 0.0,
+      "width_mm": 49.949999999999996
+    },
+    "local_translation": {
+      "x": -56.025,
+      "y": 4.8149999999999995
+    },
+    "notes": [
+      "solved by solve_subcircuits.py",
+      "best_round=0",
+      "best_seed=547268981",
+      "best_score=80.663",
+      "rounds=1",
+      "solved_component_count=7",
+      "canonical_layout_schema=subcircuits.layout.v1",
+      "leaf=LDO 3.3V",
+      "instance_path=/2366e9e2-0175-45f9-8f63-4527a42971a6",
+      "component_count=7",
+      "internal_nets=1",
+      "external_nets=8",
+      "ignored_nets=0",
+      "margin_mm=5.000"
+    ],
+    "project_dir": "/home/jason/Documents/LLUPS",
+    "schematic_path": "/home/jason/Documents/LLUPS/LDO_3_3V.kicad_sch"
+  },
+  "metadata": {
+    "access_policy": "interface_only",
+    "artifact_paths": {
+      "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2",
+      "base_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits",
+      "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/debug.json",
+      "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/metadata.json",
+      "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/layout.kicad_pcb",
+      "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/solved_layout.json"
+    },
+    "component_refs": [
+      "R9",
+      "R10",
+      "R11",
+      "U5",
+      "C8",
+      "J2",
+      "J3"
+    ],
+    "config_hash": "902f8bf99600fffd915e36fd9061db3a60ce3f8a42b7943fea2cdfbb3a134b23",
+    "external_nets": [
+      "/5V",
+      "/CHG_N",
+      "/EN",
+      "/NTC_SENSE",
+      "/VBAT",
+      "/VSYS",
+      "GND",
+      "Net-(U4-FB)"
+    ],
+    "instance_path": "/2366e9e2-0175-45f9-8f63-4527a42971a6",
+    "interface_ports": [
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "5V",
+        "net_name": "5V",
+        "preferred_side": "right",
+        "required": true,
+        "role": "bidir"
+      },
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "CHG_N",
+        "net_name": "CHG_N",
+        "preferred_side": "right",
+        "required": true,
+        "role": "bidir"
+      },
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "EN",
+        "net_name": "EN",
+        "preferred_side": "right",
+        "required": true,
+        "role": "bidir"
+      },
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "NTC_SENSE",
+        "net_name": "NTC_SENSE",
+        "preferred_side": "right",
+        "required": true,
+        "role": "analog"
+      },
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "VBAT",
+        "net_name": "VBAT",
+        "preferred_side": "right",
+        "required": true,
+        "role": "bidir"
+      }
+    ],
+    "internal_nets": [
+      "/3V3"
+    ],
+    "internal_trace_count": 0,
+    "internal_via_count": 0,
+    "local_board_outline": {
+      "bottom_right_x": 49.949999999999996,
+      "bottom_right_y": 25.629999999999995,
+      "height_mm": 25.629999999999995,
+      "top_left_x": 0.0,
+      "top_left_y": 0.0,
+      "width_mm": 49.949999999999996
+    },
+    "local_translation": {
+      "x": -56.025,
+      "y": 4.8149999999999995
+    },
+    "notes": [
+      "solved by solve_subcircuits.py",
+      "best_round=0",
+      "best_seed=547268981",
+      "best_score=80.663",
+      "rounds=1",
+      "solved_component_count=7",
+      "canonical_layout_schema=subcircuits.layout.v1",
+      "leaf=LDO 3.3V",
+      "instance_path=/2366e9e2-0175-45f9-8f63-4527a42971a6",
+      "component_count=7",
+      "internal_nets=1",
+      "external_nets=8",
+      "ignored_nets=0",
+      "margin_mm=5.000"
+    ],
+    "parent_instance_path": "/",
+    "project_dir": "/home/jason/Documents/LLUPS",
+    "schema_version": "subcircuits.v1",
+    "schematic_path": "/home/jason/Documents/LLUPS/LDO_3_3V.kicad_sch",
+    "sheet_file": "LDO_3_3V.kicad_sch",
+    "sheet_name": "LDO 3.3V",
+    "solver_version": "subcircuits-m3-placement",
+    "source_hash": "cead6fe47bd2f5a4cc9173f80b6964a8d496ecbc3e7c02552899a317f35b8f30",
+    "subcircuit_id": {
+      "instance_path": "/2366e9e2-0175-45f9-8f63-4527a42971a6",
+      "parent_instance_path": "/",
+      "sheet_file": "LDO_3_3V.kicad_sch",
+      "sheet_name": "LDO 3.3V"
+    }
+  },
+  "schema_version": "subcircuits.v1"
+}

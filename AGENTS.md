@@ -2,30 +2,42 @@
 
 ## Verification After Code Changes
 
-After making any changes to the autoplacer code (`brain/placement.py`, `brain/types.py`, `config.py`, or other autoplacer modules), always run a short autoexperiment to verify the changes work correctly before considering the task complete.
+After making changes to the subcircuits/autoplacer pipeline (`brain/placement.py`, `brain/types.py`, `config.py`, `brain/subcircuit_*.py`, `freerouting_runner.py`, `hardware/adapter.py`, `solve_subcircuits.py`, `compose_subcircuits.py`, or related hierarchical pipeline modules), always run the subcircuit pipeline once before considering the task complete.
 
-### Quick verification command
+### Required verification command
 
 ```bash
-python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb \
-  --rounds 3 \
-  --program .claude/skills/kicad-helper/scripts/program.md \
-  --save-all \
-  --verbose
+python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch \
+  --pcb LLUPS.kicad_pcb \
+  --rounds 1 \
+  --route
 ```
 
 ### What to check in the output
 
 1. No Python exceptions or tracebacks
-2. Placement scores are reasonable (not drastically worse than ~60-80 range)
-3. No warnings about pads outside the board after clamp passes
-4. Battery holders (BT1, BT2) are aligned as a pair in the log output
-5. The run completes all 3 rounds without hanging
+2. Leaf subcircuits are solved through the real routed path, not a heuristic fallback
+3. Accepted artifacts are written under `.experiments/subcircuits/`
+4. Each accepted routed leaf artifact persists canonical copper in `solved_layout.json`
+5. The run completes without hanging in the leaf pipeline
+
+### Visual/full-pipeline direction
+
+The target verification flow for this branch is evolving toward a single user-visible hierarchical run that:
+
+1. solves the lowest-level leaf subcircuits first
+2. routes those leaves with FreeRouting
+3. persists accepted routed leaf artifacts
+4. assembles higher-level parents from those routed children layer by layer like legos
+5. preserves child copper during parent composition
+6. reaches the complete top-level parent circuit in a visually inspectable way
+
+When extending the pipeline, prefer work that moves verification toward that full start-to-finish hierarchical run rather than isolated demo polish.
 
 ### When to skip verification
 
 - Pure comment or documentation changes
-- Changes to files outside the autoplacer package (e.g. render scripts, scoring-only changes)
+- Changes to files outside the subcircuits/autoplacer pipeline
 
 ## Project Structure
 

@@ -112,6 +112,8 @@ class ParentCompositionState:
     via_count: int = 0
     interconnect_net_count: int = 0
     inferred_interconnect_net_count: int = 0
+    routed_interconnect_net_count: int = 0
+    failed_interconnect_net_count: int = 0
     score_total: float = 0.0
     score_breakdown: dict[str, float] = field(default_factory=dict)
     score_notes: list[str] = field(default_factory=list)
@@ -141,6 +143,8 @@ class ParentCompositionState:
             "via_count": self.via_count,
             "interconnect_net_count": self.interconnect_net_count,
             "inferred_interconnect_net_count": self.inferred_interconnect_net_count,
+            "routed_interconnect_net_count": self.routed_interconnect_net_count,
+            "failed_interconnect_net_count": self.failed_interconnect_net_count,
             "score_total": self.score_total,
             "score_breakdown": dict(self.score_breakdown),
             "score_notes": list(self.score_notes),
@@ -458,6 +462,8 @@ def _compose_artifacts(
         via_count=composition.via_count,
         interconnect_net_count=len(composition.hierarchy_state.interconnect_nets),
         inferred_interconnect_net_count=len(composition.inferred_interconnect_nets),
+        routed_interconnect_net_count=len(composition.routed_interconnect_nets),
+        failed_interconnect_net_count=len(composition.failed_interconnect_nets),
         score_total=composition.score.total if composition.score else 0.0,
         score_breakdown=dict(composition.score.breakdown) if composition.score else {},
         score_notes=list(composition.score.notes) if composition.score else [],
@@ -519,6 +525,8 @@ def _save_composition_snapshot(
             "via_count": state.via_count,
             "interconnect_net_count": state.interconnect_net_count,
             "inferred_interconnect_net_count": state.inferred_interconnect_net_count,
+            "routed_interconnect_net_count": state.routed_interconnect_net_count,
+            "failed_interconnect_net_count": state.failed_interconnect_net_count,
             "score": {
                 "total": state.score_total,
                 "breakdown": dict(state.score_breakdown),
@@ -558,6 +566,8 @@ def _print_human_summary(
     print(f"vias                   : {state.via_count}")
     print(f"interconnect_nets      : {state.interconnect_net_count}")
     print(f"inferred_interconnects : {state.inferred_interconnect_net_count}")
+    print(f"routed_interconnects   : {state.routed_interconnect_net_count}")
+    print(f"failed_interconnects   : {state.failed_interconnect_net_count}")
     print(f"score_total            : {state.score_total:.2f}")
     if output_path:
         print(f"output_json            : {output_path}")
@@ -617,6 +627,8 @@ def _json_payload(
             "via_count": state.via_count,
             "interconnect_net_count": state.interconnect_net_count,
             "inferred_interconnect_net_count": state.inferred_interconnect_net_count,
+            "routed_interconnect_net_count": state.routed_interconnect_net_count,
+            "failed_interconnect_net_count": state.failed_interconnect_net_count,
             "score": {
                 "total": state.score_total,
                 "breakdown": dict(state.score_breakdown),

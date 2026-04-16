@@ -1,0 +1,1079 @@
+{
+  "anchor_validation": {
+    "all_required_ports_anchored": true,
+    "anchor_count": 5,
+    "anchored_optional_ports": [],
+    "anchored_required_ports": [
+      "CHG_N",
+      "NTC_SENSE",
+      "VBAT",
+      "VBUS",
+      "VSYS"
+    ],
+    "extra_anchor_ports": [],
+    "missing_required_ports": [],
+    "optional_port_count": 0,
+    "port_count": 5,
+    "required_port_count": 5
+  },
+  "artifact_paths": {
+    "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd",
+    "base_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits",
+    "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd/debug.json",
+    "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd/metadata.json",
+    "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd/layout.kicad_pcb",
+    "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd/solved_layout.json"
+  },
+  "bounding_box": {
+    "height_mm": 20.02,
+    "width_mm": 34.93
+  },
+  "components": {
+    "C2": {
+      "body_center": {
+        "x": 6.299999999999997,
+        "y": 7.84
+      },
+      "height_mm": 1.01,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "/VBUS",
+          "pad_id": "1",
+          "pos": {
+            "x": 5.82,
+            "y": 7.84
+          },
+          "ref": "C2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "2",
+          "pos": {
+            "x": 6.780000000000001,
+            "y": 7.84
+          },
+          "ref": "C2"
+        }
+      ],
+      "pos": {
+        "x": 6.300000000000001,
+        "y": 7.84
+      },
+      "ref": "C2",
+      "rotation": 0.0,
+      "value": "4.7u",
+      "width_mm": 1.91
+    },
+    "C3": {
+      "body_center": {
+        "x": 22.635,
+        "y": 5.1
+      },
+      "height_mm": 1.01,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "/VSYS",
+          "pad_id": "1",
+          "pos": {
+            "x": 22.155,
+            "y": 5.1
+          },
+          "ref": "C3"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "2",
+          "pos": {
+            "x": 23.115,
+            "y": 5.1
+          },
+          "ref": "C3"
+        }
+      ],
+      "pos": {
+        "x": 22.635,
+        "y": 5.1
+      },
+      "ref": "C3",
+      "rotation": 0.0,
+      "value": "4.7u",
+      "width_mm": 1.91
+    },
+    "C4": {
+      "body_center": {
+        "x": 30.365,
+        "y": 14.9
+      },
+      "height_mm": 1.91,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "/VBAT",
+          "pad_id": "1",
+          "pos": {
+            "x": 29.884999999999998,
+            "y": 14.9
+          },
+          "ref": "C4"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "2",
+          "pos": {
+            "x": 30.845,
+            "y": 14.9
+          },
+          "ref": "C4"
+        }
+      ],
+      "pos": {
+        "x": 30.365,
+        "y": 14.9
+      },
+      "ref": "C4",
+      "rotation": 0.0,
+      "value": "4.7u",
+      "width_mm": 1.01
+    },
+    "D1": {
+      "body_center": {
+        "x": 27.639999999999997,
+        "y": 7.3100000000000005
+      },
+      "height_mm": 1.55,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "/CHG_N",
+          "pad_id": "1",
+          "pos": {
+            "x": 27.639999999999997,
+            "y": 6.522499999999999
+          },
+          "ref": "D1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(D1-A)",
+          "pad_id": "2",
+          "pos": {
+            "x": 27.639999999999997,
+            "y": 8.0975
+          },
+          "ref": "D1"
+        }
+      ],
+      "pos": {
+        "x": 27.639999999999997,
+        "y": 7.3100000000000005
+      },
+      "ref": "D1",
+      "rotation": 270.0,
+      "value": "CHG",
+      "width_mm": 3.05
+    },
+    "D2": {
+      "body_center": {
+        "x": 25.735000000000003,
+        "y": 11.46
+      },
+      "height_mm": 1.55,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "Net-(D2-K)",
+          "pad_id": "1",
+          "pos": {
+            "x": 25.735000000000003,
+            "y": 12.247500000000002
+          },
+          "ref": "D2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(D2-A)",
+          "pad_id": "2",
+          "pos": {
+            "x": 25.735000000000003,
+            "y": 10.6725
+          },
+          "ref": "D2"
+        }
+      ],
+      "pos": {
+        "x": 25.735000000000003,
+        "y": 11.46
+      },
+      "ref": "D2",
+      "rotation": 90.0,
+      "value": "PGOOD",
+      "width_mm": 3.05
+    },
+    "R3": {
+      "body_center": {
+        "x": 17.875,
+        "y": 15.6
+      },
+      "height_mm": 1.03,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "1",
+          "pos": {
+            "x": 17.875,
+            "y": 16.110000000000007
+          },
+          "ref": "R3"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(U2-ISET)",
+          "pad_id": "2",
+          "pos": {
+            "x": 17.875,
+            "y": 15.089999999999998
+          },
+          "ref": "R3"
+        }
+      ],
+      "pos": {
+        "x": 17.875,
+        "y": 15.6
+      },
+      "ref": "R3",
+      "rotation": 90.0,
+      "value": "1k",
+      "width_mm": 1.95
+    },
+    "R4": {
+      "body_center": {
+        "x": 15.100000000000003,
+        "y": 3.69875
+      },
+      "height_mm": 1.03,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "1",
+          "pos": {
+            "x": 14.589999999999998,
+            "y": 3.69875
+          },
+          "ref": "R4"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(U2-ILIM)",
+          "pad_id": "2",
+          "pos": {
+            "x": 15.610000000000001,
+            "y": 3.69875
+          },
+          "ref": "R4"
+        }
+      ],
+      "pos": {
+        "x": 15.1,
+        "y": 3.69875
+      },
+      "ref": "R4",
+      "rotation": 0.0,
+      "value": "1.5k",
+      "width_mm": 1.95
+    },
+    "R5": {
+      "body_center": {
+        "x": 8.8375,
+        "y": 11.46
+      },
+      "height_mm": 1.03,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "1",
+          "pos": {
+            "x": 8.327499999999999,
+            "y": 11.46
+          },
+          "ref": "R5"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(U2-TMR)",
+          "pad_id": "2",
+          "pos": {
+            "x": 9.347499999999995,
+            "y": 11.46
+          },
+          "ref": "R5"
+        }
+      ],
+      "pos": {
+        "x": 8.8375,
+        "y": 11.46
+      },
+      "ref": "R5",
+      "rotation": 0.0,
+      "value": "10k",
+      "width_mm": 1.95
+    },
+    "R6": {
+      "body_center": {
+        "x": 28.2,
+        "y": 3.4868750000000004
+      },
+      "height_mm": 1.03,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "Net-(D1-A)",
+          "pad_id": "1",
+          "pos": {
+            "x": 28.2,
+            "y": 3.9968749999999984
+          },
+          "ref": "R6"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "/VSYS",
+          "pad_id": "2",
+          "pos": {
+            "x": 28.2,
+            "y": 2.9768750000000024
+          },
+          "ref": "R6"
+        }
+      ],
+      "pos": {
+        "x": 28.2,
+        "y": 3.4868750000000004
+      },
+      "ref": "R6",
+      "rotation": 90.0,
+      "value": "1k",
+      "width_mm": 1.95
+    },
+    "R7": {
+      "body_center": {
+        "x": 32.955,
+        "y": 10.7
+      },
+      "height_mm": 1.03,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "Net-(D2-A)",
+          "pad_id": "1",
+          "pos": {
+            "x": 32.955,
+            "y": 11.209999999999997
+          },
+          "ref": "R7"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "/VSYS",
+          "pad_id": "2",
+          "pos": {
+            "x": 32.955,
+            "y": 10.190000000000001
+          },
+          "ref": "R7"
+        }
+      ],
+      "pos": {
+        "x": 32.955,
+        "y": 10.7
+      },
+      "ref": "R7",
+      "rotation": 90.0,
+      "value": "1k",
+      "width_mm": 1.95
+    },
+    "R8": {
+      "body_center": {
+        "x": 22.27,
+        "y": 15.743125000000001
+      },
+      "height_mm": 1.95,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "/VBAT",
+          "pad_id": "1",
+          "pos": {
+            "x": 22.27,
+            "y": 15.233125
+          },
+          "ref": "R8"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "/NTC_SENSE",
+          "pad_id": "2",
+          "pos": {
+            "x": 22.27,
+            "y": 16.253125
+          },
+          "ref": "R8"
+        }
+      ],
+      "pos": {
+        "x": 22.27,
+        "y": 15.743125000000001
+      },
+      "ref": "R8",
+      "rotation": 270.0,
+      "value": "10k",
+      "width_mm": 1.03
+    },
+    "RT1": {
+      "body_center": {
+        "x": 13.387500000000001,
+        "y": 14.720625
+      },
+      "height_mm": 1.03,
+      "is_through_hole": false,
+      "kind": "passive",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "/NTC_SENSE",
+          "pad_id": "1",
+          "pos": {
+            "x": 13.387500000000001,
+            "y": 14.210625000000002
+          },
+          "ref": "RT1"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "2",
+          "pos": {
+            "x": 13.387500000000001,
+            "y": 15.230624999999998
+          },
+          "ref": "RT1"
+        }
+      ],
+      "pos": {
+        "x": 13.387500000000001,
+        "y": 14.720625
+      },
+      "ref": "RT1",
+      "rotation": 270.0,
+      "value": "10k_NTC",
+      "width_mm": 1.95
+    },
+    "U2": {
+      "body_center": {
+        "x": 16.655,
+        "y": 9.180625
+      },
+      "height_mm": 4.85,
+      "is_through_hole": true,
+      "kind": "ic",
+      "layer": "F.Cu",
+      "locked": false,
+      "opening_direction": null,
+      "pads": [
+        {
+          "layer": "F.Cu",
+          "net": "/NTC_SENSE",
+          "pad_id": "1",
+          "pos": {
+            "x": 15.905000000000001,
+            "y": 10.878125
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "/VBAT",
+          "pad_id": "2",
+          "pos": {
+            "x": 16.405,
+            "y": 10.878125
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "/VBAT",
+          "pad_id": "3",
+          "pos": {
+            "x": 16.905,
+            "y": 10.878125
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "/VSYS",
+          "pad_id": "5",
+          "pos": {
+            "x": 18.352500000000003,
+            "y": 9.930625
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "/VSYS",
+          "pad_id": "6",
+          "pos": {
+            "x": 18.352500000000003,
+            "y": 9.430625
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(D2-K)",
+          "pad_id": "7",
+          "pos": {
+            "x": 18.352500000000003,
+            "y": 8.930625
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "8",
+          "pos": {
+            "x": 18.352500000000003,
+            "y": 8.430625
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "/CHG_N",
+          "pad_id": "9",
+          "pos": {
+            "x": 17.405,
+            "y": 7.483124999999998
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "/VSYS",
+          "pad_id": "10",
+          "pos": {
+            "x": 16.905,
+            "y": 7.483124999999998
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "/VSYS",
+          "pad_id": "11",
+          "pos": {
+            "x": 16.405,
+            "y": 7.483124999999998
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(U2-ILIM)",
+          "pad_id": "12",
+          "pos": {
+            "x": 15.905000000000001,
+            "y": 7.483124999999998
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "/VBUS",
+          "pad_id": "13",
+          "pos": {
+            "x": 14.9575,
+            "y": 8.430625
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(U2-TMR)",
+          "pad_id": "14",
+          "pos": {
+            "x": 14.9575,
+            "y": 8.930625
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "Net-(U2-ISET)",
+          "pad_id": "16",
+          "pos": {
+            "x": 14.9575,
+            "y": 9.930625
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "17",
+          "pos": {
+            "x": 16.155,
+            "y": 9.680625
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "17",
+          "pos": {
+            "x": 17.155,
+            "y": 9.680625
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "17",
+          "pos": {
+            "x": 16.655,
+            "y": 9.180625
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "17",
+          "pos": {
+            "x": 16.655,
+            "y": 9.180625
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "17",
+          "pos": {
+            "x": 16.155,
+            "y": 8.680625
+          },
+          "ref": "U2"
+        },
+        {
+          "layer": "F.Cu",
+          "net": "GND",
+          "pad_id": "17",
+          "pos": {
+            "x": 17.155,
+            "y": 8.680625
+          },
+          "ref": "U2"
+        }
+      ],
+      "pos": {
+        "x": 16.655,
+        "y": 9.180625
+      },
+      "ref": "U2",
+      "rotation": 90.0,
+      "value": "BQ24072",
+      "width_mm": 4.85
+    }
+  },
+  "config_hash": "{\"align_large_pairs\": true, \"board_height_mm\": 58.0, \"board_size_overhead_factor\": 2.0, \"board_width_mm\": 90.0, \"component_zones\": {\"BT1\": {\"zone\": \"bottom\"}, \"BT2\": {\"zone\": \"bottom\"}, \"H4\": {\"corner\": \"top-left\"}, \"H86\": {\"corner\": \"bottom-right\"}, \"J1\": {\"edge\": \"left\"}, \"J2\": {\"edge\": \"right\"}, \"J3\": {\"edge\": \"right\"}}, \"connector_edge_inset_mm\": 1.0, \"connector_gap_mm\": 2.0, \"cooling_factor\": 0.97, \"courtyard_padding_mm\": 0.5, \"edge_jitter_mm\": 5.0, \"edge_margin_mm\": 6.0, \"enable_board_size_search\": true, \"force_attract_k\": 0.02, \"force_repel_k\": 200.0, \"freerouting_ignore_nets\": [\"GND\"], \"freerouting_jar\": \"/home/jason/.local/lib/freerouting-1.9.0.jar\", \"freerouting_max_passes\": 40, \"freerouting_timeout_s\": 60, \"gnd_zone_layer\": \"B.Cu\", \"gnd_zone_margin_mm\": 0.5, \"gnd_zone_net\": \"GND\", \"group_labels\": {\"U1\": \"USB INPUT\", \"U2\": \"CHARGER\", \"U3\": \"BATT PROT\", \"U4\": \"BOOST 5V\", \"U5\": \"LDO 3.3V\"}, \"group_source\": \"auto\", \"hierarchical_placement\": true, \"ic_groups\": {\"BT1\": [\"BT2\"], \"U1\": [\"C1\", \"R1\", \"R2\", \"F1\", \"J1\"], \"U2\": [\"C2\", \"C3\", \"C4\", \"R3\", \"R4\", \"R5\", \"R6\", \"R7\", \"R8\", \"RT1\", \"D1\", \"D2\"], \"U3\": [\"Q1\", \"U6\"], \"U4\": [\"C5\", \"C6\", \"C7\", \"L1\", \"D3\"], \"U5\": [\"C8\", \"R9\", \"R10\", \"R11\", \"J2\", \"J3\"]}, \"intra_cluster_iters\": 80, \"max_placement_iterations\": 300, \"min_placement_score\": 20.0, \"net_priority\": {}, \"orderedness\": 0.3, \"pad_inset_margin_mm\": 0.3, \"placement_clearance_mm\": 2.5, \"placement_convergence_threshold\": 0.5, \"placement_grid_mm\": 1.0, \"placement_score_every_n\": 1, \"power_nets\": \"{'5V', '/5V', '+3V3', '/VSYS_BOOST', '/VBAT', 'VBAT', 'VBUS', '/3V3', '/CELL_NEG', 'GND', '3V3', '3.3V', '+5V', '/VSYS', '/EN', '/VBUS'}\", \"power_width_mm\": 0.127, \"randomize_group_layout\": false, \"reheat_strength\": 0.1, \"scatter_mode\": \"cluster\", \"signal_flow_order\": [\"U1\", \"U2\", \"U3\", \"U4\", \"U5\"], \"signal_width_mm\": 0.127, \"skip_gnd_routing\": true, \"smt_opposite_tht\": true, \"thermal_radius_mm\": 3.0, \"thermal_refs\": [\"U2\", \"U4\"], \"tht_backside_min_area_mm2\": 50.0, \"unlock_all_footprints\": true, \"via_drill_mm\": 0.3, \"via_size_mm\": 0.6}",
+  "frozen": true,
+  "instance_path": "/91e930d7-87b6-4460-a854-b87269b13bb7",
+  "interface_anchors": [
+    {
+      "layer": "F.Cu",
+      "pad_ref": [
+        "D1",
+        "1"
+      ],
+      "port_name": "CHG_N",
+      "pos": {
+        "x": 27.639999999999997,
+        "y": 6.522499999999999
+      }
+    },
+    {
+      "layer": "F.Cu",
+      "pad_ref": [
+        "R8",
+        "2"
+      ],
+      "port_name": "NTC_SENSE",
+      "pos": {
+        "x": 22.27,
+        "y": 16.253125
+      }
+    },
+    {
+      "layer": "F.Cu",
+      "pad_ref": [
+        "R8",
+        "1"
+      ],
+      "port_name": "VBAT",
+      "pos": {
+        "x": 22.27,
+        "y": 15.233125
+      }
+    },
+    {
+      "layer": "F.Cu",
+      "pad_ref": [
+        "C2",
+        "1"
+      ],
+      "port_name": "VBUS",
+      "pos": {
+        "x": 5.82,
+        "y": 7.84
+      }
+    },
+    {
+      "layer": "F.Cu",
+      "pad_ref": [
+        "R6",
+        "2"
+      ],
+      "port_name": "VSYS",
+      "pos": {
+        "x": 28.2,
+        "y": 2.9768750000000024
+      }
+    }
+  ],
+  "notes": [
+    "round_index=0",
+    "seed=1654615998",
+    "routing={\"enabled\": true, \"failed\": false, \"failed_internal_nets\": [], \"reason\": \"\", \"routed_internal_nets\": [\"Net-(U2-TMR)\", \"Net-(D2-K)\", \"Net-(U2-ILIM)\", \"Net-(U2-ISET)\", \"Net-(D1-A)\", \"Net-(D2-A)\"], \"router\": \"lightweight_internal\", \"skipped\": false, \"total_length_mm\": 43.413125, \"traces\": 12, \"vias\": 0}",
+    "interface_port_count=5",
+    "interface_anchor_count=5",
+    "all_required_ports_anchored=True"
+  ],
+  "parent_instance_path": "/",
+  "ports": [
+    {
+      "access_policy": "interface_only",
+      "bus_index": null,
+      "cardinality": 1,
+      "description": "normalized from schematic sheet pin",
+      "direction": "bidirectional",
+      "name": "CHG_N",
+      "net_name": "CHG_N",
+      "preferred_side": "right",
+      "required": true,
+      "role": "bidir"
+    },
+    {
+      "access_policy": "interface_only",
+      "bus_index": null,
+      "cardinality": 1,
+      "description": "normalized from schematic sheet pin",
+      "direction": "bidirectional",
+      "name": "NTC_SENSE",
+      "net_name": "NTC_SENSE",
+      "preferred_side": "right",
+      "required": true,
+      "role": "analog"
+    },
+    {
+      "access_policy": "interface_only",
+      "bus_index": null,
+      "cardinality": 1,
+      "description": "normalized from schematic sheet pin",
+      "direction": "bidirectional",
+      "name": "VBAT",
+      "net_name": "VBAT",
+      "preferred_side": "right",
+      "required": true,
+      "role": "bidir"
+    },
+    {
+      "access_policy": "interface_only",
+      "bus_index": null,
+      "cardinality": 1,
+      "description": "normalized from schematic sheet pin",
+      "direction": "bidirectional",
+      "name": "VBUS",
+      "net_name": "VBUS",
+      "preferred_side": "right",
+      "required": true,
+      "role": "bidir"
+    },
+    {
+      "access_policy": "interface_only",
+      "bus_index": null,
+      "cardinality": 1,
+      "description": "normalized from schematic sheet pin",
+      "direction": "bidirectional",
+      "name": "VSYS",
+      "net_name": "VSYS",
+      "preferred_side": "right",
+      "required": true,
+      "role": "bidir"
+    }
+  ],
+  "project_dir": "/home/jason/Documents/LLUPS",
+  "schema_version": "subcircuits.layout.v1",
+  "score": 90.07113619513895,
+  "sheet_file": "CHARGER.kicad_sch",
+  "sheet_name": "CHARGER",
+  "solver_version": "subcircuits-m3-placement",
+  "source_hash": "/91e930d7-87b6-4460-a854-b87269b13bb7",
+  "subcircuit_id": {
+    "instance_path": "/91e930d7-87b6-4460-a854-b87269b13bb7",
+    "parent_instance_path": "/",
+    "sheet_file": "CHARGER.kicad_sch",
+    "sheet_name": "CHARGER"
+  },
+  "traces": [
+    {
+      "end": {
+        "x": 14.9575,
+        "y": 11.46
+      },
+      "layer": "F.Cu",
+      "length_mm": 5.610000000000005,
+      "net": "Net-(U2-TMR)",
+      "start": {
+        "x": 9.347499999999995,
+        "y": 11.46
+      },
+      "width_mm": 0.127
+    },
+    {
+      "end": {
+        "x": 14.9575,
+        "y": 8.930625
+      },
+      "layer": "F.Cu",
+      "length_mm": 2.5293750000000017,
+      "net": "Net-(U2-TMR)",
+      "start": {
+        "x": 14.9575,
+        "y": 11.46
+      },
+      "width_mm": 0.127
+    },
+    {
+      "end": {
+        "x": 25.735000000000003,
+        "y": 8.930625
+      },
+      "layer": "F.Cu",
+      "length_mm": 7.3825,
+      "net": "Net-(D2-K)",
+      "start": {
+        "x": 18.352500000000003,
+        "y": 8.930625
+      },
+      "width_mm": 0.127
+    },
+    {
+      "end": {
+        "x": 25.735000000000003,
+        "y": 12.247500000000002
+      },
+      "layer": "F.Cu",
+      "length_mm": 3.316875000000003,
+      "net": "Net-(D2-K)",
+      "start": {
+        "x": 25.735000000000003,
+        "y": 8.930625
+      },
+      "width_mm": 0.127
+    },
+    {
+      "end": {
+        "x": 15.610000000000001,
+        "y": 7.483124999999998
+      },
+      "layer": "F.Cu",
+      "length_mm": 0.29499999999999993,
+      "net": "Net-(U2-ILIM)",
+      "start": {
+        "x": 15.905000000000001,
+        "y": 7.483124999999998
+      },
+      "width_mm": 0.127
+    },
+    {
+      "end": {
+        "x": 15.610000000000001,
+        "y": 3.69875
+      },
+      "layer": "F.Cu",
+      "length_mm": 3.7843749999999976,
+      "net": "Net-(U2-ILIM)",
+      "start": {
+        "x": 15.610000000000001,
+        "y": 7.483124999999998
+      },
+      "width_mm": 0.127
+    },
+    {
+      "end": {
+        "x": 17.875,
+        "y": 9.930625
+      },
+      "layer": "F.Cu",
+      "length_mm": 2.9175000000000004,
+      "net": "Net-(U2-ISET)",
+      "start": {
+        "x": 14.9575,
+        "y": 9.930625
+      },
+      "width_mm": 0.127
+    },
+    {
+      "end": {
+        "x": 17.875,
+        "y": 15.089999999999998
+      },
+      "layer": "F.Cu",
+      "length_mm": 5.159374999999999,
+      "net": "Net-(U2-ISET)",
+      "start": {
+        "x": 17.875,
+        "y": 9.930625
+      },
+      "width_mm": 0.127
+    },
+    {
+      "end": {
+        "x": 27.639999999999997,
+        "y": 3.9968749999999984
+      },
+      "layer": "F.Cu",
+      "length_mm": 0.5600000000000023,
+      "net": "Net-(D1-A)",
+      "start": {
+        "x": 28.2,
+        "y": 3.9968749999999984
+      },
+      "width_mm": 0.127
+    },
+    {
+      "end": {
+        "x": 27.639999999999997,
+        "y": 8.0975
+      },
+      "layer": "F.Cu",
+      "length_mm": 4.100625000000002,
+      "net": "Net-(D1-A)",
+      "start": {
+        "x": 27.639999999999997,
+        "y": 3.9968749999999984
+      },
+      "width_mm": 0.127
+    },
+    {
+      "end": {
+        "x": 25.735000000000003,
+        "y": 11.209999999999997
+      },
+      "layer": "F.Cu",
+      "length_mm": 7.219999999999995,
+      "net": "Net-(D2-A)",
+      "start": {
+        "x": 32.955,
+        "y": 11.209999999999997
+      },
+      "width_mm": 0.127
+    },
+    {
+      "end": {
+        "x": 25.735000000000003,
+        "y": 10.6725
+      },
+      "layer": "F.Cu",
+      "length_mm": 0.5374999999999979,
+      "net": "Net-(D2-A)",
+      "start": {
+        "x": 25.735000000000003,
+        "y": 11.209999999999997
+      },
+      "width_mm": 0.127
+    }
+  ],
+  "vias": []
+}

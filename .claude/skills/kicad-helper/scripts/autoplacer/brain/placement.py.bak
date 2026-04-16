@@ -1170,16 +1170,6 @@ class PlacementSolver:
         scorer = PlacementScorer(work_state, self.cfg)
         best_score = scorer.score()
         best_comps = {r: copy.deepcopy(c) for r, c in comps.items()}
-
-        # Legalize-during-force: periodically call legalize_components()
-        # during force iterations to prevent deeply illegal states
-        legalize_during = self.cfg.get("legalize_during_force", False)
-        legalize_every = max(1, int(self.cfg.get("legalize_every_n", 5)))
-        legalize_passes = max(1, int(self.cfg.get("legalize_during_force_passes", 2)))
-        prefer_legal = self.cfg.get("prefer_legal_states", False)
-        enable_swap = self.cfg.get("enable_swap_optimization", True)
-
-        best_violations = float("inf")  # track legality for prefer_legal_states
         damping = 1.0
         stagnant = 0
         reheat_strength = self.cfg.get("reheat_strength", 0.0)
@@ -1227,39 +1217,19 @@ class PlacementSolver:
                 max_disp = self._force_step(comps, conn_graph, damping)
             self._resolve_overlaps(comps)
             self._clamp_pads_to_board(comps)
-            # Periodic legalization during force simulation
-            if legalize_during and iteration > 0 and iteration % legalize_every == 0:
-                self.legalize_components(comps, max_passes=legalize_passes)
             damping *= self.cooling
 
             # Score more frequently for faster convergence detection
             if iteration % self.score_every_n == 0:
                 work_state.components = comps
                 s = scorer.score()
-                # When prefer_legal_states is on, factor legality into
-                # best-state selection: fewer violations wins even if
-                # placement score is slightly lower.
-                if prefer_legal:
-                    diag = self.legality_diagnostics(comps)
-                    violations = diag["overlap_count"] + diag["pad_outside_count"]
-                    # Accept if: fewer violations, OR same violations + better score
-                    if violations < best_violations or (
-                        violations == best_violations and s.total > best_score.total
-                    ):
-                        best_score = s
-                        best_violations = violations
-                        best_comps = {r: copy.deepcopy(c) for r, c in comps.items()}
-                        stagnant = 0
-                    else:
-                        stagnant += 1
-                        if stagnant >= 3 and stagnant % 3 == 0:
-                            comps = {r: copy.deepcopy(c) for r, c in best_comps.items()}
-                elif s.total > best_score.total:
+                if s.total > best_score.total:
                     best_score = s
                     best_comps = {r: copy.deepcopy(c) for r, c in comps.items()}
                     stagnant = 0
                 else:
                     stagnant += 1
+                    # If stagnant, revert to best and add jitter
                     if stagnant >= 3 and stagnant % 3 == 0:
                         comps = {r: copy.deepcopy(c) for r, c in best_comps.items()}
 
@@ -1286,51 +1256,48 @@ class PlacementSolver:
 
         # Step 7: Swap optimization — directly minimize crossovers
         comps = best_comps
-        if enable_swap:
-            self._seen_force_states.clear()
-            work_state.components = comps
-            best_cross = count_crossings(work_state)
-            print(f"  Starting swap optimization ({best_cross} crossings)")
+        self._seen_force_states.clear()
+        work_state.components = comps
+        best_cross = count_crossings(work_state)
+        print(f"  Starting swap optimization ({best_cross} crossings)")
 
-            # Build set of refs in aligned pairs — exclude from swaps to
-            # preserve side-by-side alignment
-            aligned_refs = set()
-            for ref_a, ref_b, _axis in self._aligned_pairs:
-                aligned_refs.add(ref_a)
-                aligned_refs.add(ref_b)
+        # Build set of refs in aligned pairs — exclude from swaps to
+        # preserve side-by-side alignment
+        aligned_refs = set()
+        for ref_a, ref_b, _axis in self._aligned_pairs:
+            aligned_refs.add(ref_a)
+            aligned_refs.add(ref_b)
 
-            improved = True
-            swap_round = 0
-            while improved and swap_round < 5:
-                improved = False
-                swap_round += 1
-                unlocked = [
-                    r for r in comps if not comps[r].locked and r not in aligned_refs
-                ]
-                for i in range(len(unlocked)):
-                    for j in range(i + 1, len(unlocked)):
-                        a, b = comps[unlocked[i]], comps[unlocked[j]]
-                        # Only swap components of similar size
-                        size_ratio = max(a.area, b.area) / max(min(a.area, b.area), 0.01)
-                        if size_ratio > 4:
-                            continue
-                        # Swap positions and update pads
+        improved = True
+        swap_round = 0
+        while improved and swap_round < 5:
+            improved = False
+            swap_round += 1
+            unlocked = [
+                r for r in comps if not comps[r].locked and r not in aligned_refs
+            ]
+            for i in range(len(unlocked)):
+                for j in range(i + 1, len(unlocked)):
+                    a, b = comps[unlocked[i]], comps[unlocked[j]]
+                    # Only swap components of similar size
+                    size_ratio = max(a.area, b.area) / max(min(a.area, b.area), 0.01)
+                    if size_ratio > 4:
+                        continue
+                    # Swap positions and update pads
+                    a.pos, b.pos = Point(b.pos.x, b.pos.y), Point(a.pos.x, a.pos.y)
+                    _swap_pad_positions(a, b)
+                    cross = count_crossings(work_state)
+                    if cross < best_cross:
+                        best_cross = cross
+                        improved = True
+                    else:
+                        # Revert
                         a.pos, b.pos = Point(b.pos.x, b.pos.y), Point(a.pos.x, a.pos.y)
                         _swap_pad_positions(a, b)
-                        cross = count_crossings(work_state)
-                        if cross < best_cross:
-                            best_cross = cross
-                            improved = True
-                        else:
-                            # Revert
-                            a.pos, b.pos = Point(b.pos.x, b.pos.y), Point(a.pos.x, a.pos.y)
-                            _swap_pad_positions(a, b)
-                if improved:
-                    print(f"    Swap round {swap_round}: {best_cross} crossings")
+            if improved:
+                print(f"    Swap round {swap_round}: {best_cross} crossings")
 
-            best_comps = comps
-        else:
-            self._seen_force_states.clear()
+        best_comps = comps
 
         # Re-snap aligned pairs after swap optimization
         self._re_snap_aligned_pairs(best_comps)
@@ -1355,11 +1322,6 @@ class PlacementSolver:
 
         # Re-snap aligned pairs after overlap resolution
         self._re_snap_aligned_pairs(best_comps)
-
-        # Step 9.5: Comprehensive legalization repair for subcircuit mode
-        if prefer_legal:
-            repair_passes = int(self.cfg.get("leaf_legality_repair_passes", 12))
-            self.legalize_components(best_comps, max_passes=repair_passes)
 
         # Step 10: Hard clamp — nothing outside the board
         self._clamp_to_board(best_comps)
@@ -2841,7 +2803,6 @@ class PlacementSolver:
                     violations.append("bottom")
                 if violations:
                     pads_outside.append({"ref": ref, "pad_id": pad.pad_id, "sides": violations, "x_mm": round(pad.pos.x, 4), "y_mm": round(pad.pos.y, 4)})
-        locked_overlap_count = 0
         for i in range(len(refs)):
             a = comps[refs[i]]
             a_tl, a_br = _effective_bbox(a, half_gap)
@@ -2850,11 +2811,8 @@ class PlacementSolver:
                 b_tl, b_br = _effective_bbox(b, half_gap)
                 ox, oy = _bbox_overlap_xy(a_tl, a_br, b_tl, b_br)
                 if ox > 0.0 and oy > 0.0:
-                    involves_locked = a.locked or b.locked
-                    if involves_locked:
-                        locked_overlap_count += 1
-                    overlaps.append({"a": refs[i], "b": refs[j], "overlap_x_mm": round(ox, 4), "overlap_y_mm": round(oy, 4), "overlap_area_mm2": round(ox * oy, 4), "involves_locked": involves_locked})
-        return {"pads_outside_board": pads_outside, "overlaps": overlaps, "pad_outside_count": len(pads_outside), "overlap_count": len(overlaps), "locked_overlap_count": locked_overlap_count, "legal": not pads_outside and not overlaps}
+                    overlaps.append({"a": refs[i], "b": refs[j], "overlap_x_mm": round(ox, 4), "overlap_y_mm": round(oy, 4), "overlap_area_mm2": round(ox * oy, 4)})
+        return {"pads_outside_board": pads_outside, "overlaps": overlaps, "pad_outside_count": len(pads_outside), "overlap_count": len(overlaps), "legal": not pads_outside and not overlaps}
 
     def legalize_components(self, comps: dict[str, Component], *, max_passes: int = 12) -> dict[str, object]:
         moved_refs: set[str] = set()
@@ -2863,14 +2821,7 @@ class PlacementSolver:
         best_snapshot = {ref: copy.deepcopy(comp) for ref, comp in comps.items()}
         best_diagnostics = self.legality_diagnostics(best_snapshot)
         def _diag_key(diag):
-            locked = int(diag.get("locked_overlap_count", 0))
-            free = int(diag["overlap_count"]) - locked
-            pads = int(diag["pad_outside_count"])
-            # Locked overlaps weigh 3x: they require escape pushes that
-            # cascade into free-free overlaps, so regressing on them
-            # is costlier than having temporary free-free overlaps.
-            weighted = locked * 3 + free + pads
-            return (weighted, locked, pads)
+            return (int(diag["overlap_count"]) + int(diag["pad_outside_count"]), int(diag["pad_outside_count"]))
         def _move_component(comp, nx, ny):
             old_pos = Point(comp.pos.x, comp.pos.y)
             if abs(nx - old_pos.x) <= 0.01 and abs(ny - old_pos.y) <= 0.01:

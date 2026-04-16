@@ -1,0 +1,1384 @@
+{
+  "extra": {
+    "all_rounds": [
+      {
+        "placement": {
+          "aspect_ratio": 74.37560038424591,
+          "board_containment": 100.0,
+          "compactness": 39.354403712628226,
+          "courtyard_overlap": 100.0,
+          "crossover_count": 3,
+          "crossover_score": 66.66666666666667,
+          "edge_compliance": 100.0,
+          "group_coherence": 100.0,
+          "net_distance": 60.7578145693599,
+          "rotation_score": 100.0,
+          "smt_opposite_tht": 100.0,
+          "total": 82.87258729872404
+        },
+        "round_index": 0,
+        "routed": true,
+        "routing": {
+          "enabled": true,
+          "failed": false,
+          "failed_internal_nets": [],
+          "reason": "",
+          "routed_internal_nets": [
+            "Net-(D3-A)",
+            "/VSYS_BOOST"
+          ],
+          "router": "lightweight_internal",
+          "skipped": false,
+          "total_length_mm": 50.07343749999998,
+          "traces": 8,
+          "vias": 0
+        },
+        "score": 82.87258729872404,
+        "seed": 773920557
+      }
+    ],
+    "best_round": {
+      "placement": {
+        "aspect_ratio": 74.37560038424591,
+        "board_containment": 100.0,
+        "compactness": 39.354403712628226,
+        "courtyard_overlap": 100.0,
+        "crossover_count": 3,
+        "crossover_score": 66.66666666666667,
+        "edge_compliance": 100.0,
+        "group_coherence": 100.0,
+        "net_distance": 60.7578145693599,
+        "rotation_score": 100.0,
+        "smt_opposite_tht": 100.0,
+        "total": 82.87258729872404
+      },
+      "round_index": 0,
+      "routed": true,
+      "routing": {
+        "enabled": true,
+        "failed": false,
+        "failed_internal_nets": [],
+        "reason": "",
+        "routed_internal_nets": [
+          "Net-(D3-A)",
+          "/VSYS_BOOST"
+        ],
+        "router": "lightweight_internal",
+        "skipped": false,
+        "total_length_mm": 50.07343749999998,
+        "traces": 8,
+        "vias": 0
+      },
+      "score": 82.87258729872404,
+      "seed": 773920557
+    },
+    "best_round_routing": {
+      "enabled": true,
+      "failed": false,
+      "failed_internal_nets": [],
+      "reason": "",
+      "routed_internal_nets": [
+        "Net-(D3-A)",
+        "/VSYS_BOOST"
+      ],
+      "router": "lightweight_internal",
+      "skipped": false,
+      "total_length_mm": 50.07343749999998,
+      "traces": 8,
+      "vias": 0
+    },
+    "canonical_solved_layout": {
+      "anchor_validation": {
+        "all_required_ports_anchored": false,
+        "anchor_count": 2,
+        "anchored_optional_ports": [],
+        "anchored_required_ports": [
+          "5V",
+          "EN"
+        ],
+        "extra_anchor_ports": [],
+        "missing_required_ports": [
+          "VSYS"
+        ],
+        "optional_port_count": 0,
+        "port_count": 3,
+        "required_port_count": 3
+      },
+      "artifact_paths": {
+        "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9",
+        "base_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits",
+        "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9/debug.json",
+        "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9/metadata.json",
+        "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9/layout.kicad_pcb",
+        "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9/solved_layout.json"
+      },
+      "bounding_box": {
+        "height_mm": 20.82,
+        "width_mm": 31.490000000000002
+      },
+      "components": {
+        "C5": {
+          "body_center": {
+            "x": 18.330000000000002,
+            "y": 18.795
+          },
+          "height_mm": 2.05,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/VSYS_BOOST",
+              "pad_id": "1",
+              "pos": {
+                "x": 18.330000000000002,
+                "y": 17.845
+              },
+              "ref": "C5"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "2",
+              "pos": {
+                "x": 18.330000000000002,
+                "y": 19.745000000000008
+              },
+              "ref": "C5"
+            }
+          ],
+          "pos": {
+            "x": 18.330000000000002,
+            "y": 18.795
+          },
+          "ref": "C5",
+          "rotation": 270.0,
+          "value": "10u",
+          "width_mm": 3.49
+        },
+        "C6": {
+          "body_center": {
+            "x": 23.470000000000002,
+            "y": 8.1434375
+          },
+          "height_mm": 2.05,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/5V",
+              "pad_id": "1",
+              "pos": {
+                "x": 22.52,
+                "y": 8.1434375
+              },
+              "ref": "C6"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "2",
+              "pos": {
+                "x": 24.420000000000005,
+                "y": 8.1434375
+              },
+              "ref": "C6"
+            }
+          ],
+          "pos": {
+            "x": 23.470000000000002,
+            "y": 8.1434375
+          },
+          "ref": "C6",
+          "rotation": 0.0,
+          "value": "22u",
+          "width_mm": 3.49
+        },
+        "C7": {
+          "body_center": {
+            "x": 13.030000000000001,
+            "y": 16.432499999999997
+          },
+          "height_mm": 1.01,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/5V",
+              "pad_id": "1",
+              "pos": {
+                "x": 13.030000000000001,
+                "y": 15.952499999999993
+              },
+              "ref": "C7"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "2",
+              "pos": {
+                "x": 13.030000000000001,
+                "y": 16.9125
+              },
+              "ref": "C7"
+            }
+          ],
+          "pos": {
+            "x": 13.030000000000001,
+            "y": 16.432499999999997
+          },
+          "ref": "C7",
+          "rotation": 270.0,
+          "value": "1u",
+          "width_mm": 1.91
+        },
+        "D3": {
+          "body_center": {
+            "x": 20.86,
+            "y": 13.469218750000001
+          },
+          "height_mm": 3.59,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/5V",
+              "pad_id": "1",
+              "pos": {
+                "x": 20.86,
+                "y": 11.469218750000001
+              },
+              "ref": "D3"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "Net-(D3-A)",
+              "pad_id": "2",
+              "pos": {
+                "x": 20.86,
+                "y": 15.469218750000001
+              },
+              "ref": "D3"
+            }
+          ],
+          "pos": {
+            "x": 20.86,
+            "y": 13.469218750000001
+          },
+          "ref": "D3",
+          "rotation": 270.0,
+          "value": "SS14",
+          "width_mm": 7.09
+        },
+        "L1": {
+          "body_center": {
+            "x": 17.33,
+            "y": 5.7
+          },
+          "height_mm": 1.79,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "Net-(D3-A)",
+              "pad_id": "1",
+              "pos": {
+                "x": 17.33,
+                "y": 4.6375
+              },
+              "ref": "L1"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/VSYS_BOOST",
+              "pad_id": "2",
+              "pos": {
+                "x": 17.33,
+                "y": 6.7625000000000215
+              },
+              "ref": "L1"
+            }
+          ],
+          "pos": {
+            "x": 17.33,
+            "y": 5.7
+          },
+          "ref": "L1",
+          "rotation": 270.0,
+          "value": "4.7u",
+          "width_mm": 3.59
+        },
+        "U4": {
+          "body_center": {
+            "x": 12.38,
+            "y": 11.5825
+          },
+          "height_mm": 3.49,
+          "is_through_hole": false,
+          "kind": "ic",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "Net-(D3-A)",
+              "pad_id": "1",
+              "pos": {
+                "x": 13.33,
+                "y": 10.444999999999997
+              },
+              "ref": "U4"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "2",
+              "pos": {
+                "x": 12.38,
+                "y": 10.444999999999997
+              },
+              "ref": "U4"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "Net-(U4-FB)",
+              "pad_id": "3",
+              "pos": {
+                "x": 11.430000000000001,
+                "y": 10.444999999999997
+              },
+              "ref": "U4"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/EN",
+              "pad_id": "4",
+              "pos": {
+                "x": 11.430000000000001,
+                "y": 12.720000000000002
+              },
+              "ref": "U4"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/VSYS_BOOST",
+              "pad_id": "5",
+              "pos": {
+                "x": 12.38,
+                "y": 12.720000000000002
+              },
+              "ref": "U4"
+            }
+          ],
+          "pos": {
+            "x": 12.38,
+            "y": 11.5825
+          },
+          "ref": "U4",
+          "rotation": 270.0,
+          "value": "MT3608",
+          "width_mm": 4.19
+        }
+      },
+      "config_hash": "{\"align_large_pairs\": true, \"board_height_mm\": 58.0, \"board_size_overhead_factor\": 2.0, \"board_width_mm\": 90.0, \"component_zones\": {\"BT1\": {\"zone\": \"bottom\"}, \"BT2\": {\"zone\": \"bottom\"}, \"H4\": {\"corner\": \"top-left\"}, \"H86\": {\"corner\": \"bottom-right\"}, \"J1\": {\"edge\": \"left\"}, \"J2\": {\"edge\": \"right\"}, \"J3\": {\"edge\": \"right\"}}, \"connector_edge_inset_mm\": 1.0, \"connector_gap_mm\": 2.0, \"cooling_factor\": 0.97, \"courtyard_padding_mm\": 0.5, \"edge_jitter_mm\": 5.0, \"edge_margin_mm\": 6.0, \"enable_board_size_search\": true, \"force_attract_k\": 0.02, \"force_repel_k\": 200.0, \"freerouting_ignore_nets\": [\"GND\"], \"freerouting_jar\": \"/home/jason/.local/lib/freerouting-1.9.0.jar\", \"freerouting_max_passes\": 40, \"freerouting_timeout_s\": 60, \"gnd_zone_layer\": \"B.Cu\", \"gnd_zone_margin_mm\": 0.5, \"gnd_zone_net\": \"GND\", \"group_labels\": {\"U1\": \"USB INPUT\", \"U2\": \"CHARGER\", \"U3\": \"BATT PROT\", \"U4\": \"BOOST 5V\", \"U5\": \"LDO 3.3V\"}, \"group_source\": \"auto\", \"hierarchical_placement\": true, \"ic_groups\": {\"BT1\": [\"BT2\"], \"U1\": [\"C1\", \"R1\", \"R2\", \"F1\", \"J1\"], \"U2\": [\"C2\", \"C3\", \"C4\", \"R3\", \"R4\", \"R5\", \"R6\", \"R7\", \"R8\", \"RT1\", \"D1\", \"D2\"], \"U3\": [\"Q1\", \"U6\"], \"U4\": [\"C5\", \"C6\", \"C7\", \"L1\", \"D3\"], \"U5\": [\"C8\", \"R9\", \"R10\", \"R11\", \"J2\", \"J3\"]}, \"intra_cluster_iters\": 80, \"max_placement_iterations\": 300, \"min_placement_score\": 20.0, \"net_priority\": {}, \"orderedness\": 0.3, \"pad_inset_margin_mm\": 0.3, \"placement_clearance_mm\": 2.5, \"placement_convergence_threshold\": 0.5, \"placement_grid_mm\": 1.0, \"placement_score_every_n\": 1, \"power_nets\": \"{'5V', '/5V', '+3V3', '/VSYS_BOOST', '/VBAT', 'VBAT', 'VBUS', '/3V3', '/CELL_NEG', 'GND', '3V3', '3.3V', '+5V', '/VSYS', '/EN', '/VBUS'}\", \"power_width_mm\": 0.127, \"randomize_group_layout\": false, \"reheat_strength\": 0.1, \"scatter_mode\": \"cluster\", \"signal_flow_order\": [\"U1\", \"U2\", \"U3\", \"U4\", \"U5\"], \"signal_width_mm\": 0.127, \"skip_gnd_routing\": true, \"smt_opposite_tht\": true, \"thermal_radius_mm\": 3.0, \"thermal_refs\": [\"U2\", \"U4\"], \"tht_backside_min_area_mm2\": 50.0, \"unlock_all_footprints\": true, \"via_drill_mm\": 0.3, \"via_size_mm\": 0.6}",
+      "frozen": true,
+      "instance_path": "/1dfeec7c-ad4b-4be7-8575-f37739ab0219",
+      "interface_anchors": [
+        {
+          "layer": "F.Cu",
+          "pad_ref": [
+            "C6",
+            "1"
+          ],
+          "port_name": "5V",
+          "pos": {
+            "x": 22.52,
+            "y": 8.1434375
+          }
+        },
+        {
+          "layer": "F.Cu",
+          "pad_ref": [
+            "U4",
+            "4"
+          ],
+          "port_name": "EN",
+          "pos": {
+            "x": 11.430000000000001,
+            "y": 12.720000000000002
+          }
+        }
+      ],
+      "notes": [
+        "round_index=0",
+        "seed=773920557",
+        "routing={\"enabled\": true, \"failed\": false, \"failed_internal_nets\": [], \"reason\": \"\", \"routed_internal_nets\": [\"Net-(D3-A)\", \"/VSYS_BOOST\"], \"router\": \"lightweight_internal\", \"skipped\": false, \"total_length_mm\": 50.07343749999998, \"traces\": 8, \"vias\": 0}",
+        "interface_port_count=3",
+        "interface_anchor_count=2",
+        "all_required_ports_anchored=False",
+        "missing_required_ports=VSYS"
+      ],
+      "parent_instance_path": "/",
+      "ports": [
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "5V",
+          "net_name": "5V",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        },
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "EN",
+          "net_name": "EN",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        },
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "VSYS",
+          "net_name": "VSYS",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        }
+      ],
+      "project_dir": "/home/jason/Documents/LLUPS",
+      "schema_version": "subcircuits.layout.v1",
+      "score": 82.87258729872404,
+      "sheet_file": "BOOST_5V.kicad_sch",
+      "sheet_name": "BOOST 5V",
+      "solver_version": "subcircuits-m3-placement",
+      "source_hash": "/1dfeec7c-ad4b-4be7-8575-f37739ab0219",
+      "subcircuit_id": {
+        "instance_path": "/1dfeec7c-ad4b-4be7-8575-f37739ab0219",
+        "parent_instance_path": "/",
+        "sheet_file": "BOOST_5V.kicad_sch",
+        "sheet_name": "BOOST 5V"
+      },
+      "traces": [
+        {
+          "end": {
+            "x": 13.33,
+            "y": 15.469218750000001
+          },
+          "layer": "F.Cu",
+          "length_mm": 7.529999999999999,
+          "net": "Net-(D3-A)",
+          "start": {
+            "x": 20.86,
+            "y": 15.469218750000001
+          },
+          "width_mm": 0.127
+        },
+        {
+          "end": {
+            "x": 13.33,
+            "y": 10.444999999999997
+          },
+          "layer": "F.Cu",
+          "length_mm": 5.024218750000005,
+          "net": "Net-(D3-A)",
+          "start": {
+            "x": 13.33,
+            "y": 15.469218750000001
+          },
+          "width_mm": 0.127
+        },
+        {
+          "end": {
+            "x": 17.33,
+            "y": 15.469218750000001
+          },
+          "layer": "F.Cu",
+          "length_mm": 3.530000000000001,
+          "net": "Net-(D3-A)",
+          "start": {
+            "x": 20.86,
+            "y": 15.469218750000001
+          },
+          "width_mm": 0.127
+        },
+        {
+          "end": {
+            "x": 17.33,
+            "y": 4.6375
+          },
+          "layer": "F.Cu",
+          "length_mm": 10.83171875,
+          "net": "Net-(D3-A)",
+          "start": {
+            "x": 17.33,
+            "y": 15.469218750000001
+          },
+          "width_mm": 0.127
+        },
+        {
+          "end": {
+            "x": 12.38,
+            "y": 17.845
+          },
+          "layer": "F.Cu",
+          "length_mm": 5.950000000000001,
+          "net": "/VSYS_BOOST",
+          "start": {
+            "x": 18.330000000000002,
+            "y": 17.845
+          },
+          "width_mm": 0.127
+        },
+        {
+          "end": {
+            "x": 12.38,
+            "y": 12.720000000000002
+          },
+          "layer": "F.Cu",
+          "length_mm": 5.1249999999999964,
+          "net": "/VSYS_BOOST",
+          "start": {
+            "x": 12.38,
+            "y": 17.845
+          },
+          "width_mm": 0.127
+        },
+        {
+          "end": {
+            "x": 17.33,
+            "y": 17.845
+          },
+          "layer": "F.Cu",
+          "length_mm": 1.0000000000000036,
+          "net": "/VSYS_BOOST",
+          "start": {
+            "x": 18.330000000000002,
+            "y": 17.845
+          },
+          "width_mm": 0.127
+        },
+        {
+          "end": {
+            "x": 17.33,
+            "y": 6.7625000000000215
+          },
+          "layer": "F.Cu",
+          "length_mm": 11.082499999999978,
+          "net": "/VSYS_BOOST",
+          "start": {
+            "x": 17.33,
+            "y": 17.845
+          },
+          "width_mm": 0.127
+        }
+      ],
+      "vias": []
+    },
+    "canonical_solved_layout_path": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9/solved_layout.json",
+    "interface_anchor_validation": {
+      "all_required_ports_anchored": false,
+      "anchor_count": 2,
+      "anchored_optional_ports": [],
+      "anchored_required_ports": [
+        "5V",
+        "EN"
+      ],
+      "extra_anchor_ports": [],
+      "missing_required_ports": [
+        "VSYS"
+      ],
+      "optional_port_count": 0,
+      "port_count": 3,
+      "required_port_count": 3
+    },
+    "leaf_board_state": {
+      "component_refs": [
+        "U4",
+        "L1",
+        "D3",
+        "C5",
+        "C6",
+        "C7"
+      ],
+      "interface_ports": [
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "5V",
+          "net_name": "5V",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        },
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "EN",
+          "net_name": "EN",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        },
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "VSYS",
+          "net_name": "VSYS",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        }
+      ],
+      "local_board_outline": {
+        "bottom_right": {
+          "x": 31.490000000000002,
+          "y": 20.82
+        },
+        "height_mm": 20.82,
+        "top_left": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "width_mm": 31.490000000000002
+      },
+      "net_partition": {
+        "external": [
+          "/5V",
+          "/EN",
+          "GND",
+          "Net-(U4-FB)"
+        ],
+        "ignored": [],
+        "internal": [
+          "/VSYS_BOOST",
+          "Net-(D3-A)"
+        ]
+      },
+      "notes": [
+        "leaf=BOOST 5V",
+        "instance_path=/1dfeec7c-ad4b-4be7-8575-f37739ab0219",
+        "component_count=6",
+        "internal_nets=2",
+        "external_nets=4",
+        "ignored_nets=0",
+        "margin_mm=5.000"
+      ],
+      "subcircuit": {
+        "instance_path": "/1dfeec7c-ad4b-4be7-8575-f37739ab0219",
+        "parent_instance_path": "/",
+        "sheet_file": "BOOST_5V.kicad_sch",
+        "sheet_name": "BOOST 5V"
+      },
+      "trace_count": 0,
+      "translation": {
+        "x": -51.255,
+        "y": 2.795
+      },
+      "via_count": 0
+    },
+    "solve_summary": {
+      "best_round": {
+        "placement": {
+          "aspect_ratio": 74.37560038424591,
+          "board_containment": 100.0,
+          "compactness": 39.354403712628226,
+          "courtyard_overlap": 100.0,
+          "crossover_count": 3,
+          "crossover_score": 66.66666666666667,
+          "edge_compliance": 100.0,
+          "group_coherence": 100.0,
+          "net_distance": 60.7578145693599,
+          "rotation_score": 100.0,
+          "smt_opposite_tht": 100.0,
+          "total": 82.87258729872404
+        },
+        "round_index": 0,
+        "routed": true,
+        "routing": {
+          "enabled": true,
+          "failed": false,
+          "failed_internal_nets": [],
+          "reason": "",
+          "routed_internal_nets": [
+            "Net-(D3-A)",
+            "/VSYS_BOOST"
+          ],
+          "router": "lightweight_internal",
+          "skipped": false,
+          "total_length_mm": 50.07343749999998,
+          "traces": 8,
+          "vias": 0
+        },
+        "score": 82.87258729872404,
+        "seed": 773920557
+      },
+      "extraction": {
+        "component_refs": [
+          "U4",
+          "L1",
+          "D3",
+          "C5",
+          "C6",
+          "C7"
+        ],
+        "interface_ports": [
+          {
+            "access_policy": "interface_only",
+            "bus_index": null,
+            "cardinality": 1,
+            "description": "normalized from schematic sheet pin",
+            "direction": "bidirectional",
+            "name": "5V",
+            "net_name": "5V",
+            "preferred_side": "right",
+            "required": true,
+            "role": "bidir"
+          },
+          {
+            "access_policy": "interface_only",
+            "bus_index": null,
+            "cardinality": 1,
+            "description": "normalized from schematic sheet pin",
+            "direction": "bidirectional",
+            "name": "EN",
+            "net_name": "EN",
+            "preferred_side": "right",
+            "required": true,
+            "role": "bidir"
+          },
+          {
+            "access_policy": "interface_only",
+            "bus_index": null,
+            "cardinality": 1,
+            "description": "normalized from schematic sheet pin",
+            "direction": "bidirectional",
+            "name": "VSYS",
+            "net_name": "VSYS",
+            "preferred_side": "right",
+            "required": true,
+            "role": "bidir"
+          }
+        ],
+        "local_board_outline": {
+          "bottom_right": {
+            "x": 31.490000000000002,
+            "y": 20.82
+          },
+          "height_mm": 20.82,
+          "top_left": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "width_mm": 31.490000000000002
+        },
+        "net_partition": {
+          "external": [
+            "/5V",
+            "/EN",
+            "GND",
+            "Net-(U4-FB)"
+          ],
+          "ignored": [],
+          "internal": [
+            "/VSYS_BOOST",
+            "Net-(D3-A)"
+          ]
+        },
+        "notes": [
+          "leaf=BOOST 5V",
+          "instance_path=/1dfeec7c-ad4b-4be7-8575-f37739ab0219",
+          "component_count=6",
+          "internal_nets=2",
+          "external_nets=4",
+          "ignored_nets=0",
+          "margin_mm=5.000"
+        ],
+        "subcircuit": {
+          "instance_path": "/1dfeec7c-ad4b-4be7-8575-f37739ab0219",
+          "parent_instance_path": "/",
+          "sheet_file": "BOOST_5V.kicad_sch",
+          "sheet_name": "BOOST 5V"
+        },
+        "trace_count": 0,
+        "translation": {
+          "x": -51.255,
+          "y": 2.795
+        },
+        "via_count": 0
+      },
+      "instance_path": "/1dfeec7c-ad4b-4be7-8575-f37739ab0219",
+      "rounds": [
+        {
+          "placement": {
+            "aspect_ratio": 74.37560038424591,
+            "board_containment": 100.0,
+            "compactness": 39.354403712628226,
+            "courtyard_overlap": 100.0,
+            "crossover_count": 3,
+            "crossover_score": 66.66666666666667,
+            "edge_compliance": 100.0,
+            "group_coherence": 100.0,
+            "net_distance": 60.7578145693599,
+            "rotation_score": 100.0,
+            "smt_opposite_tht": 100.0,
+            "total": 82.87258729872404
+          },
+          "round_index": 0,
+          "routed": true,
+          "routing": {
+            "enabled": true,
+            "failed": false,
+            "failed_internal_nets": [],
+            "reason": "",
+            "routed_internal_nets": [
+              "Net-(D3-A)",
+              "/VSYS_BOOST"
+            ],
+            "router": "lightweight_internal",
+            "skipped": false,
+            "total_length_mm": 50.07343749999998,
+            "traces": 8,
+            "vias": 0
+          },
+          "score": 82.87258729872404,
+          "seed": 773920557
+        }
+      ],
+      "sheet_name": "BOOST 5V",
+      "summary": "BOOST 5V [/1dfeec7c-ad4b-4be7-8575-f37739ab0219] refs=6 internal_nets=2 external_nets=4 traces=0 vias=0 size=31.5x20.8mm"
+    },
+    "solved_local_placement": {
+      "component_count": 6,
+      "components": {
+        "C5": {
+          "body_center": {
+            "x": 18.330000000000002,
+            "y": 18.795
+          },
+          "height_mm": 2.05,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/VSYS_BOOST",
+              "pad_id": "1",
+              "pos": {
+                "x": 18.330000000000002,
+                "y": 17.845
+              },
+              "ref": "C5"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "2",
+              "pos": {
+                "x": 18.330000000000002,
+                "y": 19.745000000000008
+              },
+              "ref": "C5"
+            }
+          ],
+          "pos": {
+            "x": 18.330000000000002,
+            "y": 18.795
+          },
+          "ref": "C5",
+          "rotation": 270.0,
+          "value": "10u",
+          "width_mm": 3.49
+        },
+        "C6": {
+          "body_center": {
+            "x": 23.470000000000002,
+            "y": 8.1434375
+          },
+          "height_mm": 2.05,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/5V",
+              "pad_id": "1",
+              "pos": {
+                "x": 22.52,
+                "y": 8.1434375
+              },
+              "ref": "C6"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "2",
+              "pos": {
+                "x": 24.420000000000005,
+                "y": 8.1434375
+              },
+              "ref": "C6"
+            }
+          ],
+          "pos": {
+            "x": 23.470000000000002,
+            "y": 8.1434375
+          },
+          "ref": "C6",
+          "rotation": 0.0,
+          "value": "22u",
+          "width_mm": 3.49
+        },
+        "C7": {
+          "body_center": {
+            "x": 13.030000000000001,
+            "y": 16.432499999999997
+          },
+          "height_mm": 1.01,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/5V",
+              "pad_id": "1",
+              "pos": {
+                "x": 13.030000000000001,
+                "y": 15.952499999999993
+              },
+              "ref": "C7"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "2",
+              "pos": {
+                "x": 13.030000000000001,
+                "y": 16.9125
+              },
+              "ref": "C7"
+            }
+          ],
+          "pos": {
+            "x": 13.030000000000001,
+            "y": 16.432499999999997
+          },
+          "ref": "C7",
+          "rotation": 270.0,
+          "value": "1u",
+          "width_mm": 1.91
+        },
+        "D3": {
+          "body_center": {
+            "x": 20.86,
+            "y": 13.469218750000001
+          },
+          "height_mm": 3.59,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/5V",
+              "pad_id": "1",
+              "pos": {
+                "x": 20.86,
+                "y": 11.469218750000001
+              },
+              "ref": "D3"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "Net-(D3-A)",
+              "pad_id": "2",
+              "pos": {
+                "x": 20.86,
+                "y": 15.469218750000001
+              },
+              "ref": "D3"
+            }
+          ],
+          "pos": {
+            "x": 20.86,
+            "y": 13.469218750000001
+          },
+          "ref": "D3",
+          "rotation": 270.0,
+          "value": "SS14",
+          "width_mm": 7.09
+        },
+        "L1": {
+          "body_center": {
+            "x": 17.33,
+            "y": 5.7
+          },
+          "height_mm": 1.79,
+          "is_through_hole": false,
+          "kind": "passive",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "Net-(D3-A)",
+              "pad_id": "1",
+              "pos": {
+                "x": 17.33,
+                "y": 4.6375
+              },
+              "ref": "L1"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/VSYS_BOOST",
+              "pad_id": "2",
+              "pos": {
+                "x": 17.33,
+                "y": 6.7625000000000215
+              },
+              "ref": "L1"
+            }
+          ],
+          "pos": {
+            "x": 17.33,
+            "y": 5.7
+          },
+          "ref": "L1",
+          "rotation": 270.0,
+          "value": "4.7u",
+          "width_mm": 3.59
+        },
+        "U4": {
+          "body_center": {
+            "x": 12.38,
+            "y": 11.5825
+          },
+          "height_mm": 3.49,
+          "is_through_hole": false,
+          "kind": "ic",
+          "layer": "F.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "Net-(D3-A)",
+              "pad_id": "1",
+              "pos": {
+                "x": 13.33,
+                "y": 10.444999999999997
+              },
+              "ref": "U4"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "GND",
+              "pad_id": "2",
+              "pos": {
+                "x": 12.38,
+                "y": 10.444999999999997
+              },
+              "ref": "U4"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "Net-(U4-FB)",
+              "pad_id": "3",
+              "pos": {
+                "x": 11.430000000000001,
+                "y": 10.444999999999997
+              },
+              "ref": "U4"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/EN",
+              "pad_id": "4",
+              "pos": {
+                "x": 11.430000000000001,
+                "y": 12.720000000000002
+              },
+              "ref": "U4"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/VSYS_BOOST",
+              "pad_id": "5",
+              "pos": {
+                "x": 12.38,
+                "y": 12.720000000000002
+              },
+              "ref": "U4"
+            }
+          ],
+          "pos": {
+            "x": 12.38,
+            "y": 11.5825
+          },
+          "ref": "U4",
+          "rotation": 270.0,
+          "value": "MT3608",
+          "width_mm": 4.19
+        }
+      }
+    }
+  },
+  "leaf_extraction": {
+    "artifact_slug": "1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9",
+    "component_refs": [
+      "U4",
+      "L1",
+      "D3",
+      "C5",
+      "C6",
+      "C7"
+    ],
+    "external_nets": [
+      "/5V",
+      "/EN",
+      "GND",
+      "Net-(U4-FB)"
+    ],
+    "interface_ports": [
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "5V",
+        "net_name": "5V",
+        "preferred_side": "right",
+        "required": true,
+        "role": "bidir"
+      },
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "EN",
+        "net_name": "EN",
+        "preferred_side": "right",
+        "required": true,
+        "role": "bidir"
+      },
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "VSYS",
+        "net_name": "VSYS",
+        "preferred_side": "right",
+        "required": true,
+        "role": "bidir"
+      }
+    ],
+    "internal_nets": [
+      "/VSYS_BOOST",
+      "Net-(D3-A)"
+    ],
+    "internal_trace_count": 0,
+    "internal_via_count": 0,
+    "local_board_outline": {
+      "bottom_right_x": 31.490000000000002,
+      "bottom_right_y": 20.82,
+      "height_mm": 20.82,
+      "top_left_x": 0.0,
+      "top_left_y": 0.0,
+      "width_mm": 31.490000000000002
+    },
+    "local_translation": {
+      "x": -51.255,
+      "y": 2.795
+    },
+    "notes": [
+      "solved by solve_subcircuits.py",
+      "best_round=0",
+      "best_seed=773920557",
+      "best_score=82.873",
+      "rounds=1",
+      "solved_component_count=6",
+      "canonical_layout_schema=subcircuits.layout.v1",
+      "leaf=BOOST 5V",
+      "instance_path=/1dfeec7c-ad4b-4be7-8575-f37739ab0219",
+      "component_count=6",
+      "internal_nets=2",
+      "external_nets=4",
+      "ignored_nets=0",
+      "margin_mm=5.000"
+    ],
+    "project_dir": "/home/jason/Documents/LLUPS",
+    "schematic_path": "/home/jason/Documents/LLUPS/BOOST_5V.kicad_sch"
+  },
+  "metadata": {
+    "access_policy": "interface_only",
+    "artifact_paths": {
+      "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9",
+      "base_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits",
+      "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9/debug.json",
+      "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9/metadata.json",
+      "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9/layout.kicad_pcb",
+      "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9/solved_layout.json"
+    },
+    "component_refs": [
+      "U4",
+      "L1",
+      "D3",
+      "C5",
+      "C6",
+      "C7"
+    ],
+    "config_hash": "902f8bf99600fffd915e36fd9061db3a60ce3f8a42b7943fea2cdfbb3a134b23",
+    "external_nets": [
+      "/5V",
+      "/EN",
+      "GND",
+      "Net-(U4-FB)"
+    ],
+    "instance_path": "/1dfeec7c-ad4b-4be7-8575-f37739ab0219",
+    "interface_ports": [
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "5V",
+        "net_name": "5V",
+        "preferred_side": "right",
+        "required": true,
+        "role": "bidir"
+      },
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "EN",
+        "net_name": "EN",
+        "preferred_side": "right",
+        "required": true,
+        "role": "bidir"
+      },
+      {
+        "access_policy": "interface_only",
+        "bus_index": null,
+        "cardinality": 1,
+        "description": "normalized from schematic sheet pin",
+        "direction": "bidirectional",
+        "name": "VSYS",
+        "net_name": "VSYS",
+        "preferred_side": "right",
+        "required": true,
+        "role": "bidir"
+      }
+    ],
+    "internal_nets": [
+      "/VSYS_BOOST",
+      "Net-(D3-A)"
+    ],
+    "internal_trace_count": 0,
+    "internal_via_count": 0,
+    "local_board_outline": {
+      "bottom_right_x": 31.490000000000002,
+      "bottom_right_y": 20.82,
+      "height_mm": 20.82,
+      "top_left_x": 0.0,
+      "top_left_y": 0.0,
+      "width_mm": 31.490000000000002
+    },
+    "local_translation": {
+      "x": -51.255,
+      "y": 2.795
+    },
+    "notes": [
+      "solved by solve_subcircuits.py",
+      "best_round=0",
+      "best_seed=773920557",
+      "best_score=82.873",
+      "rounds=1",
+      "solved_component_count=6",
+      "canonical_layout_schema=subcircuits.layout.v1",
+      "leaf=BOOST 5V",
+      "instance_path=/1dfeec7c-ad4b-4be7-8575-f37739ab0219",
+      "component_count=6",
+      "internal_nets=2",
+      "external_nets=4",
+      "ignored_nets=0",
+      "margin_mm=5.000"
+    ],
+    "parent_instance_path": "/",
+    "project_dir": "/home/jason/Documents/LLUPS",
+    "schema_version": "subcircuits.v1",
+    "schematic_path": "/home/jason/Documents/LLUPS/BOOST_5V.kicad_sch",
+    "sheet_file": "BOOST_5V.kicad_sch",
+    "sheet_name": "BOOST 5V",
+    "solver_version": "subcircuits-m3-placement",
+    "source_hash": "9a8e1eec880c7d72785ee1bef9f4f134fbcb69f00affac4c9c841a082c311e28",
+    "subcircuit_id": {
+      "instance_path": "/1dfeec7c-ad4b-4be7-8575-f37739ab0219",
+      "parent_instance_path": "/",
+      "sheet_file": "BOOST_5V.kicad_sch",
+      "sheet_name": "BOOST 5V"
+    }
+  },
+  "schema_version": "subcircuits.v1"
+}

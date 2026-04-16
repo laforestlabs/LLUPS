@@ -1,0 +1,150 @@
+{
+  "access_policy": "interface_only",
+  "artifact_paths": {
+    "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd",
+    "base_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits",
+    "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd/debug.json",
+    "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd/metadata.json",
+    "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd/layout.kicad_pcb",
+    "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd/solved_layout.json"
+  },
+  "component_refs": [
+    "U2",
+    "C2",
+    "C3",
+    "C4",
+    "R3",
+    "R4",
+    "R5",
+    "D1",
+    "D2",
+    "R6",
+    "R7",
+    "R8",
+    "RT1"
+  ],
+  "config_hash": "902f8bf99600fffd915e36fd9061db3a60ce3f8a42b7943fea2cdfbb3a134b23",
+  "external_nets": [
+    "/CHG_N",
+    "/NTC_SENSE",
+    "/VBAT",
+    "/VBUS",
+    "/VSYS",
+    "GND"
+  ],
+  "instance_path": "/91e930d7-87b6-4460-a854-b87269b13bb7",
+  "interface_ports": [
+    {
+      "access_policy": "interface_only",
+      "bus_index": null,
+      "cardinality": 1,
+      "description": "normalized from schematic sheet pin",
+      "direction": "bidirectional",
+      "name": "CHG_N",
+      "net_name": "CHG_N",
+      "preferred_side": "right",
+      "required": true,
+      "role": "bidir"
+    },
+    {
+      "access_policy": "interface_only",
+      "bus_index": null,
+      "cardinality": 1,
+      "description": "normalized from schematic sheet pin",
+      "direction": "bidirectional",
+      "name": "NTC_SENSE",
+      "net_name": "NTC_SENSE",
+      "preferred_side": "right",
+      "required": true,
+      "role": "analog"
+    },
+    {
+      "access_policy": "interface_only",
+      "bus_index": null,
+      "cardinality": 1,
+      "description": "normalized from schematic sheet pin",
+      "direction": "bidirectional",
+      "name": "VBAT",
+      "net_name": "VBAT",
+      "preferred_side": "right",
+      "required": true,
+      "role": "bidir"
+    },
+    {
+      "access_policy": "interface_only",
+      "bus_index": null,
+      "cardinality": 1,
+      "description": "normalized from schematic sheet pin",
+      "direction": "bidirectional",
+      "name": "VBUS",
+      "net_name": "VBUS",
+      "preferred_side": "right",
+      "required": true,
+      "role": "bidir"
+    },
+    {
+      "access_policy": "interface_only",
+      "bus_index": null,
+      "cardinality": 1,
+      "description": "normalized from schematic sheet pin",
+      "direction": "bidirectional",
+      "name": "VSYS",
+      "net_name": "VSYS",
+      "preferred_side": "right",
+      "required": true,
+      "role": "bidir"
+    }
+  ],
+  "internal_nets": [
+    "Net-(D1-A)",
+    "Net-(D2-A)",
+    "Net-(D2-K)",
+    "Net-(U2-ILIM)",
+    "Net-(U2-ISET)",
+    "Net-(U2-TMR)"
+  ],
+  "internal_trace_count": 0,
+  "internal_via_count": 0,
+  "local_board_outline": {
+    "bottom_right_x": 34.93,
+    "bottom_right_y": 20.02,
+    "height_mm": 20.02,
+    "top_left_x": 0.0,
+    "top_left_y": 0.0,
+    "width_mm": 34.93
+  },
+  "local_translation": {
+    "x": -13.045000000000002,
+    "y": 1.505
+  },
+  "notes": [
+    "solved by solve_subcircuits.py",
+    "best_round=0",
+    "best_seed=1654615998",
+    "best_score=90.071",
+    "rounds=1",
+    "solved_component_count=13",
+    "canonical_layout_schema=subcircuits.layout.v1",
+    "leaf=CHARGER",
+    "instance_path=/91e930d7-87b6-4460-a854-b87269b13bb7",
+    "component_count=13",
+    "internal_nets=6",
+    "external_nets=6",
+    "ignored_nets=0",
+    "margin_mm=5.000"
+  ],
+  "parent_instance_path": "/",
+  "project_dir": "/home/jason/Documents/LLUPS",
+  "schema_version": "subcircuits.v1",
+  "schematic_path": "/home/jason/Documents/LLUPS/CHARGER.kicad_sch",
+  "sheet_file": "CHARGER.kicad_sch",
+  "sheet_name": "CHARGER",
+  "solver_version": "subcircuits-m3-placement",
+  "source_hash": "401c1cc479fbc8cc871f30de9983b270fb116ba301a8863606b5d7f375070b7a",
+  "subcircuit_id": {
+    "instance_path": "/91e930d7-87b6-4460-a854-b87269b13bb7",
+    "parent_instance_path": "/",
+    "sheet_file": "CHARGER.kicad_sch",
+    "sheet_name": "CHARGER"
+  }
+}

@@ -1,0 +1,602 @@
+{
+  "artifacts": [
+    {
+      "artifact": {
+        "anchor_count": 2,
+        "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9",
+        "bounding_box": {
+          "height_mm": 20.82,
+          "width_mm": 31.490000000000002
+        },
+        "component_count": 6,
+        "score": 82.87258729872404,
+        "source_files": {
+          "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9/debug.json",
+          "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9/metadata.json",
+          "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9/layout.kicad_pcb",
+          "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9/solved_layout.json"
+        },
+        "subcircuit_id": {
+          "instance_path": "/1dfeec7c-ad4b-4be7-8575-f37739ab0219",
+          "parent_instance_path": "/",
+          "sheet_file": "BOOST_5V.kicad_sch",
+          "sheet_name": "BOOST 5V"
+        },
+        "trace_count": 8,
+        "via_count": 0
+      },
+      "summary": "BOOST 5V [/1dfeec7c-ad4b-4be7-8575-f37739ab0219] origin=(0.0,0.0) rot=0.0 bbox=14.9x15.2mm anchors=2",
+      "transformed": {
+        "anchor_count": 2,
+        "bounding_box": {
+          "bottom_right": {
+            "x": 25.215000000000003,
+            "y": 19.82
+          },
+          "height_mm": 15.182500000000001,
+          "top_left": {
+            "x": 10.285,
+            "y": 4.6375
+          },
+          "width_mm": 14.930000000000003
+        },
+        "component_count": 6,
+        "instance": {
+          "layout_id": {
+            "instance_path": "/1dfeec7c-ad4b-4be7-8575-f37739ab0219",
+            "parent_instance_path": "/",
+            "sheet_file": "BOOST_5V.kicad_sch",
+            "sheet_name": "BOOST 5V"
+          },
+          "origin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "rotation": 0.0,
+          "transformed_bbox": {
+            "height_mm": 20.82,
+            "width_mm": 31.490000000000002
+          }
+        },
+        "trace_count": 8,
+        "via_count": 0
+      }
+    },
+    {
+      "artifact": {
+        "anchor_count": 5,
+        "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2",
+        "bounding_box": {
+          "height_mm": 25.629999999999995,
+          "width_mm": 49.949999999999996
+        },
+        "component_count": 7,
+        "score": 80.66335909448037,
+        "source_files": {
+          "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/debug.json",
+          "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/metadata.json",
+          "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/layout.kicad_pcb",
+          "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/solved_layout.json"
+        },
+        "subcircuit_id": {
+          "instance_path": "/2366e9e2-0175-45f9-8f63-4527a42971a6",
+          "parent_instance_path": "/",
+          "sheet_file": "LDO_3_3V.kicad_sch",
+          "sheet_name": "LDO 3.3V"
+        },
+        "trace_count": 4,
+        "via_count": 0
+      },
+      "summary": "LDO 3.3V [/2366e9e2-0175-45f9-8f63-4527a42971a6] origin=(41.5,0.0) rot=0.0 bbox=32.8x23.6mm anchors=5",
+      "transformed": {
+        "anchor_count": 5,
+        "bounding_box": {
+          "bottom_right": {
+            "x": 79.1164981626934,
+            "y": 24.629999999999995
+          },
+          "height_mm": 23.629999999999995,
+          "top_left": {
+            "x": 46.28211440416768,
+            "y": 0.9999999999999996
+          },
+          "width_mm": 32.834383758525725
+        },
+        "component_count": 7,
+        "instance": {
+          "layout_id": {
+            "instance_path": "/2366e9e2-0175-45f9-8f63-4527a42971a6",
+            "parent_instance_path": "/",
+            "sheet_file": "LDO_3_3V.kicad_sch",
+            "sheet_name": "LDO 3.3V"
+          },
+          "origin": {
+            "x": 41.49,
+            "y": 0.0
+          },
+          "rotation": 0.0,
+          "transformed_bbox": {
+            "height_mm": 25.629999999999995,
+            "width_mm": 49.949999999999996
+          }
+        },
+        "trace_count": 4,
+        "via_count": 0
+      }
+    },
+    {
+      "artifact": {
+        "anchor_count": 5,
+        "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd",
+        "bounding_box": {
+          "height_mm": 20.02,
+          "width_mm": 34.93
+        },
+        "component_count": 13,
+        "score": 90.07113619513895,
+        "source_files": {
+          "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd/debug.json",
+          "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd/metadata.json",
+          "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd/layout.kicad_pcb",
+          "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd/solved_layout.json"
+        },
+        "subcircuit_id": {
+          "instance_path": "/91e930d7-87b6-4460-a854-b87269b13bb7",
+          "parent_instance_path": "/",
+          "sheet_file": "CHARGER.kicad_sch",
+          "sheet_name": "CHARGER"
+        },
+        "trace_count": 12,
+        "via_count": 0
+      },
+      "summary": "CHARGER [/91e930d7-87b6-4460-a854-b87269b13bb7] origin=(101.4,0.0) rot=0.0 bbox=28.6x13.7mm anchors=5",
+      "transformed": {
+        "anchor_count": 5,
+        "bounding_box": {
+          "bottom_right": {
+            "x": 135.36999999999998,
+            "y": 16.718125
+          },
+          "height_mm": 13.74625,
+          "top_left": {
+            "x": 106.785,
+            "y": 2.9718750000000003
+          },
+          "width_mm": 28.58499999999998
+        },
+        "component_count": 13,
+        "instance": {
+          "layout_id": {
+            "instance_path": "/91e930d7-87b6-4460-a854-b87269b13bb7",
+            "parent_instance_path": "/",
+            "sheet_file": "CHARGER.kicad_sch",
+            "sheet_name": "CHARGER"
+          },
+          "origin": {
+            "x": 101.44,
+            "y": 0.0
+          },
+          "rotation": 0.0,
+          "transformed_bbox": {
+            "height_mm": 20.02,
+            "width_mm": 34.93
+          }
+        },
+        "trace_count": 12,
+        "via_count": 0
+      }
+    },
+    {
+      "artifact": {
+        "anchor_count": 1,
+        "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d",
+        "bounding_box": {
+          "height_mm": 23.290000000000003,
+          "width_mm": 33.25
+        },
+        "component_count": 6,
+        "score": 83.04668626255018,
+        "source_files": {
+          "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d/debug.json",
+          "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d/metadata.json",
+          "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d/layout.kicad_pcb",
+          "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d/solved_layout.json"
+        },
+        "subcircuit_id": {
+          "instance_path": "/c6773def-39c2-4618-add5-8cf158f64b0e",
+          "parent_instance_path": "/",
+          "sheet_file": "USB_INPUT.kicad_sch",
+          "sheet_name": "USB INPUT"
+        },
+        "trace_count": 0,
+        "via_count": 0
+      },
+      "summary": "USB INPUT [/c6773def-39c2-4618-add5-8cf158f64b0e] origin=(146.4,0.0) rot=0.0 bbox=24.5x24.0mm anchors=1",
+      "transformed": {
+        "anchor_count": 1,
+        "bounding_box": {
+          "bottom_right": {
+            "x": 175.085,
+            "y": 20.975
+          },
+          "height_mm": 24.0,
+          "top_left": {
+            "x": 150.61830772455784,
+            "y": -3.0250000000000004
+          },
+          "width_mm": 24.46669227544217
+        },
+        "component_count": 6,
+        "instance": {
+          "layout_id": {
+            "instance_path": "/c6773def-39c2-4618-add5-8cf158f64b0e",
+            "parent_instance_path": "/",
+            "sheet_file": "USB_INPUT.kicad_sch",
+            "sheet_name": "USB INPUT"
+          },
+          "origin": {
+            "x": 146.37,
+            "y": 0.0
+          },
+          "rotation": 0.0,
+          "transformed_bbox": {
+            "height_mm": 23.290000000000003,
+            "width_mm": 33.25
+          }
+        },
+        "trace_count": 0,
+        "via_count": 0
+      }
+    },
+    {
+      "artifact": {
+        "anchor_count": 0,
+        "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc",
+        "bounding_box": {
+          "height_mm": 9.490000000000002,
+          "width_mm": 11.677500000000002
+        },
+        "component_count": 3,
+        "score": 84.64988779912933,
+        "source_files": {
+          "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/debug.json",
+          "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/metadata.json",
+          "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/layout.kicad_pcb",
+          "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/solved_layout.json"
+        },
+        "subcircuit_id": {
+          "instance_path": "/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3",
+          "parent_instance_path": "/",
+          "sheet_file": "BATT_PROT.kicad_sch",
+          "sheet_name": "BATT PROT"
+        },
+        "trace_count": 0,
+        "via_count": 0
+      },
+      "summary": "BATT PROT [/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3] origin=(189.6,0.0) rot=0.0 bbox=11.7x9.5mm anchors=0",
+      "transformed": {
+        "anchor_count": 0,
+        "bounding_box": {
+          "bottom_right": {
+            "x": 208.8075,
+            "y": 16.745
+          },
+          "height_mm": 9.490000000000002,
+          "top_left": {
+            "x": 197.13,
+            "y": 7.255
+          },
+          "width_mm": 11.677500000000009
+        },
+        "component_count": 3,
+        "instance": {
+          "layout_id": {
+            "instance_path": "/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3",
+            "parent_instance_path": "/",
+            "sheet_file": "BATT_PROT.kicad_sch",
+            "sheet_name": "BATT PROT"
+          },
+          "origin": {
+            "x": 189.62,
+            "y": 0.0
+          },
+          "rotation": 0.0,
+          "transformed_bbox": {
+            "height_mm": 9.490000000000002,
+            "width_mm": 11.677500000000002
+          }
+        },
+        "trace_count": 0,
+        "via_count": 0
+      }
+    },
+    {
+      "artifact": {
+        "anchor_count": 0,
+        "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/fb6d4d08-8299-415a-93e2-10cfee17e511__76c779d042",
+        "bounding_box": {
+          "height_mm": 46.903671875,
+          "width_mm": 76.79000000000002
+        },
+        "component_count": 2,
+        "score": 88.2129437519307,
+        "source_files": {
+          "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/fb6d4d08-8299-415a-93e2-10cfee17e511__76c779d042/debug.json",
+          "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/fb6d4d08-8299-415a-93e2-10cfee17e511__76c779d042/metadata.json",
+          "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/fb6d4d08-8299-415a-93e2-10cfee17e511__76c779d042/layout.kicad_pcb",
+          "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/fb6d4d08-8299-415a-93e2-10cfee17e511__76c779d042/solved_layout.json"
+        },
+        "subcircuit_id": {
+          "instance_path": "/fb6d4d08-8299-415a-93e2-10cfee17e511",
+          "parent_instance_path": "/",
+          "sheet_file": "BT1.kicad_sch",
+          "sheet_name": "BT1"
+        },
+        "trace_count": 0,
+        "via_count": 0
+      },
+      "summary": "BT1 [/fb6d4d08-8299-415a-93e2-10cfee17e511] origin=(211.3,0.0) rot=0.0 bbox=76.8x46.9mm anchors=0",
+      "transformed": {
+        "anchor_count": 0,
+        "bounding_box": {
+          "bottom_right": {
+            "x": 293.6925,
+            "y": 52.17000000000001
+          },
+          "height_mm": 46.903671875,
+          "top_left": {
+            "x": 216.9025,
+            "y": 5.266328125000005
+          },
+          "width_mm": 76.78999999999999
+        },
+        "component_count": 2,
+        "instance": {
+          "layout_id": {
+            "instance_path": "/fb6d4d08-8299-415a-93e2-10cfee17e511",
+            "parent_instance_path": "/",
+            "sheet_file": "BT1.kicad_sch",
+            "sheet_name": "BT1"
+          },
+          "origin": {
+            "x": 211.2975,
+            "y": 0.0
+          },
+          "rotation": 0.0,
+          "transformed_bbox": {
+            "height_mm": 46.903671875,
+            "width_mm": 76.79000000000002
+          }
+        },
+        "trace_count": 0,
+        "via_count": 0
+      }
+    }
+  ],
+  "composition": {
+    "debug": {
+      "board_outline": {
+        "bottom_right": {
+          "x": 295.6925,
+          "y": 54.17000000000001
+        },
+        "height_mm": 59.19500000000001,
+        "top_left": {
+          "x": 8.285,
+          "y": -5.025
+        },
+        "width_mm": 287.40749999999997
+      },
+      "child_count": 6,
+      "component_count": 37,
+      "failed_interconnect_net_count": 0,
+      "inferred_interconnect_net_count": 6,
+      "interconnect_net_count": 6,
+      "notes": [
+        "parent=LLUPS",
+        "child_count=6",
+        "component_count=37",
+        "trace_count=36",
+        "via_count=0",
+        "inferred_interconnect_nets=6",
+        "interconnect_nets=6",
+        "routed_interconnect_nets=6",
+        "failed_interconnect_nets=0",
+        "parent_route_trace_count=12",
+        "parent_route_via_count=0",
+        "score_total=72.821"
+      ],
+      "parent": {
+        "instance_path": "/",
+        "sheet_name": "LLUPS"
+      },
+      "routed_interconnect_net_count": 6,
+      "score": {
+        "breakdown": {
+          "anchor_coverage": 92.3076923076923,
+          "area_utilization": 22.396769077821023,
+          "child_layout_quality": 84.91943340032559,
+          "interconnect_compactness": 46.455273259364255
+        },
+        "notes": [
+          "parent=LLUPS",
+          "child_score_avg=84.919",
+          "anchor_coverage=0.923",
+          "avg_anchor_distance_mm=53.545",
+          "area_utilization=0.224",
+          "interconnect_nets=6"
+        ],
+        "total": 72.82139966672455
+      },
+      "trace_count": 36,
+      "via_count": 0
+    },
+    "summary": "LLUPS [/] children=6 components=37 traces=36 vias=0 interconnects=6 score=72.8 size=287.4x59.2mm"
+  },
+  "state": {
+    "bounding_box": {
+      "bottom_right": {
+        "x": 295.6925,
+        "y": 54.17000000000001
+      },
+      "height_mm": 59.19500000000001,
+      "top_left": {
+        "x": 8.285,
+        "y": -5.025
+      },
+      "width_mm": 287.40749999999997
+    },
+    "component_count": 37,
+    "composition_notes": [
+      "parent=LLUPS",
+      "child_count=6",
+      "component_count=37",
+      "trace_count=36",
+      "via_count=0",
+      "inferred_interconnect_nets=6",
+      "interconnect_nets=6",
+      "routed_interconnect_nets=6",
+      "failed_interconnect_nets=0",
+      "parent_route_trace_count=12",
+      "parent_route_via_count=0",
+      "score_total=72.821"
+    ],
+    "entries": [
+      {
+        "anchor_count": 2,
+        "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/1dfeec7c-ad4b-4be7-8575-f37739ab0219__eba33642f9",
+        "component_count": 6,
+        "instance_path": "/1dfeec7c-ad4b-4be7-8575-f37739ab0219",
+        "origin": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "rotation": 0.0,
+        "sheet_name": "BOOST 5V",
+        "trace_count": 8,
+        "transformed_bbox": {
+          "height_mm": 20.82,
+          "width_mm": 31.490000000000002
+        },
+        "via_count": 0
+      },
+      {
+        "anchor_count": 5,
+        "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2",
+        "component_count": 7,
+        "instance_path": "/2366e9e2-0175-45f9-8f63-4527a42971a6",
+        "origin": {
+          "x": 41.49,
+          "y": 0.0
+        },
+        "rotation": 0.0,
+        "sheet_name": "LDO 3.3V",
+        "trace_count": 4,
+        "transformed_bbox": {
+          "height_mm": 25.629999999999995,
+          "width_mm": 49.949999999999996
+        },
+        "via_count": 0
+      },
+      {
+        "anchor_count": 5,
+        "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/91e930d7-87b6-4460-a854-b87269b13bb7__7e47ceb2dd",
+        "component_count": 13,
+        "instance_path": "/91e930d7-87b6-4460-a854-b87269b13bb7",
+        "origin": {
+          "x": 101.44,
+          "y": 0.0
+        },
+        "rotation": 0.0,
+        "sheet_name": "CHARGER",
+        "trace_count": 12,
+        "transformed_bbox": {
+          "height_mm": 20.02,
+          "width_mm": 34.93
+        },
+        "via_count": 0
+      },
+      {
+        "anchor_count": 1,
+        "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d",
+        "component_count": 6,
+        "instance_path": "/c6773def-39c2-4618-add5-8cf158f64b0e",
+        "origin": {
+          "x": 146.37,
+          "y": 0.0
+        },
+        "rotation": 0.0,
+        "sheet_name": "USB INPUT",
+        "trace_count": 0,
+        "transformed_bbox": {
+          "height_mm": 23.290000000000003,
+          "width_mm": 33.25
+        },
+        "via_count": 0
+      },
+      {
+        "anchor_count": 0,
+        "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc",
+        "component_count": 3,
+        "instance_path": "/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3",
+        "origin": {
+          "x": 189.62,
+          "y": 0.0
+        },
+        "rotation": 0.0,
+        "sheet_name": "BATT PROT",
+        "trace_count": 0,
+        "transformed_bbox": {
+          "height_mm": 9.490000000000002,
+          "width_mm": 11.677500000000002
+        },
+        "via_count": 0
+      },
+      {
+        "anchor_count": 0,
+        "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/fb6d4d08-8299-415a-93e2-10cfee17e511__76c779d042",
+        "component_count": 2,
+        "instance_path": "/fb6d4d08-8299-415a-93e2-10cfee17e511",
+        "origin": {
+          "x": 211.2975,
+          "y": 0.0
+        },
+        "rotation": 0.0,
+        "sheet_name": "BT1",
+        "trace_count": 0,
+        "transformed_bbox": {
+          "height_mm": 46.903671875,
+          "width_mm": 76.79000000000002
+        },
+        "via_count": 0
+      }
+    ],
+    "entry_count": 6,
+    "failed_interconnect_net_count": 0,
+    "inferred_interconnect_net_count": 6,
+    "interconnect_net_count": 6,
+    "mode": "row",
+    "parent_instance_path": "/",
+    "parent_sheet_name": "LLUPS",
+    "project_dir": "/home/jason/Documents/LLUPS",
+    "routed_interconnect_net_count": 6,
+    "score_breakdown": {
+      "anchor_coverage": 92.3076923076923,
+      "area_utilization": 22.396769077821023,
+      "child_layout_quality": 84.91943340032559,
+      "interconnect_compactness": 46.455273259364255
+    },
+    "score_notes": [
+      "parent=LLUPS",
+      "child_score_avg=84.919",
+      "anchor_coverage=0.923",
+      "avg_anchor_distance_mm=53.545",
+      "area_utilization=0.224",
+      "interconnect_nets=6"
+    ],
+    "score_total": 72.82139966672455,
+    "spacing_mm": 10.0,
+    "trace_count": 36,
+    "via_count": 0
+  }
+}

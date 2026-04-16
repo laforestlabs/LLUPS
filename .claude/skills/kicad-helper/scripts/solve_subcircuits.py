@@ -128,6 +128,7 @@ from autoplacer.brain.subcircuit_extractor import (
 )
 from autoplacer.brain.subcircuit_render_diagnostics import (
     generate_leaf_diagnostic_artifacts,
+    generate_stage_diagnostic_artifacts,
 )
 from autoplacer.brain.types import (
     BoardState,
@@ -315,24 +316,97 @@ def _local_solver_config(
     cfg["hierarchical_placement"] = False
     cfg["group_source"] = "none"
     cfg["signal_flow_order"] = []
-    cfg["component_zones"] = {}
     cfg["ic_groups"] = {}
     cfg["group_labels"] = {}
     cfg["subcircuit_route_internal_nets"] = bool(
         base_cfg.get("subcircuit_route_internal_nets", False)
     )
 
+    local_component_zones: dict[str, Any] = {}
+    source_outline = extraction.envelope.source_board_outline
+    source_board_tl = source_outline[0] if source_outline is not None else None
+    source_board_br = source_outline[1] if source_outline is not None else None
+    translation = extraction.translation
+
+    for ref, comp in extraction.local_state.components.items():
+        if comp.kind == "connector":
+            if source_board_tl is not None and source_board_br is not None:
+                if comp.body_center is not None:
+                    source_center_x = comp.body_center.x - translation.x
+                    source_center_y = comp.body_center.y - translation.y
+                else:
+                    source_center_x = comp.pos.x - translation.x
+                    source_center_y = comp.pos.y - translation.y
+
+                distances = {
+                    "left": max(0.0, source_center_x - source_board_tl.x),
+                    "right": max(0.0, source_board_br.x - source_center_x),
+                    "top": max(0.0, source_center_y - source_board_tl.y),
+                    "bottom": max(0.0, source_board_br.y - source_center_y),
+                }
+            else:
+                if comp.body_center is not None:
+                    local_center_x = comp.body_center.x
+                    local_center_y = comp.body_center.y
+                else:
+                    local_center_x = comp.pos.x
+                    local_center_y = comp.pos.y
+
+                distances = {
+                    "left": local_center_x,
+                    "right": extraction.local_state.board_width - local_center_x,
+                    "top": local_center_y,
+                    "bottom": extraction.local_state.board_height - local_center_y,
+                }
+
+            nearest_edge = min(distances, key=distances.get)
+            local_component_zones[ref] = {"edge": nearest_edge}
+
+    cfg["component_zones"] = local_component_zones
+    cfg["unlock_all_footprints"] = False
+
     cfg["board_width_mm"] = extraction.local_state.board_width
     cfg["board_height_mm"] = extraction.local_state.board_height
 
-    cfg.setdefault("placement_clearance_mm", 2.0)
-    cfg.setdefault("edge_margin_mm", 2.0)
-    cfg.setdefault("placement_grid_mm", 0.5)
-    cfg.setdefault("max_placement_iterations", 180)
-    cfg.setdefault("placement_convergence_threshold", 0.35)
-    cfg.setdefault("orderedness", 0.25)
-    cfg.setdefault("randomize_group_layout", True)
-    cfg.setdefault("scatter_mode", "random")
+    cfg["placement_clearance_mm"] = max(
+        3.0,
+        float(base_cfg.get("placement_clearance_mm", 3.0)),
+    )
+    cfg["edge_margin_mm"] = max(
+        2.0,
+        float(base_cfg.get("edge_margin_mm", 2.0)),
+    )
+    cfg["placement_grid_mm"] = float(base_cfg.get("placement_grid_mm", 0.5))
+    cfg["max_placement_iterations"] = max(
+        300,
+        int(base_cfg.get("max_placement_iterations", 300)),
+    )
+    cfg["placement_convergence_threshold"] = min(
+        0.2,
+        float(base_cfg.get("placement_convergence_threshold", 0.2)),
+    )
+    cfg["orderedness"] = 0.0
+    cfg["randomize_group_layout"] = True
+    cfg["scatter_mode"] = "random"
+    cfg["placement_score_every_n"] = 1
+    cfg["unlock_all_footprints"] = False
+    cfg["align_large_pairs"] = False
+    cfg["prefer_legal_states"] = True
+    cfg["legalize_during_force"] = True
+    cfg["legalize_every_n"] = 1
+    cfg["legalize_during_force_passes"] = max(
+        2,
+        int(base_cfg.get("legalize_during_force_passes", 2)),
+    )
+    cfg["enable_swap_optimization"] = False
+    cfg["leaf_legality_repair_passes"] = max(
+        24,
+        int(base_cfg.get("leaf_legality_repair_passes", 24)),
+    )
+    cfg["leaf_min_route_rounds"] = max(
+        16,
+        int(base_cfg.get("leaf_min_route_rounds", 16)),
+    )
 
     return cfg
 
@@ -344,7 +418,52 @@ def _score_local_components(
 ) -> PlacementScore:
     work_state = copy.copy(local_state)
     work_state.components = components
-    return PlacementScorer(work_state, cfg).score()
+    score = PlacementScorer(work_state, cfg).score()
+
+    legalizer = PlacementSolver(work_state, cfg, seed=0)
+    legality = legalizer.legality_diagnostics(components)
+    overlap_count = int(legality.get("overlap_count", 0))
+    pad_outside_count = int(legality.get("pad_outside_count", 0))
+
+    if overlap_count or pad_outside_count:
+        score.courtyard_overlap = max(
+            0.0,
+            min(score.courtyard_overlap, 100.0 - 25.0 * overlap_count),
+        )
+        score.board_containment = max(
+            0.0,
+            min(score.board_containment, 100.0 - 40.0 * pad_outside_count),
+        )
+        score.compute_total()
+
+    return score
+
+
+def _repair_leaf_placement_legality(
+    extraction: ExtractedSubcircuitBoard,
+    solved_components: dict[str, Component],
+    cfg: dict[str, Any],
+) -> tuple[dict[str, Component], dict[str, Any]]:
+    repaired = copy.deepcopy(solved_components)
+    local_state = copy.deepcopy(extraction.local_state)
+    local_state.components = repaired
+
+    legalizer = PlacementSolver(local_state, cfg, seed=0)
+    legalization = legalizer.legalize_components(
+        repaired,
+        max_passes=int(cfg.get("leaf_legality_repair_passes", 12)),
+    )
+    diagnostics = dict(legalization.get("diagnostics", {}))
+
+    return repaired, {
+        "attempted": True,
+        "passes": int(legalization.get("passes", 0)),
+        "moved_components": list(legalization.get("moved_refs", [])),
+        "remaining_overlaps": list(diagnostics.get("overlaps", [])),
+        "pads_outside_board": list(diagnostics.get("pads_outside_board", [])),
+        "resolved": bool(legalization.get("resolved", False)),
+        "diagnostics": diagnostics,
+    }
 
 
 def _route_local_subcircuit(
@@ -380,27 +499,15 @@ def _route_local_subcircuit(
         Path(artifact_paths.artifact_dir) / "leaf_pre_freerouting.kicad_pcb"
     )
     routed_board = Path(artifact_paths.artifact_dir) / "leaf_routed.kicad_pcb"
-
-    solved_layout = SubCircuitLayout(
-        subcircuit_id=extraction.subcircuit.id,
-        components=copy.deepcopy(solved_components),
-        traces=[],
-        vias=[],
-        bounding_box=(
-            extraction.local_state.board_width,
-            extraction.local_state.board_height,
-        ),
-        ports=[copy.deepcopy(port) for port in extraction.interface_ports],
-        interface_anchors=[],
-        score=0.0,
-        artifact_paths={},
-        frozen=True,
+    illegal_board = (
+        Path(artifact_paths.artifact_dir) / "leaf_illegal_pre_stamp.kicad_pcb"
     )
 
-    route_input_board = copy.deepcopy(extraction.local_state)
-    route_input_board.components = copy.deepcopy(solved_components)
-    route_input_board.traces = []
-    route_input_board.vias = []
+    repaired_components, legality_repair = _repair_leaf_placement_legality(
+        extraction,
+        solved_components,
+        cfg,
+    )
 
     source_pcb = Path(cfg.get("subcircuit_route_source_pcb", cfg.get("pcb_path", "")))
     if not source_pcb.exists():
@@ -411,6 +518,145 @@ def _route_local_subcircuit(
             "Leaf FreeRouting requires a real source PCB to stamp from; "
             f"could not resolve base board for {extraction.subcircuit.id.instance_path}"
         )
+
+    if not legality_repair.get("resolved", False):
+        diagnostics = legality_repair.get("diagnostics", {}) or {}
+        overlap_count = int(diagnostics.get("overlap_count", 0) or 0)
+        pad_outside_count = int(diagnostics.get("pad_outside_count", 0) or 0)
+        overlap_pairs = [
+            f"{item.get('a', '?')}:{item.get('b', '?')}"
+            for item in diagnostics.get("overlaps", [])
+        ]
+        pad_violations = [
+            f"{item.get('ref', '?')}:{item.get('pad_id', '?')}:{','.join(item.get('sides', []))}"
+            for item in diagnostics.get("pads_outside_board", [])
+        ]
+
+        overlap_details = []
+        for item in diagnostics.get("overlaps", []):
+            overlap_details.append(
+                {
+                    "a": item.get("a"),
+                    "b": item.get("b"),
+                    "overlap_x_mm": item.get("overlap_x_mm"),
+                    "overlap_y_mm": item.get("overlap_y_mm"),
+                    "overlap_area_mm2": item.get("overlap_area_mm2"),
+                }
+            )
+
+        component_debug = []
+        repaired_by_ref = repaired_components or {}
+        for ref in sorted(repaired_by_ref.keys()):
+            comp = repaired_by_ref[ref]
+            component_debug.append(
+                {
+                    "ref": ref,
+                    "kind": comp.kind,
+                    "layer": str(comp.layer),
+                    "locked": bool(comp.locked),
+                    "x_mm": round(comp.pos.x, 4),
+                    "y_mm": round(comp.pos.y, 4),
+                    "rotation_deg": round(comp.rotation, 4),
+                    "width_mm": round(comp.width_mm, 4),
+                    "height_mm": round(comp.height_mm, 4),
+                    "pad_count": len(comp.pads),
+                }
+            )
+
+        print(
+            "  Leaf legality repair rejected placement: "
+            f"overlaps={overlap_count} "
+            f"pads_outside={pad_outside_count} "
+            f"overlap_pairs={overlap_pairs} "
+            f"pad_violations={pad_violations}"
+        )
+        if overlap_details:
+            print(f"  Leaf legality overlap details: {overlap_details}")
+        if component_debug:
+            print(f"  Leaf legality component states: {component_debug}")
+
+        illegal_input_board = copy.deepcopy(extraction.local_state)
+        illegal_input_board.components = copy.deepcopy(repaired_components)
+        illegal_input_board.traces = []
+        illegal_input_board.vias = []
+
+        illegal_render_diagnostics: dict[str, Any] = {
+            "artifact_dir": artifact_paths.artifact_dir,
+            "renders_dir": str(Path(artifact_paths.artifact_dir) / "renders"),
+            "illegal_pre_stamp": None,
+            "errors": [],
+        }
+
+        try:
+            route_adapter = KiCadAdapter(str(source_pcb), config=cfg)
+            route_adapter.stamp_subcircuit_board(
+                illegal_input_board,
+                output_path=str(illegal_board),
+                clear_existing_tracks=True,
+                clear_existing_zones=True,
+                remove_unmapped_footprints=True,
+            )
+            illegal_validation = {
+                "accepted": False,
+                "rejected": True,
+                "rejection_stage": "leaf_pre_stamp_legality_repair",
+                "rejection_reasons": ["illegal_unrepaired_leaf_placement"],
+                "leaf_legality_repair": copy.deepcopy(legality_repair),
+                "drc": {
+                    "violations": [],
+                    "report_text": (
+                        "Leaf placement rejected before routing due to placement legality.\n"
+                        f"overlap_count={overlap_count}\n"
+                        f"pad_outside_count={pad_outside_count}\n"
+                        f"overlap_pairs={overlap_pairs}\n"
+                        f"pad_violations={pad_violations}\n"
+                    ),
+                },
+            }
+            illegal_render_diagnostics["illegal_pre_stamp"] = (
+                generate_stage_diagnostic_artifacts(
+                    pcb_path=str(illegal_board),
+                    validation=illegal_validation,
+                    artifact_dir=artifact_paths.artifact_dir,
+                    stage="illegal_pre_stamp",
+                )
+            )
+        except Exception as exc:
+            illegal_render_diagnostics["errors"].append(
+                f"illegal_pre_stamp_render_failed:{exc}"
+            )
+
+        return {
+            "enabled": True,
+            "skipped": True,
+            "reason": "illegal_unrepaired_leaf_placement",
+            "router": "freerouting",
+            "traces": 0,
+            "vias": 0,
+            "total_length_mm": 0.0,
+            "routed_internal_nets": [],
+            "failed_internal_nets": list(sorted(extraction.internal_net_names)),
+            "_trace_segments": [],
+            "_via_objects": [],
+            "validation": {
+                "accepted": False,
+                "rejected": True,
+                "rejection_stage": "leaf_pre_stamp_legality_repair",
+                "rejection_reasons": ["illegal_unrepaired_leaf_placement"],
+                "leaf_legality_repair": copy.deepcopy(legality_repair),
+                "render_diagnostics": copy.deepcopy(illegal_render_diagnostics),
+                "illegal_pre_stamp_board_path": str(illegal_board),
+            },
+            "leaf_legality_repair": copy.deepcopy(legality_repair),
+            "render_diagnostics": copy.deepcopy(illegal_render_diagnostics),
+            "illegal_pre_stamp_board_path": str(illegal_board),
+            "failed": True,
+        }
+
+    route_input_board = copy.deepcopy(extraction.local_state)
+    route_input_board.components = copy.deepcopy(repaired_components)
+    route_input_board.traces = []
+    route_input_board.vias = []
 
     route_adapter = KiCadAdapter(str(source_pcb), config=cfg)
     route_adapter.stamp_subcircuit_board(
@@ -461,6 +707,7 @@ def _route_local_subcircuit(
         routed_validation=None,
     )
     pre_route_validation["render_diagnostics"] = copy.deepcopy(leaf_diagnostics)
+    pre_route_validation["leaf_legality_repair"] = copy.deepcopy(legality_repair)
     if pre_route_significant_violation_types:
         pre_route_validation["accepted"] = False
         pre_route_validation["rejected"] = True
@@ -505,7 +752,7 @@ def _route_local_subcircuit(
         pre_route_validation=pre_route_validation,
         routed_validation=validation,
     )
-    validation["pre_route_validation"] = pre_route_validation
+    validation["pre_route_validation"] = copy.deepcopy(pre_route_validation)
     validation["render_diagnostics"] = copy.deepcopy(leaf_diagnostics)
 
     drc = validation.get("drc", {})
@@ -597,6 +844,7 @@ def _route_local_subcircuit(
         "freerouting_stats": freerouting_stats,
         "validation": validation,
         "render_diagnostics": copy.deepcopy(leaf_diagnostics),
+        "leaf_legality_repair": copy.deepcopy(legality_repair),
         "routed_board_path": str(routed_board),
         "pre_route_board_path": str(pre_route_board),
         "failed": False,
@@ -632,6 +880,16 @@ def _solve_one_round(
             "failed": False,
         }
     )
+    if route and routing.get("reason") == "illegal_unrepaired_leaf_placement":
+        return SolveRoundResult(
+            round_index=round_index,
+            seed=seed,
+            score=float("-inf"),
+            placement=placement,
+            components=solved_components,
+            routing=routing,
+            routed=False,
+        )
     return SolveRoundResult(
         round_index=round_index,
         seed=seed,
@@ -667,14 +925,44 @@ def _solve_leaf_subcircuit(
     round_results: list[SolveRoundResult] = []
     best: SolveRoundResult | None = None
 
-    for round_index in range(rounds):
+    effective_rounds = rounds
+    if route:
+        effective_rounds = max(
+            rounds,
+            int(local_cfg.get("leaf_min_route_rounds", 8)),
+        )
+
+    for round_index in range(effective_rounds):
         seed = rng.randint(0, 2**31 - 1)
         result = _solve_one_round(extraction, local_cfg, seed, round_index, route)
         round_results.append(result)
+        if route and result.routing.get("failed", False):
+            continue
+        if route and not result.routing.get("routed_board_path"):
+            continue
         if best is None or result.score > best.score:
             best = result
+            if route:
+                break
 
-    assert best is not None
+    if best is None:
+        failure_reasons: list[str] = []
+        for round_result in round_results:
+            routing = round_result.routing or {}
+            validation = routing.get("validation", {}) or {}
+            reason = (
+                validation.get("rejection_stage")
+                or validation.get("rejection_message")
+                or routing.get("reason")
+                or "unknown_leaf_failure"
+            )
+            failure_reasons.append(str(reason))
+        unique_reasons = sorted(set(failure_reasons))
+        raise RuntimeError(
+            "No accepted routed leaf artifact produced for "
+            f"{node.definition.id.instance_path} after {effective_rounds} round(s): "
+            + ",".join(unique_reasons or ["unknown_leaf_failure"])
+        )
     return SolvedLeafSubcircuit(
         node=node,
         extraction=extraction,
