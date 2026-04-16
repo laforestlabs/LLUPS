@@ -7,9 +7,9 @@ These serve as the interchange format between Brain and Hardware layers.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import IntEnum
-from math import atan2, hypot, pi, sqrt
-from typing import NamedTuple, Optional
+from enum import Enum, IntEnum
+from math import atan2, hypot
+from typing import Optional
 
 
 class Layer(IntEnum):
@@ -367,6 +367,158 @@ class ExperimentScore:
 # ---------------------------------------------------------------------------
 # Hierarchical group placement data structures
 # ---------------------------------------------------------------------------
+
+
+class InterfaceRole(str, Enum):
+    POWER_IN = "power_in"
+    POWER_OUT = "power_out"
+    GROUND = "ground"
+    SIGNAL_IN = "signal_in"
+    SIGNAL_OUT = "signal_out"
+    BIDIR = "bidir"
+    DIFF_P = "diff_p"
+    DIFF_N = "diff_n"
+    BUS = "bus"
+    ANALOG = "analog"
+    TEST = "test"
+    MECHANICAL = "mechanical"
+    UNKNOWN = "unknown"
+
+
+class InterfaceDirection(str, Enum):
+    INPUT = "input"
+    OUTPUT = "output"
+    BIDIRECTIONAL = "bidirectional"
+    PASSIVE = "passive"
+    UNKNOWN = "unknown"
+
+
+class InterfaceSide(str, Enum):
+    LEFT = "left"
+    RIGHT = "right"
+    TOP = "top"
+    BOTTOM = "bottom"
+    ANY = "any"
+
+
+class SubcircuitAccessPolicy(str, Enum):
+    INTERFACE_ONLY = "interface_only"
+    OPEN_ACCESS = "open_access"
+
+
+@dataclass(frozen=True, slots=True)
+class SubCircuitId:
+    """Stable identity for a schematic sheet instance."""
+
+    sheet_name: str
+    sheet_file: str
+    instance_path: str
+    parent_instance_path: str | None = None
+
+    @property
+    def path_key(self) -> str:
+        return self.instance_path or self.sheet_file
+
+
+@dataclass(slots=True)
+class InterfacePort:
+    """Normalized external interface for a subcircuit."""
+
+    name: str
+    net_name: str
+    role: InterfaceRole = InterfaceRole.BIDIR
+    direction: InterfaceDirection = InterfaceDirection.UNKNOWN
+    preferred_side: InterfaceSide = InterfaceSide.ANY
+    access_policy: SubcircuitAccessPolicy = SubcircuitAccessPolicy.INTERFACE_ONLY
+    cardinality: int = 1
+    bus_index: int | None = None
+    required: bool = True
+    description: str = ""
+    raw_direction: str = ""
+    source_uuid: str | None = None
+    source_kind: str = "sheet_pin"
+
+
+@dataclass(slots=True)
+class InterfaceAnchor:
+    """Physical anchor point for a normalized interface on a solved layout."""
+
+    port_name: str
+    pos: Point
+    layer: Layer = Layer.FRONT
+    pad_ref: tuple[str, str] | None = None
+
+
+@dataclass
+class SubCircuitDefinition:
+    """Logical subcircuit definition derived from schematic hierarchy."""
+
+    id: SubCircuitId
+    schematic_path: str = ""
+    component_refs: list[str] = field(default_factory=list)
+    ports: list[InterfacePort] = field(default_factory=list)
+    child_ids: list[SubCircuitId] = field(default_factory=list)
+    parent_id: SubCircuitId | None = None
+    is_leaf: bool = True
+    sheet_uuid: str = ""
+    notes: list[str] = field(default_factory=list)
+
+    @property
+    def name(self) -> str:
+        return self.id.sheet_name
+
+
+@dataclass
+class SubCircuitLayout:
+    """Frozen solved layout artifact for a subcircuit."""
+
+    subcircuit_id: SubCircuitId
+    components: dict[str, Component] = field(default_factory=dict)
+    traces: list[TraceSegment] = field(default_factory=list)
+    vias: list[Via] = field(default_factory=list)
+    bounding_box: tuple[float, float] = (0.0, 0.0)
+    ports: list[InterfacePort] = field(default_factory=list)
+    interface_anchors: list[InterfaceAnchor] = field(default_factory=list)
+    score: float = 0.0
+    artifact_paths: dict[str, str] = field(default_factory=dict)
+    frozen: bool = True
+
+    @property
+    def width(self) -> float:
+        return self.bounding_box[0]
+
+    @property
+    def height(self) -> float:
+        return self.bounding_box[1]
+
+    @property
+    def area(self) -> float:
+        return self.bounding_box[0] * self.bounding_box[1]
+
+
+@dataclass(slots=True)
+class SubCircuitInstance:
+    """Placed instance of a frozen subcircuit inside a parent composition."""
+
+    layout_id: SubCircuitId
+    origin: Point
+    rotation: float = 0.0
+    access_policy: SubcircuitAccessPolicy = SubcircuitAccessPolicy.INTERFACE_ONLY
+    transformed_bbox: tuple[float, float] = (0.0, 0.0)
+
+
+@dataclass
+class HierarchyLevelState:
+    """Composition state for one hierarchy level."""
+
+    subcircuit: SubCircuitDefinition
+    child_instances: list[SubCircuitInstance] = field(default_factory=list)
+    local_components: dict[str, Component] = field(default_factory=dict)
+    interconnect_nets: dict[str, Net] = field(default_factory=dict)
+    board_outline: tuple[Point, Point] = field(
+        default_factory=lambda: (Point(0, 0), Point(0, 0))
+    )
+    constraints: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
