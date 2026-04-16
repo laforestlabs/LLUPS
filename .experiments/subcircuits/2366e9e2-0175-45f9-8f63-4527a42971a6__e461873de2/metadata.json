@@ -17,7 +17,7 @@
     "J2",
     "J3"
   ],
-  "config_hash": "9f66edf6bd981998148ad4072bf8c668a017c9c05431e253dde793241ef77ad2",
+  "config_hash": "576ecb228286a6be07033393bd014bf8d4a5b420bf76a47d5b74933b5d12b38c",
   "external_nets": [
     "/5V",
     "/CHG_N",
@@ -112,7 +112,7 @@
     "solved by solve_subcircuits.py",
     "best_round=0",
     "best_seed=230992070",
-    "best_score=75.923",
+    "best_score=75.967",
     "rounds=1",
     "solved_component_count=7",
     "canonical_layout_schema=subcircuits.layout.v1",

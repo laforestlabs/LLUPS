@@ -7,14 +7,14 @@
           "board_containment": 100.0,
           "compactness": 40.93342600639091,
           "courtyard_overlap": 100.0,
-          "crossover_count": 1,
-          "crossover_score": 91.83673469387756,
+          "crossover_count": 0,
+          "crossover_score": 100,
           "edge_compliance": 100.0,
           "group_coherence": 100.0,
-          "net_distance": 80.60789509436947,
+          "net_distance": 74.85776097906177,
           "rotation_score": 100.0,
           "smt_opposite_tht": 100.0,
-          "total": 92.86495714191841
+          "total": 93.06931539165275
         },
         "round_index": 0,
         "routed": true,
@@ -24,13 +24,13 @@
           "failed_internal_nets": [],
           "freerouting_stats": {
             "_raw_stderr": "",
-            "_raw_stdout": "2026-04-16 09:02:26.217 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\n2026-04-16 09:02:26.249 [main] INFO  Settings were loaded from freerouting.json\n2026-04-16 09:02:27.257 [main] INFO  Opening '/tmp/tmp3pj6b3np/board.dsn'...\n2026-04-16 09:02:27.526 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\n2026-04-16 09:02:28.064 [Thread-23] INFO  Starting auto-routing...\n2026-04-16 09:02:28.289 [Thread-23] INFO  Auto-routing was completed in 0.22 seconds.\n2026-04-16 09:02:28.390 [Thread-23] INFO  Starting route optimization on 1 thread...\n2026-04-16 09:02:28.496 [Thread-23] INFO  Route optimization was completed in 0.10 seconds.\n2026-04-16 09:02:28.503 [Thread-23] INFO  Saving '/tmp/tmp3pj6b3np/board.ses'...\n",
+            "_raw_stdout": "2026-04-16 13:55:54.390 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\n2026-04-16 13:55:54.421 [main] INFO  Settings were loaded from freerouting.json\n2026-04-16 13:55:55.431 [main] INFO  Opening '/tmp/tmprmo3dmo2/board.dsn'...\n2026-04-16 13:55:55.705 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\n2026-04-16 13:55:56.385 [Thread-23] INFO  Starting auto-routing...\n2026-04-16 13:55:56.584 [Thread-23] INFO  Auto-routing was completed in 0.20 seconds.\n2026-04-16 13:55:56.685 [Thread-23] INFO  Starting route optimization on 1 thread...\n2026-04-16 13:55:56.811 [Thread-23] INFO  Route optimization was completed in 0.12 seconds.\n2026-04-16 13:55:56.824 [Thread-23] INFO  Saving '/tmp/tmprmo3dmo2/board.ses'...\n",
             "cleared_zones_before_export": true,
-            "optimization_seconds": 0.1,
+            "optimization_seconds": 0.12,
             "passes": 0,
             "preserved_existing_copper": false,
             "returncode": 0,
-            "routing_seconds": 0.22,
+            "routing_seconds": 0.2,
             "score": 0.0,
             "unrouted": -1,
             "violations": -1
@@ -139,7 +139,7 @@
           ],
           "router": "freerouting",
           "skipped": false,
-          "total_length_mm": 52.3773,
+          "total_length_mm": 65.123758,
           "traces": 30,
           "validation": {
             "accepted": true,
@@ -159,13 +159,13 @@
               "courtyard": 0,
               "missing_cli": false,
               "ran": true,
-              "report_path": "/tmp/tmpfwl45gn_.txt",
-              "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T09:02:33-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+              "report_path": "/tmp/tmpl17y3823.txt",
+              "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T13:56:01-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
               "returncode": 0,
               "shorts": 0,
               "solder_mask_bridge": 0,
               "stderr": "",
-              "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpfwl45gn_.txt\n",
+              "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpl17y3823.txt\n",
               "timed_out": false,
               "total": 0,
               "unconnected": 0,
@@ -191,13 +191,13 @@
                 "courtyard": 0,
                 "missing_cli": false,
                 "ran": true,
-                "report_path": "/tmp/tmpckmg7_jt.txt",
-                "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T09:02:29-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 7 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.1375 mm, 6.9500 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\n    @(8.1375 mm, 12.0500 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 13.0000 mm): Pad 5 [/VBAT] of U3 on F.Cu\n    @(12.8625 mm, 10.0500 mm): Pad 1 [/VBAT] of U6 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 5.0500 mm): Pad 1 [GND] of Q1 on F.Cu\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\n    @(12.8625 mm, 11.9500 mm): Pad 2 [GND] of U6 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 6.9500 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\n    @(7.1375 mm, 5.0500 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 6.0000 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\n    @(5.8625 mm, 12.0500 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(5.8625 mm, 13.9500 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\n    @(7.1375 mm, 6.0000 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+                "report_path": "/tmp/tmpqpkwj0ib.txt",
+                "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T13:55:57-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 7 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.0500 mm, 6.1375 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\n    @(14.9500 mm, 11.1375 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 14.9500 mm): Pad 1 [/VBAT] of U6 on F.Cu\n    @(14.0000 mm, 11.1375 mm): Pad 5 [/VBAT] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 13.0500 mm): Pad 2 [GND] of U6 on F.Cu\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\n    @(7.9500 mm, 3.8625 mm): Pad 1 [GND] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.0500 mm, 3.8625 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\n    @(7.9500 mm, 6.1375 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.0000 mm, 3.8625 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\n    @(14.9500 mm, 8.8625 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.0000 mm, 6.1375 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\n    @(13.0500 mm, 8.8625 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
                 "returncode": 0,
                 "shorts": 0,
                 "solder_mask_bridge": 0,
                 "stderr": "",
-                "stdout": "Found 0 violations\nFound 7 unconnected items\nSaved DRC Report to /tmp/tmpckmg7_jt.txt\n",
+                "stdout": "Found 0 violations\nFound 7 unconnected items\nSaved DRC Report to /tmp/tmpqpkwj0ib.txt\n",
                 "timed_out": false,
                 "total": 7,
                 "unconnected": 7,
@@ -445,14 +445,14 @@
               "summary_json_path": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/diagnostics_summary.json"
             },
             "track_summary": {
-              "total_length_mm": 52.38,
+              "total_length_mm": 65.12,
               "traces": 30,
               "vias": 0
             }
           },
           "vias": 0
         },
-        "score": 92.86495714191841,
+        "score": 93.06931539165275,
         "seed": 547268981
       }
     ],
@@ -462,14 +462,14 @@
         "board_containment": 100.0,
         "compactness": 40.93342600639091,
         "courtyard_overlap": 100.0,
-        "crossover_count": 1,
-        "crossover_score": 91.83673469387756,
+        "crossover_count": 0,
+        "crossover_score": 100,
         "edge_compliance": 100.0,
         "group_coherence": 100.0,
-        "net_distance": 80.60789509436947,
+        "net_distance": 74.85776097906177,
         "rotation_score": 100.0,
         "smt_opposite_tht": 100.0,
-        "total": 92.86495714191841
+        "total": 93.06931539165275
       },
       "round_index": 0,
       "routed": true,
@@ -479,13 +479,13 @@
         "failed_internal_nets": [],
         "freerouting_stats": {
           "_raw_stderr": "",
-          "_raw_stdout": "2026-04-16 09:02:26.217 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\n2026-04-16 09:02:26.249 [main] INFO  Settings were loaded from freerouting.json\n2026-04-16 09:02:27.257 [main] INFO  Opening '/tmp/tmp3pj6b3np/board.dsn'...\n2026-04-16 09:02:27.526 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\n2026-04-16 09:02:28.064 [Thread-23] INFO  Starting auto-routing...\n2026-04-16 09:02:28.289 [Thread-23] INFO  Auto-routing was completed in 0.22 seconds.\n2026-04-16 09:02:28.390 [Thread-23] INFO  Starting route optimization on 1 thread...\n2026-04-16 09:02:28.496 [Thread-23] INFO  Route optimization was completed in 0.10 seconds.\n2026-04-16 09:02:28.503 [Thread-23] INFO  Saving '/tmp/tmp3pj6b3np/board.ses'...\n",
+          "_raw_stdout": "2026-04-16 13:55:54.390 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\n2026-04-16 13:55:54.421 [main] INFO  Settings were loaded from freerouting.json\n2026-04-16 13:55:55.431 [main] INFO  Opening '/tmp/tmprmo3dmo2/board.dsn'...\n2026-04-16 13:55:55.705 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\n2026-04-16 13:55:56.385 [Thread-23] INFO  Starting auto-routing...\n2026-04-16 13:55:56.584 [Thread-23] INFO  Auto-routing was completed in 0.20 seconds.\n2026-04-16 13:55:56.685 [Thread-23] INFO  Starting route optimization on 1 thread...\n2026-04-16 13:55:56.811 [Thread-23] INFO  Route optimization was completed in 0.12 seconds.\n2026-04-16 13:55:56.824 [Thread-23] INFO  Saving '/tmp/tmprmo3dmo2/board.ses'...\n",
           "cleared_zones_before_export": true,
-          "optimization_seconds": 0.1,
+          "optimization_seconds": 0.12,
           "passes": 0,
           "preserved_existing_copper": false,
           "returncode": 0,
-          "routing_seconds": 0.22,
+          "routing_seconds": 0.2,
           "score": 0.0,
           "unrouted": -1,
           "violations": -1
@@ -594,7 +594,7 @@
         ],
         "router": "freerouting",
         "skipped": false,
-        "total_length_mm": 52.3773,
+        "total_length_mm": 65.123758,
         "traces": 30,
         "validation": {
           "accepted": true,
@@ -614,13 +614,13 @@
             "courtyard": 0,
             "missing_cli": false,
             "ran": true,
-            "report_path": "/tmp/tmpfwl45gn_.txt",
-            "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T09:02:33-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+            "report_path": "/tmp/tmpl17y3823.txt",
+            "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T13:56:01-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
             "returncode": 0,
             "shorts": 0,
             "solder_mask_bridge": 0,
             "stderr": "",
-            "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpfwl45gn_.txt\n",
+            "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpl17y3823.txt\n",
             "timed_out": false,
             "total": 0,
             "unconnected": 0,
@@ -646,13 +646,13 @@
               "courtyard": 0,
               "missing_cli": false,
               "ran": true,
-              "report_path": "/tmp/tmpckmg7_jt.txt",
-              "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T09:02:29-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 7 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.1375 mm, 6.9500 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\n    @(8.1375 mm, 12.0500 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 13.0000 mm): Pad 5 [/VBAT] of U3 on F.Cu\n    @(12.8625 mm, 10.0500 mm): Pad 1 [/VBAT] of U6 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 5.0500 mm): Pad 1 [GND] of Q1 on F.Cu\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\n    @(12.8625 mm, 11.9500 mm): Pad 2 [GND] of U6 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 6.9500 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\n    @(7.1375 mm, 5.0500 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 6.0000 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\n    @(5.8625 mm, 12.0500 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(5.8625 mm, 13.9500 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\n    @(7.1375 mm, 6.0000 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+              "report_path": "/tmp/tmpqpkwj0ib.txt",
+              "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T13:55:57-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 7 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.0500 mm, 6.1375 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\n    @(14.9500 mm, 11.1375 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 14.9500 mm): Pad 1 [/VBAT] of U6 on F.Cu\n    @(14.0000 mm, 11.1375 mm): Pad 5 [/VBAT] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 13.0500 mm): Pad 2 [GND] of U6 on F.Cu\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\n    @(7.9500 mm, 3.8625 mm): Pad 1 [GND] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.0500 mm, 3.8625 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\n    @(7.9500 mm, 6.1375 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.0000 mm, 3.8625 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\n    @(14.9500 mm, 8.8625 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.0000 mm, 6.1375 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\n    @(13.0500 mm, 8.8625 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
               "returncode": 0,
               "shorts": 0,
               "solder_mask_bridge": 0,
               "stderr": "",
-              "stdout": "Found 0 violations\nFound 7 unconnected items\nSaved DRC Report to /tmp/tmpckmg7_jt.txt\n",
+              "stdout": "Found 0 violations\nFound 7 unconnected items\nSaved DRC Report to /tmp/tmpqpkwj0ib.txt\n",
               "timed_out": false,
               "total": 7,
               "unconnected": 7,
@@ -900,14 +900,14 @@
             "summary_json_path": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/diagnostics_summary.json"
           },
           "track_summary": {
-            "total_length_mm": 52.38,
+            "total_length_mm": 65.12,
             "traces": 30,
             "vias": 0
           }
         },
         "vias": 0
       },
-      "score": 92.86495714191841,
+      "score": 93.06931539165275,
       "seed": 547268981
     },
     "best_round_routing": {
@@ -916,13 +916,13 @@
       "failed_internal_nets": [],
       "freerouting_stats": {
         "_raw_stderr": "",
-        "_raw_stdout": "2026-04-16 09:02:26.217 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\n2026-04-16 09:02:26.249 [main] INFO  Settings were loaded from freerouting.json\n2026-04-16 09:02:27.257 [main] INFO  Opening '/tmp/tmp3pj6b3np/board.dsn'...\n2026-04-16 09:02:27.526 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\n2026-04-16 09:02:28.064 [Thread-23] INFO  Starting auto-routing...\n2026-04-16 09:02:28.289 [Thread-23] INFO  Auto-routing was completed in 0.22 seconds.\n2026-04-16 09:02:28.390 [Thread-23] INFO  Starting route optimization on 1 thread...\n2026-04-16 09:02:28.496 [Thread-23] INFO  Route optimization was completed in 0.10 seconds.\n2026-04-16 09:02:28.503 [Thread-23] INFO  Saving '/tmp/tmp3pj6b3np/board.ses'...\n",
+        "_raw_stdout": "2026-04-16 13:55:54.390 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\n2026-04-16 13:55:54.421 [main] INFO  Settings were loaded from freerouting.json\n2026-04-16 13:55:55.431 [main] INFO  Opening '/tmp/tmprmo3dmo2/board.dsn'...\n2026-04-16 13:55:55.705 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\n2026-04-16 13:55:56.385 [Thread-23] INFO  Starting auto-routing...\n2026-04-16 13:55:56.584 [Thread-23] INFO  Auto-routing was completed in 0.20 seconds.\n2026-04-16 13:55:56.685 [Thread-23] INFO  Starting route optimization on 1 thread...\n2026-04-16 13:55:56.811 [Thread-23] INFO  Route optimization was completed in 0.12 seconds.\n2026-04-16 13:55:56.824 [Thread-23] INFO  Saving '/tmp/tmprmo3dmo2/board.ses'...\n",
         "cleared_zones_before_export": true,
-        "optimization_seconds": 0.1,
+        "optimization_seconds": 0.12,
         "passes": 0,
         "preserved_existing_copper": false,
         "returncode": 0,
-        "routing_seconds": 0.22,
+        "routing_seconds": 0.2,
         "score": 0.0,
         "unrouted": -1,
         "violations": -1
@@ -1031,7 +1031,7 @@
       ],
       "router": "freerouting",
       "skipped": false,
-      "total_length_mm": 52.3773,
+      "total_length_mm": 65.123758,
       "traces": 30,
       "validation": {
         "accepted": true,
@@ -1051,13 +1051,13 @@
           "courtyard": 0,
           "missing_cli": false,
           "ran": true,
-          "report_path": "/tmp/tmpfwl45gn_.txt",
-          "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T09:02:33-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+          "report_path": "/tmp/tmpl17y3823.txt",
+          "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T13:56:01-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
           "returncode": 0,
           "shorts": 0,
           "solder_mask_bridge": 0,
           "stderr": "",
-          "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpfwl45gn_.txt\n",
+          "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpl17y3823.txt\n",
           "timed_out": false,
           "total": 0,
           "unconnected": 0,
@@ -1083,13 +1083,13 @@
             "courtyard": 0,
             "missing_cli": false,
             "ran": true,
-            "report_path": "/tmp/tmpckmg7_jt.txt",
-            "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T09:02:29-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 7 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.1375 mm, 6.9500 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\n    @(8.1375 mm, 12.0500 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 13.0000 mm): Pad 5 [/VBAT] of U3 on F.Cu\n    @(12.8625 mm, 10.0500 mm): Pad 1 [/VBAT] of U6 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 5.0500 mm): Pad 1 [GND] of Q1 on F.Cu\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\n    @(12.8625 mm, 11.9500 mm): Pad 2 [GND] of U6 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 6.9500 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\n    @(7.1375 mm, 5.0500 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 6.0000 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\n    @(5.8625 mm, 12.0500 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(5.8625 mm, 13.9500 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\n    @(7.1375 mm, 6.0000 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+            "report_path": "/tmp/tmpqpkwj0ib.txt",
+            "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T13:55:57-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 7 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.0500 mm, 6.1375 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\n    @(14.9500 mm, 11.1375 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 14.9500 mm): Pad 1 [/VBAT] of U6 on F.Cu\n    @(14.0000 mm, 11.1375 mm): Pad 5 [/VBAT] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 13.0500 mm): Pad 2 [GND] of U6 on F.Cu\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\n    @(7.9500 mm, 3.8625 mm): Pad 1 [GND] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.0500 mm, 3.8625 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\n    @(7.9500 mm, 6.1375 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.0000 mm, 3.8625 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\n    @(14.9500 mm, 8.8625 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.0000 mm, 6.1375 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\n    @(13.0500 mm, 8.8625 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
             "returncode": 0,
             "shorts": 0,
             "solder_mask_bridge": 0,
             "stderr": "",
-            "stdout": "Found 0 violations\nFound 7 unconnected items\nSaved DRC Report to /tmp/tmpckmg7_jt.txt\n",
+            "stdout": "Found 0 violations\nFound 7 unconnected items\nSaved DRC Report to /tmp/tmpqpkwj0ib.txt\n",
             "timed_out": false,
             "total": 7,
             "unconnected": 7,
@@ -1337,7 +1337,7 @@
           "summary_json_path": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/diagnostics_summary.json"
         },
         "track_summary": {
-          "total_length_mm": 52.38,
+          "total_length_mm": 65.12,
           "traces": 30,
           "vias": 0
         }
@@ -1374,8 +1374,8 @@
       "components": {
         "Q1": {
           "body_center": {
-            "x": 6.0,
-            "y": 6.0
+            "x": 7.0,
+            "y": 5.0
           },
           "height_mm": 3.49,
           "is_through_hole": false,
@@ -1389,8 +1389,8 @@
               "net": "GND",
               "pad_id": "1",
               "pos": {
-                "x": 4.862499999999997,
-                "y": 5.050000000000001
+                "x": 7.95,
+                "y": 3.862499999999997
               },
               "ref": "Q1"
             },
@@ -1399,8 +1399,8 @@
               "net": "Net-(Q1A-G)",
               "pad_id": "2",
               "pos": {
-                "x": 4.862499999999997,
-                "y": 6.0
+                "x": 7.0,
+                "y": 3.862499999999997
               },
               "ref": "Q1"
             },
@@ -1409,8 +1409,8 @@
               "net": "Net-(Q1A-D)",
               "pad_id": "3",
               "pos": {
-                "x": 4.862499999999997,
-                "y": 6.949999999999999
+                "x": 6.049999999999995,
+                "y": 3.862499999999997
               },
               "ref": "Q1"
             },
@@ -1419,8 +1419,8 @@
               "net": "/CELL_NEG",
               "pad_id": "4",
               "pos": {
-                "x": 7.1375,
-                "y": 6.949999999999999
+                "x": 6.049999999999995,
+                "y": 6.137500000000015
               },
               "ref": "Q1"
             },
@@ -1429,8 +1429,8 @@
               "net": "Net-(Q1B-G)",
               "pad_id": "5",
               "pos": {
-                "x": 7.1375,
-                "y": 6.0
+                "x": 7.0,
+                "y": 6.137500000000015
               },
               "ref": "Q1"
             },
@@ -1439,25 +1439,25 @@
               "net": "Net-(Q1A-D)",
               "pad_id": "6",
               "pos": {
-                "x": 7.1375,
-                "y": 5.050000000000001
+                "x": 7.95,
+                "y": 6.137500000000015
               },
               "ref": "Q1"
             }
           ],
           "pos": {
-            "x": 6.0,
-            "y": 6.0
+            "x": 7.0,
+            "y": 5.0
           },
           "ref": "Q1",
-          "rotation": 0.0,
+          "rotation": 270.0,
           "value": "FS8205A",
           "width_mm": 4.19
         },
         "U3": {
           "body_center": {
-            "x": 7.0,
-            "y": 13.0
+            "x": 14.0,
+            "y": 10.0
           },
           "height_mm": 3.49,
           "is_through_hole": false,
@@ -1471,8 +1471,8 @@
               "net": "Net-(Q1A-G)",
               "pad_id": "1",
               "pos": {
-                "x": 5.862499999999997,
-                "y": 12.049999999999999
+                "x": 14.950000000000001,
+                "y": 8.862499999999997
               },
               "ref": "U3"
             },
@@ -1481,8 +1481,8 @@
               "net": "GND",
               "pad_id": "2",
               "pos": {
-                "x": 5.862499999999997,
-                "y": 13.0
+                "x": 14.0,
+                "y": 8.862499999999997
               },
               "ref": "U3"
             },
@@ -1491,8 +1491,8 @@
               "net": "Net-(Q1B-G)",
               "pad_id": "3",
               "pos": {
-                "x": 5.862499999999997,
-                "y": 13.949999999999998
+                "x": 13.05,
+                "y": 8.862499999999997
               },
               "ref": "U3"
             },
@@ -1501,8 +1501,8 @@
               "net": "/VBAT",
               "pad_id": "5",
               "pos": {
-                "x": 8.137500000000003,
-                "y": 13.0
+                "x": 14.0,
+                "y": 11.137500000000003
               },
               "ref": "U3"
             },
@@ -1511,25 +1511,25 @@
               "net": "/CELL_NEG",
               "pad_id": "6",
               "pos": {
-                "x": 8.137500000000003,
-                "y": 12.049999999999999
+                "x": 14.950000000000001,
+                "y": 11.137500000000003
               },
               "ref": "U3"
             }
           ],
           "pos": {
-            "x": 7.0,
-            "y": 13.0
+            "x": 14.0,
+            "y": 10.0
           },
           "ref": "U3",
-          "rotation": 0.0,
+          "rotation": 270.0,
           "value": "HY2113-KB5B",
           "width_mm": 4.19
         },
         "U6": {
           "body_center": {
-            "x": 14.0,
-            "y": 11.0
+            "x": 7.0,
+            "y": 14.0
           },
           "height_mm": 3.49,
           "is_through_hole": false,
@@ -1543,8 +1543,8 @@
               "net": "/VBAT",
               "pad_id": "1",
               "pos": {
-                "x": 12.862499999999997,
-                "y": 10.05
+                "x": 8.137500000000003,
+                "y": 14.95
               },
               "ref": "U6"
             },
@@ -1553,8 +1553,8 @@
               "net": "GND",
               "pad_id": "2",
               "pos": {
-                "x": 12.862499999999997,
-                "y": 11.95
+                "x": 8.137500000000003,
+                "y": 13.049999999999997
               },
               "ref": "U6"
             },
@@ -1563,23 +1563,23 @@
               "net": "/EN",
               "pad_id": "3",
               "pos": {
-                "x": 15.137500000000003,
-                "y": 11.0
+                "x": 5.862499999999997,
+                "y": 14.0
               },
               "ref": "U6"
             }
           ],
           "pos": {
-            "x": 14.0,
-            "y": 11.0
+            "x": 7.0,
+            "y": 14.0
           },
           "ref": "U6",
-          "rotation": 0.0,
+          "rotation": 180.0,
           "value": "LN61CN3302MR-G",
           "width_mm": 4.19
         }
       },
-      "config_hash": "{\"align_large_pairs\": true, \"board_height_mm\": 58.0, \"board_size_overhead_factor\": 2.0, \"board_width_mm\": 90.0, \"component_zones\": {\"BT1\": {\"zone\": \"bottom\"}, \"BT2\": {\"zone\": \"bottom\"}, \"H4\": {\"corner\": \"top-left\"}, \"H86\": {\"corner\": \"bottom-right\"}, \"J1\": {\"edge\": \"left\"}, \"J2\": {\"edge\": \"right\"}, \"J3\": {\"edge\": \"right\"}}, \"connector_edge_inset_mm\": 1.0, \"connector_gap_mm\": 2.0, \"cooling_factor\": 0.97, \"courtyard_padding_mm\": 0.5, \"edge_jitter_mm\": 5.0, \"edge_margin_mm\": 6.0, \"enable_board_size_search\": true, \"force_attract_k\": 0.02, \"force_repel_k\": 200.0, \"freerouting_ignore_nets\": [\"GND\"], \"freerouting_jar\": \"/home/jason/.local/lib/freerouting-1.9.0.jar\", \"freerouting_max_passes\": 40, \"freerouting_timeout_s\": 60, \"gnd_zone_layer\": \"B.Cu\", \"gnd_zone_margin_mm\": 0.5, \"gnd_zone_net\": \"GND\", \"group_labels\": {\"U1\": \"USB INPUT\", \"U2\": \"CHARGER\", \"U3\": \"BATT PROT\", \"U4\": \"BOOST 5V\", \"U5\": \"LDO 3.3V\"}, \"group_source\": \"auto\", \"hierarchical_placement\": true, \"ic_groups\": {\"BT1\": [\"BT2\"], \"U1\": [\"C1\", \"R1\", \"R2\", \"F1\", \"J1\"], \"U2\": [\"C2\", \"C3\", \"C4\", \"R3\", \"R4\", \"R5\", \"R6\", \"R7\", \"R8\", \"RT1\", \"D1\", \"D2\"], \"U3\": [\"Q1\", \"U6\"], \"U4\": [\"C5\", \"C6\", \"C7\", \"L1\", \"D3\"], \"U5\": [\"C8\", \"R9\", \"R10\", \"R11\", \"J2\", \"J3\"]}, \"ignorable_drc_patterns\": [], \"intra_cluster_iters\": 80, \"max_placement_iterations\": 300, \"min_placement_score\": 20.0, \"net_priority\": {}, \"orderedness\": 0.3, \"pad_inset_margin_mm\": 0.3, \"pcb_path\": \"/home/jason/Documents/LLUPS/LLUPS.kicad_pcb\", \"placement_clearance_mm\": 2.5, \"placement_convergence_threshold\": 0.5, \"placement_grid_mm\": 1.0, \"placement_score_every_n\": 1, \"power_nets\": \"{'/5V', '/VSYS_BOOST', '/EN', '5V', '3V3', '/VBAT', 'GND', 'VBUS', '+5V', '/3V3', '/VBUS', 'VBAT', '/CELL_NEG', '3.3V', '/VSYS', '+3V3'}\", \"power_width_mm\": 0.127, \"randomize_group_layout\": false, \"reheat_strength\": 0.1, \"scatter_mode\": \"cluster\", \"signal_flow_order\": [\"U1\", \"U2\", \"U3\", \"U4\", \"U5\"], \"signal_width_mm\": 0.127, \"skip_gnd_routing\": true, \"smt_opposite_tht\": true, \"subcircuit_margin_mm\": 5.0, \"thermal_radius_mm\": 3.0, \"thermal_refs\": [\"U2\", \"U4\"], \"tht_backside_min_area_mm2\": 50.0, \"unlock_all_footprints\": true, \"via_drill_mm\": 0.3, \"via_size_mm\": 0.6}",
+      "config_hash": "{\"align_large_pairs\": true, \"board_height_mm\": 58.0, \"board_size_overhead_factor\": 2.0, \"board_width_mm\": 90.0, \"component_zones\": {\"BT1\": {\"zone\": \"bottom\"}, \"BT2\": {\"zone\": \"bottom\"}, \"H4\": {\"corner\": \"top-left\"}, \"H86\": {\"corner\": \"bottom-right\"}, \"J1\": {\"edge\": \"left\"}, \"J2\": {\"edge\": \"right\"}, \"J3\": {\"edge\": \"right\"}}, \"connector_edge_inset_mm\": 1.0, \"connector_gap_mm\": 2.0, \"cooling_factor\": 0.97, \"courtyard_padding_mm\": 0.5, \"edge_jitter_mm\": 5.0, \"edge_margin_mm\": 6.0, \"enable_board_size_search\": true, \"force_attract_k\": 0.02, \"force_repel_k\": 200.0, \"freerouting_ignore_nets\": [\"GND\"], \"freerouting_jar\": \"/home/jason/.local/lib/freerouting-1.9.0.jar\", \"freerouting_max_passes\": 40, \"freerouting_timeout_s\": 60, \"gnd_zone_layer\": \"B.Cu\", \"gnd_zone_margin_mm\": 0.5, \"gnd_zone_net\": \"GND\", \"group_labels\": {\"U1\": \"USB INPUT\", \"U2\": \"CHARGER\", \"U3\": \"BATT PROT\", \"U4\": \"BOOST 5V\", \"U5\": \"LDO 3.3V\"}, \"group_source\": \"auto\", \"hierarchical_placement\": true, \"ic_groups\": {\"BT1\": [\"BT2\"], \"U1\": [\"C1\", \"R1\", \"R2\", \"F1\", \"J1\"], \"U2\": [\"C2\", \"C3\", \"C4\", \"R3\", \"R4\", \"R5\", \"R6\", \"R7\", \"R8\", \"RT1\", \"D1\", \"D2\"], \"U3\": [\"Q1\", \"U6\"], \"U4\": [\"C5\", \"C6\", \"C7\", \"L1\", \"D3\"], \"U5\": [\"C8\", \"R9\", \"R10\", \"R11\", \"J2\", \"J3\"]}, \"ignorable_drc_patterns\": [], \"intra_cluster_iters\": 80, \"max_placement_iterations\": 300, \"min_placement_score\": 20.0, \"net_priority\": {}, \"orderedness\": 0.3, \"pad_inset_margin_mm\": 0.3, \"pcb_path\": \"/home/jason/Documents/LLUPS/LLUPS.kicad_pcb\", \"placement_clearance_mm\": 2.5, \"placement_convergence_threshold\": 0.5, \"placement_grid_mm\": 1.0, \"placement_score_every_n\": 1, \"power_nets\": \"{'VBAT', '/VBUS', '/VSYS', 'VBUS', 'GND', '5V', '+5V', '+3V3', '/VBAT', '/3V3', '/EN', '/CELL_NEG', '3.3V', '/VSYS_BOOST', '/5V', '3V3'}\", \"power_width_mm\": 0.127, \"randomize_group_layout\": false, \"reheat_strength\": 0.1, \"scatter_mode\": \"cluster\", \"signal_flow_order\": [\"U1\", \"U2\", \"U3\", \"U4\", \"U5\"], \"signal_width_mm\": 0.127, \"skip_gnd_routing\": true, \"smt_opposite_tht\": true, \"subcircuit_margin_mm\": 5.0, \"thermal_radius_mm\": 3.0, \"thermal_refs\": [\"U2\", \"U4\"], \"tht_backside_min_area_mm2\": 50.0, \"unlock_all_footprints\": true, \"via_drill_mm\": 0.3, \"via_size_mm\": 0.6}",
       "frozen": true,
       "instance_path": "/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3",
       "interface_anchors": [
@@ -1591,27 +1591,27 @@
           ],
           "port_name": "EN",
           "pos": {
-            "x": 15.137500000000003,
-            "y": 11.0
+            "x": 5.862499999999997,
+            "y": 14.0
           }
         },
         {
           "layer": "F.Cu",
           "pad_ref": [
-            "U3",
-            "5"
+            "U6",
+            "1"
           ],
           "port_name": "VBAT",
           "pos": {
             "x": 8.137500000000003,
-            "y": 13.0
+            "y": 14.95
           }
         }
       ],
       "notes": [
         "round_index=0",
         "seed=547268981",
-        "routing={\"enabled\": true, \"failed\": false, \"failed_internal_nets\": [], \"freerouting_stats\": {\"_raw_stderr\": \"\", \"_raw_stdout\": \"2026-04-16 09:02:26.217 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\\n2026-04-16 09:02:26.249 [main] INFO  Settings were loaded from freerouting.json\\n2026-04-16 09:02:27.257 [main] INFO  Opening '/tmp/tmp3pj6b3np/board.dsn'...\\n2026-04-16 09:02:27.526 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\\n2026-04-16 09:02:28.064 [Thread-23] INFO  Starting auto-routing...\\n2026-04-16 09:02:28.289 [Thread-23] INFO  Auto-routing was completed in 0.22 seconds.\\n2026-04-16 09:02:28.390 [Thread-23] INFO  Starting route optimization on 1 thread...\\n2026-04-16 09:02:28.496 [Thread-23] INFO  Route optimization was completed in 0.10 seconds.\\n2026-04-16 09:02:28.503 [Thread-23] INFO  Saving '/tmp/tmp3pj6b3np/board.ses'...\\n\", \"cleared_zones_before_export\": true, \"optimization_seconds\": 0.1, \"passes\": 0, \"preserved_existing_copper\": false, \"returncode\": 0, \"routing_seconds\": 0.22, \"score\": 0.0, \"unrouted\": -1, \"violations\": -1}, \"leaf_legality_repair\": {\"attempted\": true, \"diagnostics\": {\"legal\": true, \"locked_overlap_count\": 0, \"overlap_count\": 0, \"overlaps\": [], \"pad_outside_count\": 0, \"pads_outside_board\": []}, \"moved_components\": [], \"pads_outside_board\": [], \"passes\": 1, \"remaining_overlaps\": [], \"resolved\": true}, \"pre_route_board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"reason\": \"\", \"render_diagnostics\": {\"artifact_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc\", \"comparison\": {\"contact_sheet_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_vs_routed_contact_sheet.png\", \"created\": true, \"errors\": []}, \"pre_route\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"rendered\": false, \"violation_count\": 7}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"stage\": \"pre_route\"}, \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"routed\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"rendered\": false, \"violation_count\": 0}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"stage\": \"routed\"}, \"summary_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/diagnostics_summary.json\"}, \"routed_board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"routed_internal_nets\": [\"Net-(Q1A-D)\", \"Net-(Q1A-G)\", \"Net-(Q1B-G)\"], \"router\": \"freerouting\", \"skipped\": false, \"total_length_mm\": 52.3773, \"traces\": 30, \"validation\": {\"accepted\": true, \"anchor_summary\": {\"actual_count\": 2, \"all_required_present\": true, \"expected_count\": 2, \"extra_actual\": [], \"missing_expected\": [], \"missing_required\": [], \"required_count\": 2}, \"board_exists\": true, \"board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"drc\": {\"clearance\": 0, \"courtyard\": 0, \"missing_cli\": false, \"ran\": true, \"report_path\": \"/tmp/tmpfwl45gn_.txt\", \"report_text\": \"** Drc report for leaf_routed.kicad_pcb **\\n** Created on 2026-04-16T09:02:33-0400 **\\n** Report includes: Errors, Warnings **\\n\\n** Found 0 DRC violations **\\n\\n** Found 0 unconnected pads **\\n\\n** Found 0 Footprint errors **\\n\\n** End of Report **\\n\", \"returncode\": 0, \"shorts\": 0, \"solder_mask_bridge\": 0, \"stderr\": \"\", \"stdout\": \"Found 0 violations\\nFound 0 unconnected items\\nSaved DRC Report to /tmp/tmpfwl45gn_.txt\\n\", \"timed_out\": false, \"total\": 0, \"unconnected\": 0, \"violations\": []}, \"malformed_board_geometry\": false, \"obviously_illegal_routed_geometry\": false, \"pre_route_validation\": {\"accepted\": true, \"anchor_summary\": {\"actual_count\": 2, \"all_required_present\": true, \"expected_count\": 2, \"extra_actual\": [], \"missing_expected\": [], \"missing_required\": [], \"required_count\": 2}, \"board_exists\": true, \"board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"drc\": {\"clearance\": 0, \"courtyard\": 0, \"missing_cli\": false, \"ran\": true, \"report_path\": \"/tmp/tmpckmg7_jt.txt\", \"report_text\": \"** Drc report for leaf_pre_freerouting.kicad_pcb **\\n** Created on 2026-04-16T09:02:29-0400 **\\n** Report includes: Errors, Warnings **\\n\\n** Found 0 DRC violations **\\n\\n** Found 7 unconnected pads **\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(7.1375 mm, 6.9500 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\\n    @(8.1375 mm, 12.0500 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(8.1375 mm, 13.0000 mm): Pad 5 [/VBAT] of U3 on F.Cu\\n    @(12.8625 mm, 10.0500 mm): Pad 1 [/VBAT] of U6 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(4.8625 mm, 5.0500 mm): Pad 1 [GND] of Q1 on F.Cu\\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\\n    @(12.8625 mm, 11.9500 mm): Pad 2 [GND] of U6 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(4.8625 mm, 6.9500 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\\n    @(7.1375 mm, 5.0500 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(4.8625 mm, 6.0000 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\\n    @(5.8625 mm, 12.0500 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(5.8625 mm, 13.9500 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\\n    @(7.1375 mm, 6.0000 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\\n\\n** Found 0 Footprint errors **\\n\\n** End of Report **\\n\", \"returncode\": 0, \"shorts\": 0, \"solder_mask_bridge\": 0, \"stderr\": \"\", \"stdout\": \"Found 0 violations\\nFound 7 unconnected items\\nSaved DRC Report to /tmp/tmpckmg7_jt.txt\\n\", \"timed_out\": false, \"total\": 7, \"unconnected\": 7, \"violations\": [{\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}]}, \"leaf_legality_repair\": {\"attempted\": true, \"diagnostics\": {\"legal\": true, \"locked_overlap_count\": 0, \"overlap_count\": 0, \"overlaps\": [], \"pad_outside_count\": 0, \"pads_outside_board\": []}, \"moved_components\": [], \"pads_outside_board\": [], \"passes\": 1, \"remaining_overlaps\": [], \"resolved\": true}, \"malformed_board_geometry\": false, \"obviously_illegal_routed_geometry\": false, \"python_exception\": false, \"rejection_reasons\": [], \"render_diagnostics\": {\"artifact_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc\", \"comparison\": {\"contact_sheet_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_vs_routed_contact_sheet.png\", \"created\": true, \"errors\": []}, \"pre_route\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"rendered\": false, \"violation_count\": 7}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"stage\": \"pre_route\"}, \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"routed\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"rendered\": false, \"violation_count\": 0}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"stage\": \"routed\"}, \"summary_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/diagnostics_summary.json\"}, \"track_summary\": {\"total_length_mm\": 0.0, \"traces\": 0, \"vias\": 0}}, \"python_exception\": false, \"rejection_reasons\": [], \"render_diagnostics\": {\"artifact_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc\", \"comparison\": {\"contact_sheet_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_vs_routed_contact_sheet.png\", \"created\": true, \"errors\": []}, \"pre_route\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"rendered\": false, \"violation_count\": 7}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"stage\": \"pre_route\"}, \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"routed\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"rendered\": false, \"violation_count\": 0}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"stage\": \"routed\"}, \"summary_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/diagnostics_summary.json\"}, \"track_summary\": {\"total_length_mm\": 52.38, \"traces\": 30, \"vias\": 0}}, \"vias\": 0}",
+        "routing={\"enabled\": true, \"failed\": false, \"failed_internal_nets\": [], \"freerouting_stats\": {\"_raw_stderr\": \"\", \"_raw_stdout\": \"2026-04-16 13:55:54.390 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\\n2026-04-16 13:55:54.421 [main] INFO  Settings were loaded from freerouting.json\\n2026-04-16 13:55:55.431 [main] INFO  Opening '/tmp/tmprmo3dmo2/board.dsn'...\\n2026-04-16 13:55:55.705 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\\n2026-04-16 13:55:56.385 [Thread-23] INFO  Starting auto-routing...\\n2026-04-16 13:55:56.584 [Thread-23] INFO  Auto-routing was completed in 0.20 seconds.\\n2026-04-16 13:55:56.685 [Thread-23] INFO  Starting route optimization on 1 thread...\\n2026-04-16 13:55:56.811 [Thread-23] INFO  Route optimization was completed in 0.12 seconds.\\n2026-04-16 13:55:56.824 [Thread-23] INFO  Saving '/tmp/tmprmo3dmo2/board.ses'...\\n\", \"cleared_zones_before_export\": true, \"optimization_seconds\": 0.12, \"passes\": 0, \"preserved_existing_copper\": false, \"returncode\": 0, \"routing_seconds\": 0.2, \"score\": 0.0, \"unrouted\": -1, \"violations\": -1}, \"leaf_legality_repair\": {\"attempted\": true, \"diagnostics\": {\"legal\": true, \"locked_overlap_count\": 0, \"overlap_count\": 0, \"overlaps\": [], \"pad_outside_count\": 0, \"pads_outside_board\": []}, \"moved_components\": [], \"pads_outside_board\": [], \"passes\": 1, \"remaining_overlaps\": [], \"resolved\": true}, \"pre_route_board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"reason\": \"\", \"render_diagnostics\": {\"artifact_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc\", \"comparison\": {\"contact_sheet_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_vs_routed_contact_sheet.png\", \"created\": true, \"errors\": []}, \"pre_route\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"rendered\": false, \"violation_count\": 7}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"stage\": \"pre_route\"}, \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"routed\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"rendered\": false, \"violation_count\": 0}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"stage\": \"routed\"}, \"summary_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/diagnostics_summary.json\"}, \"routed_board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"routed_internal_nets\": [\"Net-(Q1A-D)\", \"Net-(Q1A-G)\", \"Net-(Q1B-G)\"], \"router\": \"freerouting\", \"skipped\": false, \"total_length_mm\": 65.123758, \"traces\": 30, \"validation\": {\"accepted\": true, \"anchor_summary\": {\"actual_count\": 2, \"all_required_present\": true, \"expected_count\": 2, \"extra_actual\": [], \"missing_expected\": [], \"missing_required\": [], \"required_count\": 2}, \"board_exists\": true, \"board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"drc\": {\"clearance\": 0, \"courtyard\": 0, \"missing_cli\": false, \"ran\": true, \"report_path\": \"/tmp/tmpl17y3823.txt\", \"report_text\": \"** Drc report for leaf_routed.kicad_pcb **\\n** Created on 2026-04-16T13:56:01-0400 **\\n** Report includes: Errors, Warnings **\\n\\n** Found 0 DRC violations **\\n\\n** Found 0 unconnected pads **\\n\\n** Found 0 Footprint errors **\\n\\n** End of Report **\\n\", \"returncode\": 0, \"shorts\": 0, \"solder_mask_bridge\": 0, \"stderr\": \"\", \"stdout\": \"Found 0 violations\\nFound 0 unconnected items\\nSaved DRC Report to /tmp/tmpl17y3823.txt\\n\", \"timed_out\": false, \"total\": 0, \"unconnected\": 0, \"violations\": []}, \"malformed_board_geometry\": false, \"obviously_illegal_routed_geometry\": false, \"pre_route_validation\": {\"accepted\": true, \"anchor_summary\": {\"actual_count\": 2, \"all_required_present\": true, \"expected_count\": 2, \"extra_actual\": [], \"missing_expected\": [], \"missing_required\": [], \"required_count\": 2}, \"board_exists\": true, \"board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"drc\": {\"clearance\": 0, \"courtyard\": 0, \"missing_cli\": false, \"ran\": true, \"report_path\": \"/tmp/tmpqpkwj0ib.txt\", \"report_text\": \"** Drc report for leaf_pre_freerouting.kicad_pcb **\\n** Created on 2026-04-16T13:55:57-0400 **\\n** Report includes: Errors, Warnings **\\n\\n** Found 0 DRC violations **\\n\\n** Found 7 unconnected pads **\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(6.0500 mm, 6.1375 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\\n    @(14.9500 mm, 11.1375 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(8.1375 mm, 14.9500 mm): Pad 1 [/VBAT] of U6 on F.Cu\\n    @(14.0000 mm, 11.1375 mm): Pad 5 [/VBAT] of U3 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(8.1375 mm, 13.0500 mm): Pad 2 [GND] of U6 on F.Cu\\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\\n    @(7.9500 mm, 3.8625 mm): Pad 1 [GND] of Q1 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(6.0500 mm, 3.8625 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\\n    @(7.9500 mm, 6.1375 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(7.0000 mm, 3.8625 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\\n    @(14.9500 mm, 8.8625 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(7.0000 mm, 6.1375 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\\n    @(13.0500 mm, 8.8625 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\\n\\n** Found 0 Footprint errors **\\n\\n** End of Report **\\n\", \"returncode\": 0, \"shorts\": 0, \"solder_mask_bridge\": 0, \"stderr\": \"\", \"stdout\": \"Found 0 violations\\nFound 7 unconnected items\\nSaved DRC Report to /tmp/tmpqpkwj0ib.txt\\n\", \"timed_out\": false, \"total\": 7, \"unconnected\": 7, \"violations\": [{\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}]}, \"leaf_legality_repair\": {\"attempted\": true, \"diagnostics\": {\"legal\": true, \"locked_overlap_count\": 0, \"overlap_count\": 0, \"overlaps\": [], \"pad_outside_count\": 0, \"pads_outside_board\": []}, \"moved_components\": [], \"pads_outside_board\": [], \"passes\": 1, \"remaining_overlaps\": [], \"resolved\": true}, \"malformed_board_geometry\": false, \"obviously_illegal_routed_geometry\": false, \"python_exception\": false, \"rejection_reasons\": [], \"render_diagnostics\": {\"artifact_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc\", \"comparison\": {\"contact_sheet_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_vs_routed_contact_sheet.png\", \"created\": true, \"errors\": []}, \"pre_route\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"rendered\": false, \"violation_count\": 7}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"stage\": \"pre_route\"}, \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"routed\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"rendered\": false, \"violation_count\": 0}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"stage\": \"routed\"}, \"summary_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/diagnostics_summary.json\"}, \"track_summary\": {\"total_length_mm\": 0.0, \"traces\": 0, \"vias\": 0}}, \"python_exception\": false, \"rejection_reasons\": [], \"render_diagnostics\": {\"artifact_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc\", \"comparison\": {\"contact_sheet_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_vs_routed_contact_sheet.png\", \"created\": true, \"errors\": []}, \"pre_route\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"rendered\": false, \"violation_count\": 7}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/pre_route_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_pre_freerouting.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"stage\": \"pre_route\"}, \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"routed\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"rendered\": false, \"violation_count\": 0}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/routed_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/leaf_routed.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders\", \"stage\": \"routed\"}, \"summary_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/diagnostics_summary.json\"}, \"track_summary\": {\"total_length_mm\": 65.12, \"traces\": 30, \"vias\": 0}}, \"vias\": 0}",
         "interface_port_count=2",
         "interface_anchor_count=2",
         "all_required_ports_anchored=True"
@@ -1645,7 +1645,7 @@
       ],
       "project_dir": "/home/jason/Documents/LLUPS",
       "schema_version": "subcircuits.layout.v1",
-      "score": 92.86495714191841,
+      "score": 93.06931539165275,
       "sheet_file": "BATT_PROT.kicad_sch",
       "sheet_name": "BATT PROT",
       "solver_version": "subcircuits-m3-placement",
@@ -1659,421 +1659,421 @@
       "traces": [
         {
           "end": {
-            "x": 7.1375,
-            "y": 6.95
+            "x": 5.3941,
+            "y": 3.2113
           },
           "layer": "F.Cu",
-          "length_mm": 1.4142135623730945,
+          "length_mm": 1.0436896090313443,
           "net": "/CELL_NEG",
           "start": {
-            "x": 8.1375,
-            "y": 7.95
+            "x": 6.1321,
+            "y": 2.4733
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 8.1375,
-            "y": 7.95
+            "x": 9.8949,
+            "y": 2.4733
           },
           "layer": "F.Cu",
-          "length_mm": 4.1000000000000005,
+          "length_mm": 8.020005112217822,
           "net": "/CELL_NEG",
           "start": {
-            "x": 8.1375,
-            "y": 12.05
+            "x": 15.5659,
+            "y": 8.1443
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 12.8625,
-            "y": 10.05
+            "x": 6.1321,
+            "y": 2.4733
           },
           "layer": "F.Cu",
-          "length_mm": 4.171930009000631,
+          "length_mm": 3.7627999999999995,
+          "net": "/CELL_NEG",
+          "start": {
+            "x": 9.8949,
+            "y": 2.4733
+          },
+          "width_mm": 0.2
+        },
+        {
+          "end": {
+            "x": 6.05,
+            "y": 6.1375
+          },
+          "layer": "F.Cu",
+          "length_mm": 0.927582675560513,
+          "net": "/CELL_NEG",
+          "start": {
+            "x": 5.3941,
+            "y": 5.4816
+          },
+          "width_mm": 0.2
+        },
+        {
+          "end": {
+            "x": 15.5659,
+            "y": 8.1443
+          },
+          "layer": "F.Cu",
+          "length_mm": 2.3773,
+          "net": "/CELL_NEG",
+          "start": {
+            "x": 15.5659,
+            "y": 10.5216
+          },
+          "width_mm": 0.2
+        },
+        {
+          "end": {
+            "x": 5.3941,
+            "y": 5.4816
+          },
+          "layer": "F.Cu",
+          "length_mm": 2.2703,
+          "net": "/CELL_NEG",
+          "start": {
+            "x": 5.3941,
+            "y": 3.2113
+          },
+          "width_mm": 0.2
+        },
+        {
+          "end": {
+            "x": 15.5659,
+            "y": 10.5216
+          },
+          "layer": "F.Cu",
+          "length_mm": 0.8710141330655891,
+          "net": "/CELL_NEG",
+          "start": {
+            "x": 14.95,
+            "y": 11.1375
+          },
+          "width_mm": 0.2
+        },
+        {
+          "end": {
+            "x": 10.6248,
+            "y": 14.95
+          },
+          "layer": "F.Cu",
+          "length_mm": 4.77325361572167,
           "net": "/VBAT",
           "start": {
-            "x": 9.9125,
-            "y": 13.0
+            "x": 14.0,
+            "y": 11.5748
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 9.9125,
-            "y": 13.0
+            "x": 14.0,
+            "y": 11.5748
           },
           "layer": "F.Cu",
-          "length_mm": 1.7750000000000004,
+          "length_mm": 0.43730000000000047,
           "net": "/VBAT",
           "start": {
+            "x": 14.0,
+            "y": 11.1375
+          },
+          "width_mm": 0.2
+        },
+        {
+          "end": {
             "x": 8.1375,
-            "y": 13.0
+            "y": 14.95
+          },
+          "layer": "F.Cu",
+          "length_mm": 2.487300000000001,
+          "net": "/VBAT",
+          "start": {
+            "x": 10.6248,
+            "y": 14.95
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 10.2427,
-            "y": 14.5698
+            "x": 13.2408,
+            "y": 10.0
           },
           "layer": "F.Cu",
-          "length_mm": 5.115199999999999,
+          "length_mm": 1.0736709365536536,
           "net": "GND",
           "start": {
-            "x": 5.1275,
-            "y": 14.5698
+            "x": 14.0,
+            "y": 9.2408
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 4.8625,
-            "y": 5.05
+            "x": 14.0,
+            "y": 8.8625
           },
           "layer": "F.Cu",
-          "length_mm": 0.4485999999999999,
+          "length_mm": 0.41350000000000087,
           "net": "GND",
           "start": {
-            "x": 4.4139,
-            "y": 5.05
+            "x": 14.0,
+            "y": 8.449
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 3.4918,
-            "y": 11.014
+            "x": 14.0,
+            "y": 8.449
           },
           "layer": "F.Cu",
-          "length_mm": 2.8086281348729676,
+          "length_mm": 6.4862905038242,
           "net": "GND",
           "start": {
-            "x": 5.4778,
-            "y": 13.0
+            "x": 9.4135,
+            "y": 3.8625
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 5.1275,
-            "y": 14.5698
+            "x": 14.0,
+            "y": 9.2408
           },
           "layer": "F.Cu",
-          "length_mm": 0.33120881630778004,
+          "length_mm": 0.3782999999999994,
           "net": "GND",
           "start": {
-            "x": 4.8933,
-            "y": 14.3356
+            "x": 14.0,
+            "y": 8.8625
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 4.4139,
-            "y": 5.05
+            "x": 11.1875,
+            "y": 10.0
           },
           "layer": "F.Cu",
-          "length_mm": 1.3040463258642312,
+          "length_mm": 2.0533,
           "net": "GND",
           "start": {
-            "x": 3.4918,
-            "y": 5.9721
+            "x": 13.2408,
+            "y": 10.0
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 4.8933,
-            "y": 13.5845
+            "x": 9.4135,
+            "y": 3.8625
           },
           "layer": "F.Cu",
-          "length_mm": 0.8266078272070744,
+          "length_mm": 1.4635000000000007,
           "net": "GND",
           "start": {
-            "x": 5.4778,
-            "y": 13.0
+            "x": 7.95,
+            "y": 3.8625
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 3.4918,
-            "y": 5.9721
+            "x": 8.1375,
+            "y": 13.05
           },
           "layer": "F.Cu",
-          "length_mm": 5.041899999999999,
+          "length_mm": 4.313351365237941,
           "net": "GND",
           "start": {
-            "x": 3.4918,
-            "y": 11.014
+            "x": 11.1875,
+            "y": 10.0
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 12.8625,
-            "y": 11.95
+            "x": 6.05,
+            "y": 4.2384
           },
           "layer": "F.Cu",
-          "length_mm": 3.7049566907050364,
-          "net": "GND",
-          "start": {
-            "x": 10.2427,
-            "y": 14.5698
-          },
-          "width_mm": 0.2
-        },
-        {
-          "end": {
-            "x": 5.4778,
-            "y": 13.0
-          },
-          "layer": "F.Cu",
-          "length_mm": 0.3846999999999996,
-          "net": "GND",
-          "start": {
-            "x": 5.8625,
-            "y": 13.0
-          },
-          "width_mm": 0.2
-        },
-        {
-          "end": {
-            "x": 4.8933,
-            "y": 14.3356
-          },
-          "layer": "F.Cu",
-          "length_mm": 0.7510999999999992,
-          "net": "GND",
-          "start": {
-            "x": 4.8933,
-            "y": 13.5845
-          },
-          "width_mm": 0.2
-        },
-        {
-          "end": {
-            "x": 6.1416,
-            "y": 6.0362
-          },
-          "layer": "F.Cu",
-          "length_mm": 0.34250000000000025,
+          "length_mm": 1.025587675432968,
           "net": "Net-(Q1A-D)",
           "start": {
-            "x": 6.1416,
-            "y": 5.6937
+            "x": 6.7752,
+            "y": 4.9636
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 4.8625,
-            "y": 6.95
+            "x": 7.95,
+            "y": 5.6935
           },
           "layer": "F.Cu",
-          "length_mm": 0.3653000000000004,
+          "length_mm": 0.44399999999999995,
           "net": "Net-(Q1A-D)",
           "start": {
-            "x": 5.2278,
-            "y": 6.95
+            "x": 7.95,
+            "y": 6.1375
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 5.2278,
-            "y": 6.95
+            "x": 6.05,
+            "y": 3.8625
           },
           "layer": "F.Cu",
-          "length_mm": 1.2923083532965345,
+          "length_mm": 0.37590000000000057,
           "net": "Net-(Q1A-D)",
           "start": {
-            "x": 6.1416,
-            "y": 6.0362
+            "x": 6.05,
+            "y": 4.2384
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 6.7853,
-            "y": 5.05
+            "x": 6.7752,
+            "y": 4.9636
           },
           "layer": "F.Cu",
-          "length_mm": 0.35219999999999985,
+          "length_mm": 0.4449000000000005,
           "net": "Net-(Q1A-D)",
           "start": {
-            "x": 7.1375,
-            "y": 5.05
+            "x": 7.2201,
+            "y": 4.9636
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 6.1416,
-            "y": 5.6937
+            "x": 7.2201,
+            "y": 4.9636
           },
           "layer": "F.Cu",
-          "length_mm": 0.9103292700995612,
+          "length_mm": 1.0322344791761224,
           "net": "Net-(Q1A-D)",
           "start": {
-            "x": 6.7853,
-            "y": 5.05
+            "x": 7.95,
+            "y": 5.6935
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 4.5103,
-            "y": 6.0
+            "x": 7.0,
+            "y": 3.8625
           },
           "layer": "F.Cu",
-          "length_mm": 0.8680442845846059,
+          "length_mm": 0.3685999999999998,
           "net": "Net-(Q1A-G)",
           "start": {
-            "x": 3.8965,
-            "y": 6.6138
+            "x": 7.0,
+            "y": 3.4939
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 4.8625,
-            "y": 6.0
+            "x": 9.3229,
+            "y": 2.8797
           },
           "layer": "F.Cu",
-          "length_mm": 0.35219999999999985,
+          "length_mm": 7.9579211368296425,
           "net": "Net-(Q1A-G)",
           "start": {
-            "x": 4.5103,
-            "y": 6.0
+            "x": 14.95,
+            "y": 8.5068
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 3.8965,
-            "y": 6.6138
+            "x": 14.95,
+            "y": 8.5068
           },
           "layer": "F.Cu",
-          "length_mm": 3.4701999999999993,
+          "length_mm": 0.35570000000000057,
           "net": "Net-(Q1A-G)",
           "start": {
-            "x": 3.8965,
-            "y": 10.084
+            "x": 14.95,
+            "y": 8.8625
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 3.8965,
-            "y": 10.084
+            "x": 7.0,
+            "y": 3.4939
           },
           "layer": "F.Cu",
-          "length_mm": 2.7803438636255056,
+          "length_mm": 0.8686099700095551,
           "net": "Net-(Q1A-G)",
           "start": {
-            "x": 5.8625,
-            "y": 12.05
+            "x": 7.6142,
+            "y": 2.8797
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 6.168,
-            "y": 6.5911
+            "x": 7.6142,
+            "y": 2.8797
           },
           "layer": "F.Cu",
-          "length_mm": 3.5035,
-          "net": "Net-(Q1B-G)",
+          "length_mm": 1.7087000000000003,
+          "net": "Net-(Q1A-G)",
           "start": {
-            "x": 6.168,
-            "y": 10.0946
+            "x": 9.3229,
+            "y": 2.8797
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 6.8436,
-            "y": 13.3211
+            "x": 7.0,
+            "y": 6.1375
           },
           "layer": "F.Cu",
-          "length_mm": 0.8893989093764398,
+          "length_mm": 0.3591999999999995,
           "net": "Net-(Q1B-G)",
           "start": {
-            "x": 6.2147,
-            "y": 13.95
+            "x": 7.0,
+            "y": 6.4967
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 6.168,
-            "y": 10.0946
+            "x": 9.3658,
+            "y": 8.8625
           },
           "layer": "F.Cu",
-          "length_mm": 0.9554426827392639,
+          "length_mm": 3.6842000000000006,
           "net": "Net-(Q1B-G)",
           "start": {
-            "x": 6.8436,
-            "y": 10.7702
+            "x": 13.05,
+            "y": 8.8625
           },
           "width_mm": 0.2
         },
         {
           "end": {
-            "x": 6.8436,
-            "y": 10.7702
+            "x": 7.0,
+            "y": 6.4967
           },
           "layer": "F.Cu",
-          "length_mm": 2.5508999999999986,
+          "length_mm": 3.345746445862269,
           "net": "Net-(Q1B-G)",
           "start": {
-            "x": 6.8436,
-            "y": 13.3211
-          },
-          "width_mm": 0.2
-        },
-        {
-          "end": {
-            "x": 6.2147,
-            "y": 13.95
-          },
-          "layer": "F.Cu",
-          "length_mm": 0.35219999999999985,
-          "net": "Net-(Q1B-G)",
-          "start": {
-            "x": 5.8625,
-            "y": 13.95
-          },
-          "width_mm": 0.2
-        },
-        {
-          "end": {
-            "x": 7.1375,
-            "y": 6.0
-          },
-          "layer": "F.Cu",
-          "length_mm": 0.37840000000000007,
-          "net": "Net-(Q1B-G)",
-          "start": {
-            "x": 6.7591,
-            "y": 6.0
-          },
-          "width_mm": 0.2
-        },
-        {
-          "end": {
-            "x": 6.7591,
-            "y": 6.0
-          },
-          "layer": "F.Cu",
-          "length_mm": 0.8359416367187364,
-          "net": "Net-(Q1B-G)",
-          "start": {
-            "x": 6.168,
-            "y": 6.5911
+            "x": 9.3658,
+            "y": 8.8625
           },
           "width_mm": 0.2
         }
@@ -2096,13 +2096,13 @@
           "courtyard": 0,
           "missing_cli": false,
           "ran": true,
-          "report_path": "/tmp/tmpfwl45gn_.txt",
-          "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T09:02:33-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+          "report_path": "/tmp/tmpl17y3823.txt",
+          "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T13:56:01-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
           "returncode": 0,
           "shorts": 0,
           "solder_mask_bridge": 0,
           "stderr": "",
-          "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpfwl45gn_.txt\n",
+          "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpl17y3823.txt\n",
           "timed_out": false,
           "total": 0,
           "unconnected": 0,
@@ -2128,13 +2128,13 @@
             "courtyard": 0,
             "missing_cli": false,
             "ran": true,
-            "report_path": "/tmp/tmpckmg7_jt.txt",
-            "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T09:02:29-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 7 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.1375 mm, 6.9500 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\n    @(8.1375 mm, 12.0500 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 13.0000 mm): Pad 5 [/VBAT] of U3 on F.Cu\n    @(12.8625 mm, 10.0500 mm): Pad 1 [/VBAT] of U6 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 5.0500 mm): Pad 1 [GND] of Q1 on F.Cu\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\n    @(12.8625 mm, 11.9500 mm): Pad 2 [GND] of U6 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 6.9500 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\n    @(7.1375 mm, 5.0500 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 6.0000 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\n    @(5.8625 mm, 12.0500 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(5.8625 mm, 13.9500 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\n    @(7.1375 mm, 6.0000 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+            "report_path": "/tmp/tmpqpkwj0ib.txt",
+            "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T13:55:57-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 7 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.0500 mm, 6.1375 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\n    @(14.9500 mm, 11.1375 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 14.9500 mm): Pad 1 [/VBAT] of U6 on F.Cu\n    @(14.0000 mm, 11.1375 mm): Pad 5 [/VBAT] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 13.0500 mm): Pad 2 [GND] of U6 on F.Cu\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\n    @(7.9500 mm, 3.8625 mm): Pad 1 [GND] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.0500 mm, 3.8625 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\n    @(7.9500 mm, 6.1375 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.0000 mm, 3.8625 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\n    @(14.9500 mm, 8.8625 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.0000 mm, 6.1375 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\n    @(13.0500 mm, 8.8625 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
             "returncode": 0,
             "shorts": 0,
             "solder_mask_bridge": 0,
             "stderr": "",
-            "stdout": "Found 0 violations\nFound 7 unconnected items\nSaved DRC Report to /tmp/tmpckmg7_jt.txt\n",
+            "stdout": "Found 0 violations\nFound 7 unconnected items\nSaved DRC Report to /tmp/tmpqpkwj0ib.txt\n",
             "timed_out": false,
             "total": 7,
             "unconnected": 7,
@@ -2382,7 +2382,7 @@
           "summary_json_path": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/diagnostics_summary.json"
         },
         "track_summary": {
-          "total_length_mm": 52.38,
+          "total_length_mm": 65.12,
           "traces": 30,
           "vias": 0
         }
@@ -2422,13 +2422,13 @@
         "courtyard": 0,
         "missing_cli": false,
         "ran": true,
-        "report_path": "/tmp/tmpfwl45gn_.txt",
-        "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T09:02:33-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+        "report_path": "/tmp/tmpl17y3823.txt",
+        "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T13:56:01-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
         "returncode": 0,
         "shorts": 0,
         "solder_mask_bridge": 0,
         "stderr": "",
-        "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpfwl45gn_.txt\n",
+        "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpl17y3823.txt\n",
         "timed_out": false,
         "total": 0,
         "unconnected": 0,
@@ -2454,13 +2454,13 @@
           "courtyard": 0,
           "missing_cli": false,
           "ran": true,
-          "report_path": "/tmp/tmpckmg7_jt.txt",
-          "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T09:02:29-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 7 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.1375 mm, 6.9500 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\n    @(8.1375 mm, 12.0500 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 13.0000 mm): Pad 5 [/VBAT] of U3 on F.Cu\n    @(12.8625 mm, 10.0500 mm): Pad 1 [/VBAT] of U6 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 5.0500 mm): Pad 1 [GND] of Q1 on F.Cu\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\n    @(12.8625 mm, 11.9500 mm): Pad 2 [GND] of U6 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 6.9500 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\n    @(7.1375 mm, 5.0500 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 6.0000 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\n    @(5.8625 mm, 12.0500 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(5.8625 mm, 13.9500 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\n    @(7.1375 mm, 6.0000 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+          "report_path": "/tmp/tmpqpkwj0ib.txt",
+          "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T13:55:57-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 7 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.0500 mm, 6.1375 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\n    @(14.9500 mm, 11.1375 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 14.9500 mm): Pad 1 [/VBAT] of U6 on F.Cu\n    @(14.0000 mm, 11.1375 mm): Pad 5 [/VBAT] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 13.0500 mm): Pad 2 [GND] of U6 on F.Cu\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\n    @(7.9500 mm, 3.8625 mm): Pad 1 [GND] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.0500 mm, 3.8625 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\n    @(7.9500 mm, 6.1375 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.0000 mm, 3.8625 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\n    @(14.9500 mm, 8.8625 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.0000 mm, 6.1375 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\n    @(13.0500 mm, 8.8625 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
           "returncode": 0,
           "shorts": 0,
           "solder_mask_bridge": 0,
           "stderr": "",
-          "stdout": "Found 0 violations\nFound 7 unconnected items\nSaved DRC Report to /tmp/tmpckmg7_jt.txt\n",
+          "stdout": "Found 0 violations\nFound 7 unconnected items\nSaved DRC Report to /tmp/tmpqpkwj0ib.txt\n",
           "timed_out": false,
           "total": 7,
           "unconnected": 7,
@@ -2708,7 +2708,7 @@
         "summary_json_path": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/diagnostics_summary.json"
       },
       "track_summary": {
-        "total_length_mm": 52.38,
+        "total_length_mm": 65.12,
         "traces": 30,
         "vias": 0
       }
@@ -2878,14 +2878,14 @@
           "board_containment": 100.0,
           "compactness": 40.93342600639091,
           "courtyard_overlap": 100.0,
-          "crossover_count": 1,
-          "crossover_score": 91.83673469387756,
+          "crossover_count": 0,
+          "crossover_score": 100,
           "edge_compliance": 100.0,
           "group_coherence": 100.0,
-          "net_distance": 80.60789509436947,
+          "net_distance": 74.85776097906177,
           "rotation_score": 100.0,
           "smt_opposite_tht": 100.0,
-          "total": 92.86495714191841
+          "total": 93.06931539165275
         },
         "round_index": 0,
         "routed": true,
@@ -2895,13 +2895,13 @@
           "failed_internal_nets": [],
           "freerouting_stats": {
             "_raw_stderr": "",
-            "_raw_stdout": "2026-04-16 09:02:26.217 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\n2026-04-16 09:02:26.249 [main] INFO  Settings were loaded from freerouting.json\n2026-04-16 09:02:27.257 [main] INFO  Opening '/tmp/tmp3pj6b3np/board.dsn'...\n2026-04-16 09:02:27.526 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\n2026-04-16 09:02:28.064 [Thread-23] INFO  Starting auto-routing...\n2026-04-16 09:02:28.289 [Thread-23] INFO  Auto-routing was completed in 0.22 seconds.\n2026-04-16 09:02:28.390 [Thread-23] INFO  Starting route optimization on 1 thread...\n2026-04-16 09:02:28.496 [Thread-23] INFO  Route optimization was completed in 0.10 seconds.\n2026-04-16 09:02:28.503 [Thread-23] INFO  Saving '/tmp/tmp3pj6b3np/board.ses'...\n",
+            "_raw_stdout": "2026-04-16 13:55:54.390 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\n2026-04-16 13:55:54.421 [main] INFO  Settings were loaded from freerouting.json\n2026-04-16 13:55:55.431 [main] INFO  Opening '/tmp/tmprmo3dmo2/board.dsn'...\n2026-04-16 13:55:55.705 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\n2026-04-16 13:55:56.385 [Thread-23] INFO  Starting auto-routing...\n2026-04-16 13:55:56.584 [Thread-23] INFO  Auto-routing was completed in 0.20 seconds.\n2026-04-16 13:55:56.685 [Thread-23] INFO  Starting route optimization on 1 thread...\n2026-04-16 13:55:56.811 [Thread-23] INFO  Route optimization was completed in 0.12 seconds.\n2026-04-16 13:55:56.824 [Thread-23] INFO  Saving '/tmp/tmprmo3dmo2/board.ses'...\n",
             "cleared_zones_before_export": true,
-            "optimization_seconds": 0.1,
+            "optimization_seconds": 0.12,
             "passes": 0,
             "preserved_existing_copper": false,
             "returncode": 0,
-            "routing_seconds": 0.22,
+            "routing_seconds": 0.2,
             "score": 0.0,
             "unrouted": -1,
             "violations": -1
@@ -3010,7 +3010,7 @@
           ],
           "router": "freerouting",
           "skipped": false,
-          "total_length_mm": 52.3773,
+          "total_length_mm": 65.123758,
           "traces": 30,
           "validation": {
             "accepted": true,
@@ -3030,13 +3030,13 @@
               "courtyard": 0,
               "missing_cli": false,
               "ran": true,
-              "report_path": "/tmp/tmpfwl45gn_.txt",
-              "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T09:02:33-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+              "report_path": "/tmp/tmpl17y3823.txt",
+              "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T13:56:01-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
               "returncode": 0,
               "shorts": 0,
               "solder_mask_bridge": 0,
               "stderr": "",
-              "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpfwl45gn_.txt\n",
+              "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpl17y3823.txt\n",
               "timed_out": false,
               "total": 0,
               "unconnected": 0,
@@ -3062,13 +3062,13 @@
                 "courtyard": 0,
                 "missing_cli": false,
                 "ran": true,
-                "report_path": "/tmp/tmpckmg7_jt.txt",
-                "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T09:02:29-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 7 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.1375 mm, 6.9500 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\n    @(8.1375 mm, 12.0500 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 13.0000 mm): Pad 5 [/VBAT] of U3 on F.Cu\n    @(12.8625 mm, 10.0500 mm): Pad 1 [/VBAT] of U6 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 5.0500 mm): Pad 1 [GND] of Q1 on F.Cu\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\n    @(12.8625 mm, 11.9500 mm): Pad 2 [GND] of U6 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 6.9500 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\n    @(7.1375 mm, 5.0500 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 6.0000 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\n    @(5.8625 mm, 12.0500 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(5.8625 mm, 13.9500 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\n    @(7.1375 mm, 6.0000 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+                "report_path": "/tmp/tmpqpkwj0ib.txt",
+                "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T13:55:57-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 7 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.0500 mm, 6.1375 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\n    @(14.9500 mm, 11.1375 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 14.9500 mm): Pad 1 [/VBAT] of U6 on F.Cu\n    @(14.0000 mm, 11.1375 mm): Pad 5 [/VBAT] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 13.0500 mm): Pad 2 [GND] of U6 on F.Cu\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\n    @(7.9500 mm, 3.8625 mm): Pad 1 [GND] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.0500 mm, 3.8625 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\n    @(7.9500 mm, 6.1375 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.0000 mm, 3.8625 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\n    @(14.9500 mm, 8.8625 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.0000 mm, 6.1375 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\n    @(13.0500 mm, 8.8625 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
                 "returncode": 0,
                 "shorts": 0,
                 "solder_mask_bridge": 0,
                 "stderr": "",
-                "stdout": "Found 0 violations\nFound 7 unconnected items\nSaved DRC Report to /tmp/tmpckmg7_jt.txt\n",
+                "stdout": "Found 0 violations\nFound 7 unconnected items\nSaved DRC Report to /tmp/tmpqpkwj0ib.txt\n",
                 "timed_out": false,
                 "total": 7,
                 "unconnected": 7,
@@ -3316,14 +3316,14 @@
               "summary_json_path": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/diagnostics_summary.json"
             },
             "track_summary": {
-              "total_length_mm": 52.38,
+              "total_length_mm": 65.12,
               "traces": 30,
               "vias": 0
             }
           },
           "vias": 0
         },
-        "score": 92.86495714191841,
+        "score": 93.06931539165275,
         "seed": 547268981
       },
       "extraction": {
@@ -3414,14 +3414,14 @@
             "board_containment": 100.0,
             "compactness": 40.93342600639091,
             "courtyard_overlap": 100.0,
-            "crossover_count": 1,
-            "crossover_score": 91.83673469387756,
+            "crossover_count": 0,
+            "crossover_score": 100,
             "edge_compliance": 100.0,
             "group_coherence": 100.0,
-            "net_distance": 80.60789509436947,
+            "net_distance": 74.85776097906177,
             "rotation_score": 100.0,
             "smt_opposite_tht": 100.0,
-            "total": 92.86495714191841
+            "total": 93.06931539165275
           },
           "round_index": 0,
           "routed": true,
@@ -3431,13 +3431,13 @@
             "failed_internal_nets": [],
             "freerouting_stats": {
               "_raw_stderr": "",
-              "_raw_stdout": "2026-04-16 09:02:26.217 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\n2026-04-16 09:02:26.249 [main] INFO  Settings were loaded from freerouting.json\n2026-04-16 09:02:27.257 [main] INFO  Opening '/tmp/tmp3pj6b3np/board.dsn'...\n2026-04-16 09:02:27.526 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\n2026-04-16 09:02:28.064 [Thread-23] INFO  Starting auto-routing...\n2026-04-16 09:02:28.289 [Thread-23] INFO  Auto-routing was completed in 0.22 seconds.\n2026-04-16 09:02:28.390 [Thread-23] INFO  Starting route optimization on 1 thread...\n2026-04-16 09:02:28.496 [Thread-23] INFO  Route optimization was completed in 0.10 seconds.\n2026-04-16 09:02:28.503 [Thread-23] INFO  Saving '/tmp/tmp3pj6b3np/board.ses'...\n",
+              "_raw_stdout": "2026-04-16 13:55:54.390 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\n2026-04-16 13:55:54.421 [main] INFO  Settings were loaded from freerouting.json\n2026-04-16 13:55:55.431 [main] INFO  Opening '/tmp/tmprmo3dmo2/board.dsn'...\n2026-04-16 13:55:55.705 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\n2026-04-16 13:55:56.385 [Thread-23] INFO  Starting auto-routing...\n2026-04-16 13:55:56.584 [Thread-23] INFO  Auto-routing was completed in 0.20 seconds.\n2026-04-16 13:55:56.685 [Thread-23] INFO  Starting route optimization on 1 thread...\n2026-04-16 13:55:56.811 [Thread-23] INFO  Route optimization was completed in 0.12 seconds.\n2026-04-16 13:55:56.824 [Thread-23] INFO  Saving '/tmp/tmprmo3dmo2/board.ses'...\n",
               "cleared_zones_before_export": true,
-              "optimization_seconds": 0.1,
+              "optimization_seconds": 0.12,
               "passes": 0,
               "preserved_existing_copper": false,
               "returncode": 0,
-              "routing_seconds": 0.22,
+              "routing_seconds": 0.2,
               "score": 0.0,
               "unrouted": -1,
               "violations": -1
@@ -3546,7 +3546,7 @@
             ],
             "router": "freerouting",
             "skipped": false,
-            "total_length_mm": 52.3773,
+            "total_length_mm": 65.123758,
             "traces": 30,
             "validation": {
               "accepted": true,
@@ -3566,13 +3566,13 @@
                 "courtyard": 0,
                 "missing_cli": false,
                 "ran": true,
-                "report_path": "/tmp/tmpfwl45gn_.txt",
-                "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T09:02:33-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+                "report_path": "/tmp/tmpl17y3823.txt",
+                "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T13:56:01-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
                 "returncode": 0,
                 "shorts": 0,
                 "solder_mask_bridge": 0,
                 "stderr": "",
-                "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpfwl45gn_.txt\n",
+                "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpl17y3823.txt\n",
                 "timed_out": false,
                 "total": 0,
                 "unconnected": 0,
@@ -3598,13 +3598,13 @@
                   "courtyard": 0,
                   "missing_cli": false,
                   "ran": true,
-                  "report_path": "/tmp/tmpckmg7_jt.txt",
-                  "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T09:02:29-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 7 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.1375 mm, 6.9500 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\n    @(8.1375 mm, 12.0500 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 13.0000 mm): Pad 5 [/VBAT] of U3 on F.Cu\n    @(12.8625 mm, 10.0500 mm): Pad 1 [/VBAT] of U6 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 5.0500 mm): Pad 1 [GND] of Q1 on F.Cu\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(5.8625 mm, 13.0000 mm): Pad 2 [GND] of U3 on F.Cu\n    @(12.8625 mm, 11.9500 mm): Pad 2 [GND] of U6 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 6.9500 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\n    @(7.1375 mm, 5.0500 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.8625 mm, 6.0000 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\n    @(5.8625 mm, 12.0500 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(5.8625 mm, 13.9500 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\n    @(7.1375 mm, 6.0000 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+                  "report_path": "/tmp/tmpqpkwj0ib.txt",
+                  "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T13:55:57-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 7 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.0500 mm, 6.1375 mm): Pad 4 [/CELL_NEG] of Q1 on F.Cu\n    @(14.9500 mm, 11.1375 mm): Pad 6 [/CELL_NEG] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 14.9500 mm): Pad 1 [/VBAT] of U6 on F.Cu\n    @(14.0000 mm, 11.1375 mm): Pad 5 [/VBAT] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(8.1375 mm, 13.0500 mm): Pad 2 [GND] of U6 on F.Cu\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(14.0000 mm, 8.8625 mm): Pad 2 [GND] of U3 on F.Cu\n    @(7.9500 mm, 3.8625 mm): Pad 1 [GND] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.0500 mm, 3.8625 mm): Pad 3 [Net-(Q1A-D)] of Q1 on F.Cu\n    @(7.9500 mm, 6.1375 mm): Pad 6 [Net-(Q1A-D)] of Q1 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.0000 mm, 3.8625 mm): Pad 2 [Net-(Q1A-G)] of Q1 on F.Cu\n    @(14.9500 mm, 8.8625 mm): Pad 1 [Net-(Q1A-G)] of U3 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(7.0000 mm, 6.1375 mm): Pad 5 [Net-(Q1B-G)] of Q1 on F.Cu\n    @(13.0500 mm, 8.8625 mm): Pad 3 [Net-(Q1B-G)] of U3 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
                   "returncode": 0,
                   "shorts": 0,
                   "solder_mask_bridge": 0,
                   "stderr": "",
-                  "stdout": "Found 0 violations\nFound 7 unconnected items\nSaved DRC Report to /tmp/tmpckmg7_jt.txt\n",
+                  "stdout": "Found 0 violations\nFound 7 unconnected items\nSaved DRC Report to /tmp/tmpqpkwj0ib.txt\n",
                   "timed_out": false,
                   "total": 7,
                   "unconnected": 7,
@@ -3852,14 +3852,14 @@
                 "summary_json_path": "/home/jason/Documents/LLUPS/.experiments/subcircuits/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3__99a6f21ddc/renders/diagnostics_summary.json"
               },
               "track_summary": {
-                "total_length_mm": 52.38,
+                "total_length_mm": 65.12,
                 "traces": 30,
                 "vias": 0
               }
             },
             "vias": 0
           },
-          "score": 92.86495714191841,
+          "score": 93.06931539165275,
           "seed": 547268981
         }
       ],
@@ -3871,8 +3871,8 @@
       "components": {
         "Q1": {
           "body_center": {
-            "x": 6.0,
-            "y": 6.0
+            "x": 7.0,
+            "y": 5.0
           },
           "height_mm": 3.49,
           "is_through_hole": false,
@@ -3886,8 +3886,8 @@
               "net": "GND",
               "pad_id": "1",
               "pos": {
-                "x": 4.862499999999997,
-                "y": 5.050000000000001
+                "x": 7.95,
+                "y": 3.862499999999997
               },
               "ref": "Q1"
             },
@@ -3896,8 +3896,8 @@
               "net": "Net-(Q1A-G)",
               "pad_id": "2",
               "pos": {
-                "x": 4.862499999999997,
-                "y": 6.0
+                "x": 7.0,
+                "y": 3.862499999999997
               },
               "ref": "Q1"
             },
@@ -3906,8 +3906,8 @@
               "net": "Net-(Q1A-D)",
               "pad_id": "3",
               "pos": {
-                "x": 4.862499999999997,
-                "y": 6.949999999999999
+                "x": 6.049999999999995,
+                "y": 3.862499999999997
               },
               "ref": "Q1"
             },
@@ -3916,8 +3916,8 @@
               "net": "/CELL_NEG",
               "pad_id": "4",
               "pos": {
-                "x": 7.1375,
-                "y": 6.949999999999999
+                "x": 6.049999999999995,
+                "y": 6.137500000000015
               },
               "ref": "Q1"
             },
@@ -3926,8 +3926,8 @@
               "net": "Net-(Q1B-G)",
               "pad_id": "5",
               "pos": {
-                "x": 7.1375,
-                "y": 6.0
+                "x": 7.0,
+                "y": 6.137500000000015
               },
               "ref": "Q1"
             },
@@ -3936,25 +3936,25 @@
               "net": "Net-(Q1A-D)",
               "pad_id": "6",
               "pos": {
-                "x": 7.1375,
-                "y": 5.050000000000001
+                "x": 7.95,
+                "y": 6.137500000000015
               },
               "ref": "Q1"
             }
           ],
           "pos": {
-            "x": 6.0,
-            "y": 6.0
+            "x": 7.0,
+            "y": 5.0
           },
           "ref": "Q1",
-          "rotation": 0.0,
+          "rotation": 270.0,
           "value": "FS8205A",
           "width_mm": 4.19
         },
         "U3": {
           "body_center": {
-            "x": 7.0,
-            "y": 13.0
+            "x": 14.0,
+            "y": 10.0
           },
           "height_mm": 3.49,
           "is_through_hole": false,
@@ -3968,8 +3968,8 @@
               "net": "Net-(Q1A-G)",
               "pad_id": "1",
               "pos": {
-                "x": 5.862499999999997,
-                "y": 12.049999999999999
+                "x": 14.950000000000001,
+                "y": 8.862499999999997
               },
               "ref": "U3"
             },
@@ -3978,8 +3978,8 @@
               "net": "GND",
               "pad_id": "2",
               "pos": {
-                "x": 5.862499999999997,
-                "y": 13.0
+                "x": 14.0,
+                "y": 8.862499999999997
               },
               "ref": "U3"
             },
@@ -3988,8 +3988,8 @@
               "net": "Net-(Q1B-G)",
               "pad_id": "3",
               "pos": {
-                "x": 5.862499999999997,
-                "y": 13.949999999999998
+                "x": 13.05,
+                "y": 8.862499999999997
               },
               "ref": "U3"
             },
@@ -3998,8 +3998,8 @@
               "net": "/VBAT",
               "pad_id": "5",
               "pos": {
-                "x": 8.137500000000003,
-                "y": 13.0
+                "x": 14.0,
+                "y": 11.137500000000003
               },
               "ref": "U3"
             },
@@ -4008,25 +4008,25 @@
               "net": "/CELL_NEG",
               "pad_id": "6",
               "pos": {
-                "x": 8.137500000000003,
-                "y": 12.049999999999999
+                "x": 14.950000000000001,
+                "y": 11.137500000000003
               },
               "ref": "U3"
             }
           ],
           "pos": {
-            "x": 7.0,
-            "y": 13.0
+            "x": 14.0,
+            "y": 10.0
           },
           "ref": "U3",
-          "rotation": 0.0,
+          "rotation": 270.0,
           "value": "HY2113-KB5B",
           "width_mm": 4.19
         },
         "U6": {
           "body_center": {
-            "x": 14.0,
-            "y": 11.0
+            "x": 7.0,
+            "y": 14.0
           },
           "height_mm": 3.49,
           "is_through_hole": false,
@@ -4040,8 +4040,8 @@
               "net": "/VBAT",
               "pad_id": "1",
               "pos": {
-                "x": 12.862499999999997,
-                "y": 10.05
+                "x": 8.137500000000003,
+                "y": 14.95
               },
               "ref": "U6"
             },
@@ -4050,8 +4050,8 @@
               "net": "GND",
               "pad_id": "2",
               "pos": {
-                "x": 12.862499999999997,
-                "y": 11.95
+                "x": 8.137500000000003,
+                "y": 13.049999999999997
               },
               "ref": "U6"
             },
@@ -4060,18 +4060,18 @@
               "net": "/EN",
               "pad_id": "3",
               "pos": {
-                "x": 15.137500000000003,
-                "y": 11.0
+                "x": 5.862499999999997,
+                "y": 14.0
               },
               "ref": "U6"
             }
           ],
           "pos": {
-            "x": 14.0,
-            "y": 11.0
+            "x": 7.0,
+            "y": 14.0
           },
           "ref": "U6",
-          "rotation": 0.0,
+          "rotation": 180.0,
           "value": "LN61CN3302MR-G",
           "width_mm": 4.19
         }
@@ -4140,7 +4140,7 @@
       "solved by solve_subcircuits.py",
       "best_round=0",
       "best_seed=547268981",
-      "best_score=92.865",
+      "best_score=93.069",
       "rounds=1",
       "solved_component_count=3",
       "canonical_layout_schema=subcircuits.layout.v1",
@@ -4172,7 +4172,7 @@
       "U6",
       "Q1"
     ],
-    "config_hash": "9f66edf6bd981998148ad4072bf8c668a017c9c05431e253dde793241ef77ad2",
+    "config_hash": "576ecb228286a6be07033393bd014bf8d4a5b420bf76a47d5b74933b5d12b38c",
     "external_nets": [
       "/CELL_NEG",
       "/EN",
@@ -4229,7 +4229,7 @@
       "solved by solve_subcircuits.py",
       "best_round=0",
       "best_seed=547268981",
-      "best_score=92.865",
+      "best_score=93.069",
       "rounds=1",
       "solved_component_count=3",
       "canonical_layout_schema=subcircuits.layout.v1",

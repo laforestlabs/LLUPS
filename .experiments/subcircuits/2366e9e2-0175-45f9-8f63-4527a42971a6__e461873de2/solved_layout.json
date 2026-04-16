@@ -31,7 +31,7 @@
   "components": {
     "C8": {
       "body_center": {
-        "x": 2.0000000000000018,
+        "x": 1.9999999999999982,
         "y": 8.0
       },
       "height_mm": 1.01,
@@ -46,7 +46,7 @@
           "net": "/3V3",
           "pad_id": "1",
           "pos": {
-            "x": 2.0000000000000018,
+            "x": 1.9999999999999982,
             "y": 8.480000000000004
           },
           "ref": "C8"
@@ -56,7 +56,7 @@
           "net": "GND",
           "pad_id": "2",
           "pos": {
-            "x": 2.0000000000000018,
+            "x": 1.9999999999999982,
             "y": 7.519999999999996
           },
           "ref": "C8"
@@ -197,8 +197,8 @@
     },
     "R10": {
       "body_center": {
-        "x": 19.0,
-        "y": 11.0
+        "x": 36.335,
+        "y": 12.0
       },
       "height_mm": 1.03,
       "is_through_hole": false,
@@ -212,8 +212,8 @@
           "net": "Net-(U4-FB)",
           "pad_id": "1",
           "pos": {
-            "x": 19.510000000000005,
-            "y": 11.0
+            "x": 35.824999999999996,
+            "y": 12.0
           },
           "ref": "R10"
         },
@@ -222,25 +222,25 @@
           "net": "GND",
           "pad_id": "2",
           "pos": {
-            "x": 18.489999999999995,
-            "y": 11.0
+            "x": 36.845000000000006,
+            "y": 12.0
           },
           "ref": "R10"
         }
       ],
       "pos": {
-        "x": 19.0,
-        "y": 11.0
+        "x": 36.335,
+        "y": 12.0
       },
       "ref": "R10",
-      "rotation": 180.0,
+      "rotation": 0.0,
       "value": "10k",
       "width_mm": 1.95
     },
     "R11": {
       "body_center": {
-        "x": 37.0,
-        "y": 11.0
+        "x": 24.0,
+        "y": 9.0
       },
       "height_mm": 1.03,
       "is_through_hole": false,
@@ -254,8 +254,8 @@
           "net": "/VSYS",
           "pad_id": "1",
           "pos": {
-            "x": 37.51,
-            "y": 11.0
+            "x": 24.0,
+            "y": 8.490000000000002
           },
           "ref": "R11"
         },
@@ -264,25 +264,25 @@
           "net": "/EN",
           "pad_id": "2",
           "pos": {
-            "x": 36.49,
-            "y": 11.0
+            "x": 24.0,
+            "y": 9.509999999999998
           },
           "ref": "R11"
         }
       ],
       "pos": {
-        "x": 37.0,
-        "y": 11.0
+        "x": 24.0,
+        "y": 9.0
       },
       "ref": "R11",
-      "rotation": 180.0,
+      "rotation": 270.0,
       "value": "100k",
       "width_mm": 1.95
     },
     "R9": {
       "body_center": {
         "x": 25.0,
-        "y": 12.0
+        "y": 13.0
       },
       "height_mm": 1.03,
       "is_through_hole": false,
@@ -296,8 +296,8 @@
           "net": "/5V",
           "pad_id": "1",
           "pos": {
-            "x": 25.510000000000005,
-            "y": 12.0
+            "x": 25.0,
+            "y": 12.489999999999995
           },
           "ref": "R9"
         },
@@ -306,25 +306,25 @@
           "net": "Net-(U4-FB)",
           "pad_id": "2",
           "pos": {
-            "x": 24.489999999999995,
-            "y": 12.0
+            "x": 25.0,
+            "y": 13.510000000000005
           },
           "ref": "R9"
         }
       ],
       "pos": {
         "x": 25.0,
-        "y": 12.0
+        "y": 13.0
       },
       "ref": "R9",
-      "rotation": 180.0,
+      "rotation": 270.0,
       "value": "75k",
       "width_mm": 1.95
     },
     "U5": {
       "body_center": {
-        "x": 31.0,
-        "y": 12.0
+        "x": 30.665,
+        "y": 11.0
       },
       "height_mm": 3.49,
       "is_through_hole": false,
@@ -338,8 +338,8 @@
           "net": "/5V",
           "pad_id": "1",
           "pos": {
-            "x": 30.049999999999997,
-            "y": 13.137500000000003
+            "x": 29.714999999999996,
+            "y": 12.137500000000003
           },
           "ref": "U5"
         },
@@ -348,8 +348,8 @@
           "net": "GND",
           "pad_id": "2",
           "pos": {
-            "x": 31.0,
-            "y": 13.137500000000003
+            "x": 30.665,
+            "y": 12.137500000000003
           },
           "ref": "U5"
         },
@@ -358,8 +358,8 @@
           "net": "/EN",
           "pad_id": "3",
           "pos": {
-            "x": 31.949999999999996,
-            "y": 13.137500000000003
+            "x": 31.615,
+            "y": 12.137500000000003
           },
           "ref": "U5"
         },
@@ -368,15 +368,15 @@
           "net": "/3V3",
           "pad_id": "5",
           "pos": {
-            "x": 30.049999999999997,
-            "y": 10.86249999999999
+            "x": 29.714999999999996,
+            "y": 9.862499999999986
           },
           "ref": "U5"
         }
       ],
       "pos": {
-        "x": 31.0,
-        "y": 12.0
+        "x": 30.665,
+        "y": 11.0
       },
       "ref": "U5",
       "rotation": 90.0,
@@ -384,20 +384,20 @@
       "width_mm": 4.19
     }
   },
-  "config_hash": "{\"align_large_pairs\": true, \"board_height_mm\": 58.0, \"board_size_overhead_factor\": 2.0, \"board_width_mm\": 90.0, \"component_zones\": {\"BT1\": {\"zone\": \"bottom\"}, \"BT2\": {\"zone\": \"bottom\"}, \"H4\": {\"corner\": \"top-left\"}, \"H86\": {\"corner\": \"bottom-right\"}, \"J1\": {\"edge\": \"left\"}, \"J2\": {\"edge\": \"right\"}, \"J3\": {\"edge\": \"right\"}}, \"connector_edge_inset_mm\": 1.0, \"connector_gap_mm\": 2.0, \"cooling_factor\": 0.97, \"courtyard_padding_mm\": 0.5, \"edge_jitter_mm\": 5.0, \"edge_margin_mm\": 6.0, \"enable_board_size_search\": true, \"force_attract_k\": 0.02, \"force_repel_k\": 200.0, \"freerouting_ignore_nets\": [\"GND\"], \"freerouting_jar\": \"/home/jason/.local/lib/freerouting-1.9.0.jar\", \"freerouting_max_passes\": 40, \"freerouting_timeout_s\": 60, \"gnd_zone_layer\": \"B.Cu\", \"gnd_zone_margin_mm\": 0.5, \"gnd_zone_net\": \"GND\", \"group_labels\": {\"U1\": \"USB INPUT\", \"U2\": \"CHARGER\", \"U3\": \"BATT PROT\", \"U4\": \"BOOST 5V\", \"U5\": \"LDO 3.3V\"}, \"group_source\": \"auto\", \"hierarchical_placement\": true, \"ic_groups\": {\"BT1\": [\"BT2\"], \"U1\": [\"C1\", \"R1\", \"R2\", \"F1\", \"J1\"], \"U2\": [\"C2\", \"C3\", \"C4\", \"R3\", \"R4\", \"R5\", \"R6\", \"R7\", \"R8\", \"RT1\", \"D1\", \"D2\"], \"U3\": [\"Q1\", \"U6\"], \"U4\": [\"C5\", \"C6\", \"C7\", \"L1\", \"D3\"], \"U5\": [\"C8\", \"R9\", \"R10\", \"R11\", \"J2\", \"J3\"]}, \"ignorable_drc_patterns\": [], \"intra_cluster_iters\": 80, \"max_placement_iterations\": 300, \"min_placement_score\": 20.0, \"net_priority\": {}, \"orderedness\": 0.3, \"pad_inset_margin_mm\": 0.3, \"pcb_path\": \"/home/jason/Documents/LLUPS/LLUPS.kicad_pcb\", \"placement_clearance_mm\": 2.5, \"placement_convergence_threshold\": 0.5, \"placement_grid_mm\": 1.0, \"placement_score_every_n\": 1, \"power_nets\": \"{'/5V', '/VSYS_BOOST', '/EN', '5V', '3V3', '/VBAT', 'GND', 'VBUS', '+5V', '/3V3', '/VBUS', 'VBAT', '/CELL_NEG', '3.3V', '/VSYS', '+3V3'}\", \"power_width_mm\": 0.127, \"randomize_group_layout\": false, \"reheat_strength\": 0.1, \"scatter_mode\": \"cluster\", \"signal_flow_order\": [\"U1\", \"U2\", \"U3\", \"U4\", \"U5\"], \"signal_width_mm\": 0.127, \"skip_gnd_routing\": true, \"smt_opposite_tht\": true, \"subcircuit_margin_mm\": 5.0, \"thermal_radius_mm\": 3.0, \"thermal_refs\": [\"U2\", \"U4\"], \"tht_backside_min_area_mm2\": 50.0, \"unlock_all_footprints\": true, \"via_drill_mm\": 0.3, \"via_size_mm\": 0.6}",
+  "config_hash": "{\"align_large_pairs\": true, \"board_height_mm\": 58.0, \"board_size_overhead_factor\": 2.0, \"board_width_mm\": 90.0, \"component_zones\": {\"BT1\": {\"zone\": \"bottom\"}, \"BT2\": {\"zone\": \"bottom\"}, \"H4\": {\"corner\": \"top-left\"}, \"H86\": {\"corner\": \"bottom-right\"}, \"J1\": {\"edge\": \"left\"}, \"J2\": {\"edge\": \"right\"}, \"J3\": {\"edge\": \"right\"}}, \"connector_edge_inset_mm\": 1.0, \"connector_gap_mm\": 2.0, \"cooling_factor\": 0.97, \"courtyard_padding_mm\": 0.5, \"edge_jitter_mm\": 5.0, \"edge_margin_mm\": 6.0, \"enable_board_size_search\": true, \"force_attract_k\": 0.02, \"force_repel_k\": 200.0, \"freerouting_ignore_nets\": [\"GND\"], \"freerouting_jar\": \"/home/jason/.local/lib/freerouting-1.9.0.jar\", \"freerouting_max_passes\": 40, \"freerouting_timeout_s\": 60, \"gnd_zone_layer\": \"B.Cu\", \"gnd_zone_margin_mm\": 0.5, \"gnd_zone_net\": \"GND\", \"group_labels\": {\"U1\": \"USB INPUT\", \"U2\": \"CHARGER\", \"U3\": \"BATT PROT\", \"U4\": \"BOOST 5V\", \"U5\": \"LDO 3.3V\"}, \"group_source\": \"auto\", \"hierarchical_placement\": true, \"ic_groups\": {\"BT1\": [\"BT2\"], \"U1\": [\"C1\", \"R1\", \"R2\", \"F1\", \"J1\"], \"U2\": [\"C2\", \"C3\", \"C4\", \"R3\", \"R4\", \"R5\", \"R6\", \"R7\", \"R8\", \"RT1\", \"D1\", \"D2\"], \"U3\": [\"Q1\", \"U6\"], \"U4\": [\"C5\", \"C6\", \"C7\", \"L1\", \"D3\"], \"U5\": [\"C8\", \"R9\", \"R10\", \"R11\", \"J2\", \"J3\"]}, \"ignorable_drc_patterns\": [], \"intra_cluster_iters\": 80, \"max_placement_iterations\": 300, \"min_placement_score\": 20.0, \"net_priority\": {}, \"orderedness\": 0.3, \"pad_inset_margin_mm\": 0.3, \"pcb_path\": \"/home/jason/Documents/LLUPS/LLUPS.kicad_pcb\", \"placement_clearance_mm\": 2.5, \"placement_convergence_threshold\": 0.5, \"placement_grid_mm\": 1.0, \"placement_score_every_n\": 1, \"power_nets\": \"{'VBAT', '/VBUS', '/VSYS', 'VBUS', 'GND', '5V', '+5V', '+3V3', '/VBAT', '/3V3', '/EN', '/CELL_NEG', '3.3V', '/VSYS_BOOST', '/5V', '3V3'}\", \"power_width_mm\": 0.127, \"randomize_group_layout\": false, \"reheat_strength\": 0.1, \"scatter_mode\": \"cluster\", \"signal_flow_order\": [\"U1\", \"U2\", \"U3\", \"U4\", \"U5\"], \"signal_width_mm\": 0.127, \"skip_gnd_routing\": true, \"smt_opposite_tht\": true, \"subcircuit_margin_mm\": 5.0, \"thermal_radius_mm\": 3.0, \"thermal_refs\": [\"U2\", \"U4\"], \"tht_backside_min_area_mm2\": 50.0, \"unlock_all_footprints\": true, \"via_drill_mm\": 0.3, \"via_size_mm\": 0.6}",
   "frozen": true,
   "instance_path": "/2366e9e2-0175-45f9-8f63-4527a42971a6",
   "interface_anchors": [
     {
       "layer": "F.Cu",
       "pad_ref": [
-        "U5",
+        "R9",
         "1"
       ],
       "port_name": "5V",
       "pos": {
-        "x": 30.049999999999997,
-        "y": 13.137500000000003
+        "x": 25.0,
+        "y": 12.489999999999995
       }
     },
     {
@@ -420,8 +420,8 @@
       ],
       "port_name": "EN",
       "pos": {
-        "x": 31.949999999999996,
-        "y": 13.137500000000003
+        "x": 31.615,
+        "y": 12.137500000000003
       }
     },
     {
@@ -452,7 +452,7 @@
   "notes": [
     "round_index=0",
     "seed=230992070",
-    "routing={\"enabled\": true, \"failed\": false, \"failed_internal_nets\": [], \"freerouting_stats\": {\"_raw_stderr\": \"\", \"_raw_stdout\": \"2026-04-16 09:02:48.487 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\\n2026-04-16 09:02:48.516 [main] INFO  Settings were loaded from freerouting.json\\n2026-04-16 09:02:49.525 [main] INFO  Opening '/tmp/tmpchdd6jdy/board.dsn'...\\n2026-04-16 09:02:49.793 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\\n2026-04-16 09:02:50.292 [Thread-23] INFO  Starting auto-routing...\\n2026-04-16 09:02:50.504 [Thread-23] INFO  Auto-routing was completed in 0.21 seconds.\\n2026-04-16 09:02:50.605 [Thread-23] INFO  Starting route optimization on 1 thread...\\n2026-04-16 09:02:51.253 [Thread-23] INFO  Route optimization was completed in 0.65 seconds and it improved the design by ~1.56%.\\n2026-04-16 09:02:51.263 [Thread-23] INFO  Saving '/tmp/tmpchdd6jdy/board.ses'...\\n\", \"cleared_zones_before_export\": true, \"optimization_seconds\": 0.65, \"passes\": 0, \"preserved_existing_copper\": false, \"returncode\": 0, \"routing_seconds\": 0.21, \"score\": 0.0, \"unrouted\": -1, \"violations\": -1}, \"leaf_legality_repair\": {\"attempted\": true, \"diagnostics\": {\"legal\": true, \"locked_overlap_count\": 0, \"overlap_count\": 0, \"overlaps\": [], \"pad_outside_count\": 0, \"pads_outside_board\": []}, \"moved_components\": [\"J3\"], \"pads_outside_board\": [], \"passes\": 1, \"remaining_overlaps\": [], \"resolved\": true}, \"pre_route_board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"reason\": \"\", \"render_diagnostics\": {\"artifact_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2\", \"comparison\": {\"contact_sheet_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_vs_routed_contact_sheet.png\", \"created\": true, \"errors\": []}, \"pre_route\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"rendered\": false, \"violation_count\": 11}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"stage\": \"pre_route\"}, \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"routed\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"rendered\": false, \"violation_count\": 0}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"stage\": \"routed\"}, \"summary_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/diagnostics_summary.json\"}, \"routed_board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"routed_internal_nets\": [\"/3V3\"], \"router\": \"freerouting\", \"skipped\": false, \"total_length_mm\": 168.44721, \"traces\": 41, \"validation\": {\"accepted\": true, \"anchor_summary\": {\"actual_count\": 5, \"all_required_present\": true, \"expected_count\": 5, \"extra_actual\": [], \"missing_expected\": [], \"missing_required\": [], \"required_count\": 5}, \"board_exists\": true, \"board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"drc\": {\"clearance\": 0, \"courtyard\": 0, \"missing_cli\": false, \"ran\": true, \"report_path\": \"/tmp/tmpgprvgkvu.txt\", \"report_text\": \"** Drc report for leaf_routed.kicad_pcb **\\n** Created on 2026-04-16T09:02:56-0400 **\\n** Report includes: Errors, Warnings **\\n\\n** Found 0 DRC violations **\\n\\n** Found 0 unconnected pads **\\n\\n** Found 0 Footprint errors **\\n\\n** End of Report **\\n\", \"returncode\": 0, \"shorts\": 0, \"solder_mask_bridge\": 0, \"stderr\": \"\", \"stdout\": \"Found 0 violations\\nFound 0 unconnected items\\nSaved DRC Report to /tmp/tmpgprvgkvu.txt\\n\", \"timed_out\": false, \"total\": 0, \"unconnected\": 0, \"violations\": []}, \"malformed_board_geometry\": false, \"obviously_illegal_routed_geometry\": false, \"pre_route_validation\": {\"accepted\": true, \"anchor_summary\": {\"actual_count\": 5, \"all_required_present\": true, \"expected_count\": 5, \"extra_actual\": [], \"missing_expected\": [], \"missing_required\": [], \"required_count\": 5}, \"board_exists\": true, \"board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"drc\": {\"clearance\": 0, \"courtyard\": 0, \"missing_cli\": false, \"ran\": true, \"report_path\": \"/tmp/tmpmoyy3l7z.txt\", \"report_text\": \"** Drc report for leaf_pre_freerouting.kicad_pcb **\\n** Created on 2026-04-16T09:02:52-0400 **\\n** Report includes: Errors, Warnings **\\n\\n** Found 0 DRC violations **\\n\\n** Found 11 unconnected pads **\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(11.9195 mm, 2.8150 mm): PTH pad 2 [/3V3] of J2\\n    @(2.0000 mm, 8.4800 mm): Pad 1 [/3V3] of C8 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(30.0500 mm, 10.8625 mm): Pad 5 [/3V3] of U5 on F.Cu\\n    @(11.9195 mm, 2.8150 mm): PTH pad 2 [/3V3] of J2\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(14.4595 mm, 2.8150 mm): PTH pad 1 [/5V] of J2\\n    @(25.5100 mm, 12.0000 mm): Pad 1 [/5V] of R9 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(25.5100 mm, 12.0000 mm): Pad 1 [/5V] of R9 on F.Cu\\n    @(30.0500 mm, 13.1375 mm): Pad 1 [/5V] of U5 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(6.8395 mm, 2.8150 mm): PTH pad 4 [/EN] of J2\\n    @(31.9500 mm, 13.1375 mm): Pad 3 [/EN] of U5 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(31.9500 mm, 13.1375 mm): Pad 3 [/EN] of U5 on F.Cu\\n    @(36.4900 mm, 11.0000 mm): Pad 2 [/EN] of R11 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(4.2995 mm, 2.8150 mm): PTH pad 5 [/VBAT] of J2\\n    @(30.8495 mm, 2.8150 mm): PTH pad 1 [/VBAT] of J3\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(9.3795 mm, 2.8150 mm): PTH pad 3 [GND] of J2\\n    @(2.0000 mm, 7.5200 mm): Pad 2 [GND] of C8 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(18.4900 mm, 11.0000 mm): Pad 2 [GND] of R10 on F.Cu\\n    @(9.3795 mm, 2.8150 mm): PTH pad 3 [GND] of J2\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(18.4900 mm, 11.0000 mm): Pad 2 [GND] of R10 on F.Cu\\n    @(31.0000 mm, 13.1375 mm): Pad 2 [GND] of U5 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(19.5100 mm, 11.0000 mm): Pad 1 [Net-(U4-FB)] of R10 on F.Cu\\n    @(24.4900 mm, 12.0000 mm): Pad 2 [Net-(U4-FB)] of R9 on F.Cu\\n\\n** Found 0 Footprint errors **\\n\\n** End of Report **\\n\", \"returncode\": 0, \"shorts\": 0, \"solder_mask_bridge\": 0, \"stderr\": \"\", \"stdout\": \"Found 0 violations\\nFound 11 unconnected items\\nSaved DRC Report to /tmp/tmpmoyy3l7z.txt\\n\", \"timed_out\": false, \"total\": 11, \"unconnected\": 11, \"violations\": [{\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}]}, \"leaf_legality_repair\": {\"attempted\": true, \"diagnostics\": {\"legal\": true, \"locked_overlap_count\": 0, \"overlap_count\": 0, \"overlaps\": [], \"pad_outside_count\": 0, \"pads_outside_board\": []}, \"moved_components\": [\"J3\"], \"pads_outside_board\": [], \"passes\": 1, \"remaining_overlaps\": [], \"resolved\": true}, \"malformed_board_geometry\": false, \"obviously_illegal_routed_geometry\": false, \"python_exception\": false, \"rejection_reasons\": [], \"render_diagnostics\": {\"artifact_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2\", \"comparison\": {\"contact_sheet_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_vs_routed_contact_sheet.png\", \"created\": true, \"errors\": []}, \"pre_route\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"rendered\": false, \"violation_count\": 11}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"stage\": \"pre_route\"}, \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"routed\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"rendered\": false, \"violation_count\": 0}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"stage\": \"routed\"}, \"summary_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/diagnostics_summary.json\"}, \"track_summary\": {\"total_length_mm\": 0.0, \"traces\": 0, \"vias\": 0}}, \"python_exception\": false, \"rejection_reasons\": [], \"render_diagnostics\": {\"artifact_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2\", \"comparison\": {\"contact_sheet_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_vs_routed_contact_sheet.png\", \"created\": true, \"errors\": []}, \"pre_route\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"rendered\": false, \"violation_count\": 11}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"stage\": \"pre_route\"}, \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"routed\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"rendered\": false, \"violation_count\": 0}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"stage\": \"routed\"}, \"summary_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/diagnostics_summary.json\"}, \"track_summary\": {\"total_length_mm\": 168.45, \"traces\": 41, \"vias\": 2}}, \"vias\": 2}",
+    "routing={\"enabled\": true, \"failed\": false, \"failed_internal_nets\": [], \"freerouting_stats\": {\"_raw_stderr\": \"\", \"_raw_stdout\": \"2026-04-16 13:56:18.193 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\\n2026-04-16 13:56:18.229 [main] INFO  Settings were loaded from freerouting.json\\n2026-04-16 13:56:19.237 [main] INFO  Opening '/tmp/tmp0037aedh/board.dsn'...\\n2026-04-16 13:56:19.634 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\\n2026-04-16 13:56:20.184 [Thread-23] INFO  Starting auto-routing...\\n2026-04-16 13:56:20.591 [Thread-23] INFO  Auto-routing was completed in 0.41 seconds.\\n2026-04-16 13:56:20.692 [Thread-23] INFO  Starting route optimization on 1 thread...\\n2026-04-16 13:56:21.314 [Thread-23] INFO  Route optimization was completed in 0.62 seconds and it improved the design by ~47.58%.\\n2026-04-16 13:56:21.324 [Thread-23] INFO  Saving '/tmp/tmp0037aedh/board.ses'...\\n\", \"cleared_zones_before_export\": true, \"optimization_seconds\": 0.62, \"passes\": 0, \"preserved_existing_copper\": false, \"returncode\": 0, \"routing_seconds\": 0.41, \"score\": 0.0, \"unrouted\": -1, \"violations\": -1}, \"leaf_legality_repair\": {\"attempted\": true, \"diagnostics\": {\"legal\": true, \"locked_overlap_count\": 0, \"overlap_count\": 0, \"overlaps\": [], \"pad_outside_count\": 0, \"pads_outside_board\": []}, \"moved_components\": [\"J3\"], \"pads_outside_board\": [], \"passes\": 1, \"remaining_overlaps\": [], \"resolved\": true}, \"pre_route_board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"reason\": \"\", \"render_diagnostics\": {\"artifact_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2\", \"comparison\": {\"contact_sheet_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_vs_routed_contact_sheet.png\", \"created\": true, \"errors\": []}, \"pre_route\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"rendered\": false, \"violation_count\": 11}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"stage\": \"pre_route\"}, \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"routed\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"rendered\": false, \"violation_count\": 0}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"stage\": \"routed\"}, \"summary_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/diagnostics_summary.json\"}, \"routed_board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"routed_internal_nets\": [\"/3V3\"], \"router\": \"freerouting\", \"skipped\": false, \"total_length_mm\": 178.787634, \"traces\": 40, \"validation\": {\"accepted\": true, \"anchor_summary\": {\"actual_count\": 5, \"all_required_present\": true, \"expected_count\": 5, \"extra_actual\": [], \"missing_expected\": [], \"missing_required\": [], \"required_count\": 5}, \"board_exists\": true, \"board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"drc\": {\"clearance\": 0, \"courtyard\": 0, \"missing_cli\": false, \"ran\": true, \"report_path\": \"/tmp/tmpe7la5qyu.txt\", \"report_text\": \"** Drc report for leaf_routed.kicad_pcb **\\n** Created on 2026-04-16T13:56:26-0400 **\\n** Report includes: Errors, Warnings **\\n\\n** Found 0 DRC violations **\\n\\n** Found 0 unconnected pads **\\n\\n** Found 0 Footprint errors **\\n\\n** End of Report **\\n\", \"returncode\": 0, \"shorts\": 0, \"solder_mask_bridge\": 0, \"stderr\": \"\", \"stdout\": \"Found 0 violations\\nFound 0 unconnected items\\nSaved DRC Report to /tmp/tmpe7la5qyu.txt\\n\", \"timed_out\": false, \"total\": 0, \"unconnected\": 0, \"violations\": []}, \"malformed_board_geometry\": false, \"obviously_illegal_routed_geometry\": false, \"pre_route_validation\": {\"accepted\": true, \"anchor_summary\": {\"actual_count\": 5, \"all_required_present\": true, \"expected_count\": 5, \"extra_actual\": [], \"missing_expected\": [], \"missing_required\": [], \"required_count\": 5}, \"board_exists\": true, \"board_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"drc\": {\"clearance\": 0, \"courtyard\": 0, \"missing_cli\": false, \"ran\": true, \"report_path\": \"/tmp/tmpp5b1i775.txt\", \"report_text\": \"** Drc report for leaf_pre_freerouting.kicad_pcb **\\n** Created on 2026-04-16T13:56:22-0400 **\\n** Report includes: Errors, Warnings **\\n\\n** Found 0 DRC violations **\\n\\n** Found 11 unconnected pads **\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(11.9195 mm, 2.8150 mm): PTH pad 2 [/3V3] of J2\\n    @(2.0000 mm, 8.4800 mm): Pad 1 [/3V3] of C8 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(29.7150 mm, 9.8625 mm): Pad 5 [/3V3] of U5 on F.Cu\\n    @(11.9195 mm, 2.8150 mm): PTH pad 2 [/3V3] of J2\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(14.4595 mm, 2.8150 mm): PTH pad 1 [/5V] of J2\\n    @(25.0000 mm, 12.4900 mm): Pad 1 [/5V] of R9 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(25.0000 mm, 12.4900 mm): Pad 1 [/5V] of R9 on F.Cu\\n    @(29.7150 mm, 12.1375 mm): Pad 1 [/5V] of U5 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(6.8395 mm, 2.8150 mm): PTH pad 4 [/EN] of J2\\n    @(24.0000 mm, 9.5100 mm): Pad 2 [/EN] of R11 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(24.0000 mm, 9.5100 mm): Pad 2 [/EN] of R11 on F.Cu\\n    @(31.6150 mm, 12.1375 mm): Pad 3 [/EN] of U5 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(4.2995 mm, 2.8150 mm): PTH pad 5 [/VBAT] of J2\\n    @(30.8495 mm, 2.8150 mm): PTH pad 1 [/VBAT] of J3\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(9.3795 mm, 2.8150 mm): PTH pad 3 [GND] of J2\\n    @(2.0000 mm, 7.5200 mm): Pad 2 [GND] of C8 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(30.6650 mm, 12.1375 mm): Pad 2 [GND] of U5 on F.Cu\\n    @(36.8450 mm, 12.0000 mm): Pad 2 [GND] of R10 on F.Cu\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(30.6650 mm, 12.1375 mm): Pad 2 [GND] of U5 on F.Cu\\n    @(9.3795 mm, 2.8150 mm): PTH pad 3 [GND] of J2\\n[unconnected_items]: Missing connection between items\\n    Local override; error\\n    @(25.0000 mm, 13.5100 mm): Pad 2 [Net-(U4-FB)] of R9 on F.Cu\\n    @(35.8250 mm, 12.0000 mm): Pad 1 [Net-(U4-FB)] of R10 on F.Cu\\n\\n** Found 0 Footprint errors **\\n\\n** End of Report **\\n\", \"returncode\": 0, \"shorts\": 0, \"solder_mask_bridge\": 0, \"stderr\": \"\", \"stdout\": \"Found 0 violations\\nFound 11 unconnected items\\nSaved DRC Report to /tmp/tmpp5b1i775.txt\\n\", \"timed_out\": false, \"total\": 11, \"unconnected\": 11, \"violations\": [{\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}, {\"description\": \"[unconnected_items]: Missing connection between items\", \"net1\": null, \"net2\": null, \"type\": \"unconnected_items\", \"x_mm\": null, \"y_mm\": null}]}, \"leaf_legality_repair\": {\"attempted\": true, \"diagnostics\": {\"legal\": true, \"locked_overlap_count\": 0, \"overlap_count\": 0, \"overlaps\": [], \"pad_outside_count\": 0, \"pads_outside_board\": []}, \"moved_components\": [\"J3\"], \"pads_outside_board\": [], \"passes\": 1, \"remaining_overlaps\": [], \"resolved\": true}, \"malformed_board_geometry\": false, \"obviously_illegal_routed_geometry\": false, \"python_exception\": false, \"rejection_reasons\": [], \"render_diagnostics\": {\"artifact_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2\", \"comparison\": {\"contact_sheet_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_vs_routed_contact_sheet.png\", \"created\": true, \"errors\": []}, \"pre_route\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"rendered\": false, \"violation_count\": 11}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"stage\": \"pre_route\"}, \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"routed\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"rendered\": false, \"violation_count\": 0}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"stage\": \"routed\"}, \"summary_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/diagnostics_summary.json\"}, \"track_summary\": {\"total_length_mm\": 0.0, \"traces\": 0, \"vias\": 0}}, \"python_exception\": false, \"rejection_reasons\": [], \"render_diagnostics\": {\"artifact_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2\", \"comparison\": {\"contact_sheet_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_vs_routed_contact_sheet.png\", \"created\": true, \"errors\": []}, \"pre_route\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"rendered\": false, \"violation_count\": 11}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/pre_route_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_pre_freerouting.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"stage\": \"pre_route\"}, \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"routed\": {\"board_views\": {\"errors\": [], \"paths\": {\"copper_both\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_copper_both.png\", \"front_all\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_front_all.png\"}, \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"rendered_views\": [\"copper_both\", \"front_all\"], \"requested_views\": [\"copper_both\", \"front_all\"]}, \"drc_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc.json\", \"drc_overlay\": {\"errors\": [\"no_located_violations\"], \"located_violation_count\": 0, \"output_png\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc_overlay.png\", \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"rendered\": false, \"violation_count\": 0}, \"drc_report_text_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/routed_drc_report.txt\", \"errors\": [], \"pcb_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb\", \"renders_dir\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders\", \"stage\": \"routed\"}, \"summary_json_path\": \"/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/diagnostics_summary.json\"}, \"track_summary\": {\"total_length_mm\": 178.79, \"traces\": 40, \"vias\": 1}}, \"vias\": 1}",
     "interface_port_count=5",
     "interface_anchor_count=5",
     "all_required_ports_anchored=True"
@@ -522,7 +522,7 @@
   ],
   "project_dir": "/home/jason/Documents/LLUPS",
   "schema_version": "subcircuits.layout.v1",
-  "score": 75.92256747343386,
+  "score": 75.96736947298541,
   "sheet_file": "LDO_3_3V.kicad_sch",
   "sheet_name": "LDO 3.3V",
   "solver_version": "subcircuits-m3-placement",
@@ -536,67 +536,67 @@
   "traces": [
     {
       "end": {
-        "x": 27.6675,
-        "y": 8.48
+        "x": 11.9195,
+        "y": 2.815
       },
       "layer": "F.Cu",
-      "length_mm": 14.4925,
+      "length_mm": 3.233175046297371,
       "net": "/3V3",
       "start": {
-        "x": 13.175,
-        "y": 8.48
+        "x": 14.2057,
+        "y": 5.1012
       },
       "width_mm": 0.2
     },
     {
       "end": {
-        "x": 30.05,
-        "y": 10.8625
+        "x": 24.9537,
+        "y": 5.1012
       },
       "layer": "F.Cu",
-      "length_mm": 3.369363812353899,
+      "length_mm": 6.733495034527016,
       "net": "/3V3",
       "start": {
-        "x": 27.6675,
-        "y": 8.48
+        "x": 29.715,
+        "y": 9.8625
       },
       "width_mm": 0.2
     },
     {
       "end": {
-        "x": 13.175,
-        "y": 8.48
-      },
-      "layer": "F.Cu",
-      "length_mm": 11.175,
-      "net": "/3V3",
-      "start": {
         "x": 2.0,
         "y": 8.48
       },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 13.175,
-        "y": 8.48
-      },
-      "layer": "B.Cu",
-      "length_mm": 4.4095,
+      "layer": "F.Cu",
+      "length_mm": 4.2545,
       "net": "/3V3",
       "start": {
-        "x": 13.175,
-        "y": 4.0705
+        "x": 6.2545,
+        "y": 8.48
       },
       "width_mm": 0.2
     },
     {
       "end": {
-        "x": 13.175,
-        "y": 4.0705
+        "x": 14.2057,
+        "y": 5.1012
       },
-      "layer": "B.Cu",
-      "length_mm": 1.7755451275594218,
+      "layer": "F.Cu",
+      "length_mm": 10.748000000000001,
+      "net": "/3V3",
+      "start": {
+        "x": 24.9537,
+        "y": 5.1012
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 6.2545,
+        "y": 8.48
+      },
+      "layer": "F.Cu",
+      "length_mm": 8.011519830843584,
       "net": "/3V3",
       "start": {
         "x": 11.9195,
@@ -606,71 +606,57 @@
     },
     {
       "end": {
-        "x": 25.51,
-        "y": 12.0
+        "x": 25.0,
+        "y": 12.49
       },
       "layer": "F.Cu",
-      "length_mm": 1.6086679271993947,
+      "length_mm": 0.49851028073651604,
       "net": "/5V",
       "start": {
-        "x": 26.6475,
-        "y": 13.1375
+        "x": 25.3525,
+        "y": 12.1375
       },
       "width_mm": 0.2
     },
     {
       "end": {
-        "x": 24.6687,
-        "y": 11.1587
+        "x": 25.3525,
+        "y": 12.1375
       },
       "layer": "F.Cu",
-      "length_mm": 1.1897778700244854,
+      "length_mm": 4.362500000000001,
       "net": "/5V",
       "start": {
-        "x": 25.51,
-        "y": 12.0
+        "x": 29.715,
+        "y": 12.1375
       },
       "width_mm": 0.2
     },
     {
       "end": {
-        "x": 26.6475,
-        "y": 13.1375
+        "x": 24.1995,
+        "y": 11.6895
       },
       "layer": "F.Cu",
-      "length_mm": 3.4025,
+      "length_mm": 0.08000000000000185,
       "net": "/5V",
       "start": {
-        "x": 30.05,
-        "y": 13.1375
+        "x": 24.1195,
+        "y": 11.6895
       },
       "width_mm": 0.2
     },
     {
       "end": {
-        "x": 24.5088,
-        "y": 11.1587
+        "x": 25.0,
+        "y": 12.49
       },
       "layer": "F.Cu",
-      "length_mm": 0.15990000000000038,
+      "length_mm": 1.132077956679662,
       "net": "/5V",
       "start": {
-        "x": 24.6687,
-        "y": 11.1587
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 24.5088,
-        "y": 11.1587
-      },
-      "layer": "B.Cu",
-      "length_mm": 0.5539000000000023,
-      "net": "/5V",
-      "start": {
-        "x": 23.9549,
-        "y": 11.1587
+        "x": 24.1995,
+        "y": 11.6895
       },
       "width_mm": 0.2
     },
@@ -690,11 +676,11 @@
     },
     {
       "end": {
-        "x": 23.9549,
-        "y": 11.1587
+        "x": 15.6112,
+        "y": 3.1812
       },
       "layer": "B.Cu",
-      "length_mm": 11.799773700372391,
+      "length_mm": 0.3662000000000001,
       "net": "/5V",
       "start": {
         "x": 15.6112,
@@ -704,25 +690,67 @@
     },
     {
       "end": {
-        "x": 30.8585,
-        "y": 10.2743
+        "x": 24.1195,
+        "y": 11.6895
       },
-      "layer": "F.Cu",
-      "length_mm": 6.9828208855733935,
-      "net": "/EN",
+      "layer": "B.Cu",
+      "length_mm": 12.032553252739003,
+      "net": "/5V",
       "start": {
-        "x": 25.9209,
-        "y": 5.3367
+        "x": 15.6112,
+        "y": 3.1812
       },
       "width_mm": 0.2
     },
     {
       "end": {
-        "x": 9.3612,
-        "y": 5.3367
+        "x": 3.1855,
+        "y": 5.3876
       },
       "layer": "F.Cu",
-      "length_mm": 3.566222340236234,
+      "length_mm": 1.0813999999999995,
+      "net": "/EN",
+      "start": {
+        "x": 4.2669,
+        "y": 5.3876
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 31.615,
+        "y": 12.1375
+      },
+      "layer": "F.Cu",
+      "length_mm": 0.3613999999999997,
+      "net": "/EN",
+      "start": {
+        "x": 31.615,
+        "y": 11.7761
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 31.615,
+        "y": 11.7761
+      },
+      "layer": "F.Cu",
+      "length_mm": 1.0975711457577584,
+      "net": "/EN",
+      "start": {
+        "x": 30.8389,
+        "y": 11.0
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 4.2669,
+        "y": 5.3876
+      },
+      "layer": "F.Cu",
+      "length_mm": 3.6382058105610247,
       "net": "/EN",
       "start": {
         "x": 6.8395,
@@ -732,113 +760,85 @@
     },
     {
       "end": {
-        "x": 31.95,
-        "y": 13.1375
+        "x": 1.3604,
+        "y": 7.2127
       },
       "layer": "F.Cu",
-      "length_mm": 0.7518999999999991,
+      "length_mm": 2.581081172687136,
       "net": "/EN",
       "start": {
-        "x": 31.95,
-        "y": 12.3856
+        "x": 3.1855,
+        "y": 5.3876
       },
       "width_mm": 0.2
     },
     {
       "end": {
-        "x": 31.95,
-        "y": 12.3856
-      },
-      "layer": "F.Cu",
-      "length_mm": 1.543614103330233,
-      "net": "/EN",
-      "start": {
-        "x": 30.8585,
-        "y": 11.2941
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 25.9209,
-        "y": 5.3367
-      },
-      "layer": "F.Cu",
-      "length_mm": 16.5597,
-      "net": "/EN",
-      "start": {
-        "x": 9.3612,
-        "y": 5.3367
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 30.8585,
-        "y": 11.2941
-      },
-      "layer": "F.Cu",
-      "length_mm": 1.0198,
-      "net": "/EN",
-      "start": {
-        "x": 30.8585,
-        "y": 10.2743
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 35.1044,
-        "y": 12.3856
-      },
-      "layer": "F.Cu",
-      "length_mm": 3.154399999999999,
-      "net": "/EN",
-      "start": {
-        "x": 31.95,
-        "y": 12.3856
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 36.49,
+        "x": 25.49,
         "y": 11.0
       },
       "layer": "F.Cu",
-      "length_mm": 1.9595343120241633,
+      "length_mm": 2.1071782079359105,
       "net": "/EN",
       "start": {
-        "x": 35.1044,
-        "y": 12.3856
+        "x": 24.0,
+        "y": 9.51
       },
       "width_mm": 0.2
     },
     {
       "end": {
-        "x": 5.4512,
-        "y": 1.6633
+        "x": 1.3604,
+        "y": 8.7915
       },
-      "layer": "B.Cu",
-      "length_mm": 1.6287497597850935,
-      "net": "/VBAT",
+      "layer": "F.Cu",
+      "length_mm": 1.5787999999999993,
+      "net": "/EN",
       "start": {
-        "x": 4.2995,
-        "y": 2.815
+        "x": 1.3604,
+        "y": 7.2127
       },
       "width_mm": 0.2
     },
     {
       "end": {
-        "x": 29.6978,
-        "y": 2.815
+        "x": 24.0,
+        "y": 9.51
       },
-      "layer": "B.Cu",
-      "length_mm": 1.6287497597850948,
-      "net": "/VBAT",
+      "layer": "F.Cu",
+      "length_mm": 21.9211,
+      "net": "/EN",
       "start": {
-        "x": 28.5461,
-        "y": 1.6633
+        "x": 2.0789,
+        "y": 9.51
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 2.0789,
+        "y": 9.51
+      },
+      "layer": "F.Cu",
+      "length_mm": 1.016112444565069,
+      "net": "/EN",
+      "start": {
+        "x": 1.3604,
+        "y": 8.7915
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 30.8389,
+        "y": 11.0
+      },
+      "layer": "F.Cu",
+      "length_mm": 5.3489,
+      "net": "/EN",
+      "start": {
+        "x": 25.49,
+        "y": 11.0
       },
       "width_mm": 0.2
     },
@@ -862,6 +862,20 @@
         "y": 2.815
       },
       "layer": "B.Cu",
+      "length_mm": 1.6287497597850948,
+      "net": "/VBAT",
+      "start": {
+        "x": 28.5461,
+        "y": 1.6633
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 29.6978,
+        "y": 2.815
+      },
+      "layer": "B.Cu",
       "length_mm": 1.1516999999999982,
       "net": "/VBAT",
       "start": {
@@ -872,207 +886,81 @@
     },
     {
       "end": {
-        "x": 30.2408,
-        "y": 12.0
-      },
-      "layer": "F.Cu",
-      "length_mm": 1.0736709365536536,
-      "net": "GND",
-      "start": {
-        "x": 31.0,
-        "y": 12.7592
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 19.1673,
-        "y": 10.3227
-      },
-      "layer": "F.Cu",
-      "length_mm": 9.025099999999998,
-      "net": "GND",
-      "start": {
-        "x": 28.1924,
-        "y": 10.3227
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 5.5548,
-        "y": 3.9652
-      },
-      "layer": "F.Cu",
-      "length_mm": 1.532,
-      "net": "GND",
-      "start": {
-        "x": 5.5548,
-        "y": 2.4332
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 28.1924,
-        "y": 10.3227
-      },
-      "layer": "F.Cu",
-      "length_mm": 2.3720604081683945,
-      "net": "GND",
-      "start": {
-        "x": 29.8697,
-        "y": 12.0
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 5.5548,
-        "y": 2.4332
-      },
-      "layer": "F.Cu",
-      "length_mm": 1.0888030216710456,
-      "net": "GND",
-      "start": {
-        "x": 6.3247,
+        "x": 5.4512,
         "y": 1.6633
       },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 1.3697,
-        "y": 8.7866
-      },
-      "layer": "F.Cu",
-      "length_mm": 0.6363000000000003,
-      "net": "GND",
-      "start": {
-        "x": 1.3697,
-        "y": 8.1503
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 29.8697,
-        "y": 12.0
-      },
-      "layer": "F.Cu",
-      "length_mm": 0.37109999999999843,
-      "net": "GND",
-      "start": {
-        "x": 30.2408,
-        "y": 12.0
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 18.49,
-        "y": 11.0
-      },
-      "layer": "F.Cu",
-      "length_mm": 14.906899999999998,
-      "net": "GND",
-      "start": {
-        "x": 3.5831,
-        "y": 11.0
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 1.3697,
-        "y": 8.1503
-      },
-      "layer": "F.Cu",
-      "length_mm": 0.8913788083637619,
-      "net": "GND",
-      "start": {
-        "x": 2.0,
-        "y": 7.52
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 6.3247,
-        "y": 1.6633
-      },
-      "layer": "F.Cu",
-      "length_mm": 1.9031000000000002,
-      "net": "GND",
-      "start": {
-        "x": 8.2278,
-        "y": 1.6633
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 18.49,
-        "y": 11.0
-      },
-      "layer": "F.Cu",
-      "length_mm": 0.9578468457952994,
-      "net": "GND",
-      "start": {
-        "x": 19.1673,
-        "y": 10.3227
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 2.0,
-        "y": 7.52
-      },
-      "layer": "F.Cu",
-      "length_mm": 5.027246371523878,
-      "net": "GND",
-      "start": {
-        "x": 5.5548,
-        "y": 3.9652
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 31.0,
-        "y": 12.7592
-      },
-      "layer": "F.Cu",
-      "length_mm": 0.3782999999999994,
-      "net": "GND",
-      "start": {
-        "x": 31.0,
-        "y": 13.1375
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 3.5831,
-        "y": 11.0
-      },
-      "layer": "F.Cu",
-      "length_mm": 3.130220298956609,
-      "net": "GND",
-      "start": {
-        "x": 1.3697,
-        "y": 8.7866
-      },
-      "width_mm": 0.2
-    },
-    {
-      "end": {
-        "x": 8.2278,
-        "y": 1.6633
-      },
-      "layer": "F.Cu",
+      "layer": "B.Cu",
       "length_mm": 1.6287497597850935,
+      "net": "/VBAT",
+      "start": {
+        "x": 4.2995,
+        "y": 2.815
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 31.2686,
+        "y": 13.1023
+      },
+      "layer": "F.Cu",
+      "length_mm": 0.8536193062484003,
+      "net": "GND",
+      "start": {
+        "x": 30.665,
+        "y": 12.4987
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 34.0579,
+        "y": 11.0057
+      },
+      "layer": "F.Cu",
+      "length_mm": 0.0688999999999993,
+      "net": "GND",
+      "start": {
+        "x": 34.0579,
+        "y": 10.9368
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 35.8507,
+        "y": 11.0057
+      },
+      "layer": "F.Cu",
+      "length_mm": 1.7928000000000068,
+      "net": "GND",
+      "start": {
+        "x": 34.0579,
+        "y": 11.0057
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 24.7462,
+        "y": 1.6251
+      },
+      "layer": "F.Cu",
+      "length_mm": 14.176800000000002,
+      "net": "GND",
+      "start": {
+        "x": 10.5694,
+        "y": 1.6251
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 10.5694,
+        "y": 1.6251
+      },
+      "layer": "F.Cu",
+      "length_mm": 1.6827727178677456,
       "net": "GND",
       "start": {
         "x": 9.3795,
@@ -1082,29 +970,127 @@
     },
     {
       "end": {
-        "x": 23.49,
-        "y": 11.0
+        "x": 30.665,
+        "y": 12.4987
       },
       "layer": "F.Cu",
-      "length_mm": 3.979999999999997,
-      "net": "Net-(U4-FB)",
+      "length_mm": 0.3612000000000002,
+      "net": "GND",
       "start": {
-        "x": 19.51,
-        "y": 11.0
+        "x": 30.665,
+        "y": 12.1375
       },
       "width_mm": 0.2
     },
     {
       "end": {
-        "x": 24.49,
+        "x": 34.0579,
+        "y": 11.0057
+      },
+      "layer": "F.Cu",
+      "length_mm": 2.965040154871428,
+      "net": "GND",
+      "start": {
+        "x": 31.9613,
+        "y": 13.1023
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 2.0,
+        "y": 7.52
+      },
+      "layer": "F.Cu",
+      "length_mm": 2.6745,
+      "net": "GND",
+      "start": {
+        "x": 4.6745,
+        "y": 7.52
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 36.845,
         "y": 12.0
       },
       "layer": "F.Cu",
-      "length_mm": 1.4142135623730951,
+      "length_mm": 1.4061525450675658,
+      "net": "GND",
+      "start": {
+        "x": 35.8507,
+        "y": 11.0057
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 31.9613,
+        "y": 13.1023
+      },
+      "layer": "F.Cu",
+      "length_mm": 0.6927000000000021,
+      "net": "GND",
+      "start": {
+        "x": 31.2686,
+        "y": 13.1023
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 4.6745,
+        "y": 7.52
+      },
+      "layer": "F.Cu",
+      "length_mm": 6.653874810965412,
+      "net": "GND",
+      "start": {
+        "x": 9.3795,
+        "y": 2.815
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 34.0579,
+        "y": 10.9368
+      },
+      "layer": "F.Cu",
+      "length_mm": 13.168732428749545,
+      "net": "GND",
+      "start": {
+        "x": 24.7462,
+        "y": 1.6251
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 25.0,
+        "y": 13.51
+      },
+      "layer": "F.Cu",
+      "length_mm": 9.314999999999998,
       "net": "Net-(U4-FB)",
       "start": {
-        "x": 23.49,
-        "y": 11.0
+        "x": 34.315,
+        "y": 13.51
+      },
+      "width_mm": 0.2
+    },
+    {
+      "end": {
+        "x": 34.315,
+        "y": 13.51
+      },
+      "layer": "F.Cu",
+      "length_mm": 2.135462479183377,
+      "net": "Net-(U4-FB)",
+      "start": {
+        "x": 35.825,
+        "y": 12.0
       },
       "width_mm": 0.2
     }
@@ -1127,13 +1113,13 @@
       "courtyard": 0,
       "missing_cli": false,
       "ran": true,
-      "report_path": "/tmp/tmpgprvgkvu.txt",
-      "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T09:02:56-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+      "report_path": "/tmp/tmpe7la5qyu.txt",
+      "report_text": "** Drc report for leaf_routed.kicad_pcb **\n** Created on 2026-04-16T13:56:26-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
       "returncode": 0,
       "shorts": 0,
       "solder_mask_bridge": 0,
       "stderr": "",
-      "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpgprvgkvu.txt\n",
+      "stdout": "Found 0 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpe7la5qyu.txt\n",
       "timed_out": false,
       "total": 0,
       "unconnected": 0,
@@ -1159,13 +1145,13 @@
         "courtyard": 0,
         "missing_cli": false,
         "ran": true,
-        "report_path": "/tmp/tmpmoyy3l7z.txt",
-        "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T09:02:52-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 11 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(11.9195 mm, 2.8150 mm): PTH pad 2 [/3V3] of J2\n    @(2.0000 mm, 8.4800 mm): Pad 1 [/3V3] of C8 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(30.0500 mm, 10.8625 mm): Pad 5 [/3V3] of U5 on F.Cu\n    @(11.9195 mm, 2.8150 mm): PTH pad 2 [/3V3] of J2\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(14.4595 mm, 2.8150 mm): PTH pad 1 [/5V] of J2\n    @(25.5100 mm, 12.0000 mm): Pad 1 [/5V] of R9 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(25.5100 mm, 12.0000 mm): Pad 1 [/5V] of R9 on F.Cu\n    @(30.0500 mm, 13.1375 mm): Pad 1 [/5V] of U5 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.8395 mm, 2.8150 mm): PTH pad 4 [/EN] of J2\n    @(31.9500 mm, 13.1375 mm): Pad 3 [/EN] of U5 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(31.9500 mm, 13.1375 mm): Pad 3 [/EN] of U5 on F.Cu\n    @(36.4900 mm, 11.0000 mm): Pad 2 [/EN] of R11 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.2995 mm, 2.8150 mm): PTH pad 5 [/VBAT] of J2\n    @(30.8495 mm, 2.8150 mm): PTH pad 1 [/VBAT] of J3\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(9.3795 mm, 2.8150 mm): PTH pad 3 [GND] of J2\n    @(2.0000 mm, 7.5200 mm): Pad 2 [GND] of C8 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(18.4900 mm, 11.0000 mm): Pad 2 [GND] of R10 on F.Cu\n    @(9.3795 mm, 2.8150 mm): PTH pad 3 [GND] of J2\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(18.4900 mm, 11.0000 mm): Pad 2 [GND] of R10 on F.Cu\n    @(31.0000 mm, 13.1375 mm): Pad 2 [GND] of U5 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(19.5100 mm, 11.0000 mm): Pad 1 [Net-(U4-FB)] of R10 on F.Cu\n    @(24.4900 mm, 12.0000 mm): Pad 2 [Net-(U4-FB)] of R9 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+        "report_path": "/tmp/tmpp5b1i775.txt",
+        "report_text": "** Drc report for leaf_pre_freerouting.kicad_pcb **\n** Created on 2026-04-16T13:56:22-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 0 DRC violations **\n\n** Found 11 unconnected pads **\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(11.9195 mm, 2.8150 mm): PTH pad 2 [/3V3] of J2\n    @(2.0000 mm, 8.4800 mm): Pad 1 [/3V3] of C8 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(29.7150 mm, 9.8625 mm): Pad 5 [/3V3] of U5 on F.Cu\n    @(11.9195 mm, 2.8150 mm): PTH pad 2 [/3V3] of J2\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(14.4595 mm, 2.8150 mm): PTH pad 1 [/5V] of J2\n    @(25.0000 mm, 12.4900 mm): Pad 1 [/5V] of R9 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(25.0000 mm, 12.4900 mm): Pad 1 [/5V] of R9 on F.Cu\n    @(29.7150 mm, 12.1375 mm): Pad 1 [/5V] of U5 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(6.8395 mm, 2.8150 mm): PTH pad 4 [/EN] of J2\n    @(24.0000 mm, 9.5100 mm): Pad 2 [/EN] of R11 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(24.0000 mm, 9.5100 mm): Pad 2 [/EN] of R11 on F.Cu\n    @(31.6150 mm, 12.1375 mm): Pad 3 [/EN] of U5 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(4.2995 mm, 2.8150 mm): PTH pad 5 [/VBAT] of J2\n    @(30.8495 mm, 2.8150 mm): PTH pad 1 [/VBAT] of J3\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(9.3795 mm, 2.8150 mm): PTH pad 3 [GND] of J2\n    @(2.0000 mm, 7.5200 mm): Pad 2 [GND] of C8 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(30.6650 mm, 12.1375 mm): Pad 2 [GND] of U5 on F.Cu\n    @(36.8450 mm, 12.0000 mm): Pad 2 [GND] of R10 on F.Cu\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(30.6650 mm, 12.1375 mm): Pad 2 [GND] of U5 on F.Cu\n    @(9.3795 mm, 2.8150 mm): PTH pad 3 [GND] of J2\n[unconnected_items]: Missing connection between items\n    Local override; error\n    @(25.0000 mm, 13.5100 mm): Pad 2 [Net-(U4-FB)] of R9 on F.Cu\n    @(35.8250 mm, 12.0000 mm): Pad 1 [Net-(U4-FB)] of R10 on F.Cu\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
         "returncode": 0,
         "shorts": 0,
         "solder_mask_bridge": 0,
         "stderr": "",
-        "stdout": "Found 0 violations\nFound 11 unconnected items\nSaved DRC Report to /tmp/tmpmoyy3l7z.txt\n",
+        "stdout": "Found 0 violations\nFound 11 unconnected items\nSaved DRC Report to /tmp/tmpp5b1i775.txt\n",
         "timed_out": false,
         "total": 11,
         "unconnected": 11,
@@ -1447,27 +1433,18 @@
       "summary_json_path": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/renders/diagnostics_summary.json"
     },
     "track_summary": {
-      "total_length_mm": 168.45,
-      "traces": 41,
-      "vias": 2
+      "total_length_mm": 178.79,
+      "traces": 40,
+      "vias": 1
     }
   },
   "vias": [
     {
       "drill_mm": 0.3,
-      "net": "/3V3",
-      "pos": {
-        "x": 13.175,
-        "y": 8.48
-      },
-      "size_mm": 0.6
-    },
-    {
-      "drill_mm": 0.3,
       "net": "/5V",
       "pos": {
-        "x": 24.5088,
-        "y": 11.1587
+        "x": 24.1195,
+        "y": 11.6895
       },
       "size_mm": 0.6
     }

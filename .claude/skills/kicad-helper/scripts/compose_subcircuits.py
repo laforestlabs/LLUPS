@@ -13,11 +13,12 @@ Current scope:
 - build a parent composition state summary
 - emit JSON and optional saved composition snapshot
 - support simple placement modes for initial composition experiments
+- stamp composition onto a real .kicad_pcb file (--stamp)
+- route parent interconnects via FreeRouting (--route)
+- persist parent-level solved layout artifacts
 
 This command does NOT yet:
 - optimize parent placement
-- route inter-subcircuit nets
-- stamp the composition back into a real KiCad board
 - recurse through non-leaf schematic hierarchy automatically
 
 It is intended as a composition-side scaffold so later milestones can build:
@@ -32,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import shutil
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -45,6 +47,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from autoplacer.brain.subcircuit_composer import (
     ChildArtifactPlacement,
+    ParentComposition,
     build_parent_composition,
 )
 from autoplacer.brain.subcircuit_instances import (
@@ -118,6 +121,7 @@ class ParentCompositionState:
     score_breakdown: dict[str, float] = field(default_factory=dict)
     score_notes: list[str] = field(default_factory=list)
     composition_notes: list[str] = field(default_factory=list)
+    composition: ParentComposition | None = None
 
     @property
     def width_mm(self) -> float:
@@ -468,6 +472,7 @@ def _compose_artifacts(
         score_breakdown=dict(composition.score.breakdown) if composition.score else {},
         score_notes=list(composition.score.notes) if composition.score else [],
         composition_notes=list(composition.notes),
+        composition=composition,
     )
     return state, transformed_payloads
 
@@ -647,6 +652,413 @@ def _json_payload(
     }
 
 
+
+# ---------------------------------------------------------------------------
+# Parent board stamping, routing, and artifact persistence
+# ---------------------------------------------------------------------------
+
+
+def _stamp_parent_board(
+    state: ParentCompositionState,
+    pcb_path: Path,
+    project_dir: Path,
+    cfg: dict[str, Any],
+) -> Path:
+    """Stamp the parent composition onto a real .kicad_pcb file.
+
+    Uses a subprocess to run pcbnew operations so the main process does not
+    need pcbnew installed.  The subprocess:
+    1. Loads the copied board
+    2. Moves footprints to their composed positions
+    3. Clears existing tracks/zones
+    4. Recreates traces/vias from the merged child copper
+    5. Rebuilds connectivity and saves
+
+    Returns the stamped board path.
+    """
+    import json as _json
+    import os
+    import tempfile
+
+    from autoplacer.brain.subcircuit_artifacts import slugify_subcircuit_id
+    from autoplacer.brain.types import Layer
+    from autoplacer.freerouting_runner import _run_pcbnew_script
+
+    composition = state.composition
+    if composition is None:
+        raise RuntimeError("ParentCompositionState has no composition object")
+
+    parent_id = composition.hierarchy_state.subcircuit.id
+    slug = slugify_subcircuit_id(parent_id)
+    artifact_dir = project_dir / ".experiments" / "subcircuits" / slug
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    output_pcb = artifact_dir / "parent_pre_freerouting.kicad_pcb"
+    shutil.copy2(str(pcb_path), str(output_pcb))
+
+    # Serialize board state for the subprocess
+    board_state = composition.board_state
+    components_json = []
+    for ref, comp in (board_state.components or {}).items():
+        components_json.append({
+            "ref": ref,
+            "x": comp.pos.x,
+            "y": comp.pos.y,
+            "rotation": comp.rotation,
+            "layer": 0 if comp.layer == Layer.FRONT else 1,
+        })
+
+    traces_json = []
+    for trace in (board_state.traces or []):
+        traces_json.append({
+            "start_x": trace.start.x,
+            "start_y": trace.start.y,
+            "end_x": trace.end.x,
+            "end_y": trace.end.y,
+            "width": trace.width_mm,
+            "layer": "F.Cu" if trace.layer == Layer.FRONT else "B.Cu",
+            "net_name": trace.net or "",
+        })
+
+    vias_json = []
+    for via in (board_state.vias or []):
+        vias_json.append({
+            "x": via.pos.x,
+            "y": via.pos.y,
+            "size": via.size_mm,
+            "drill": via.drill_mm,
+            "net_name": via.net or "",
+        })
+
+    payload = {
+        "pcb_path": str(output_pcb),
+        "output_path": str(output_pcb),
+        "components": components_json,
+        "traces": traces_json,
+        "vias": vias_json,
+    }
+
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".json", prefix="stamp_parent_")
+    try:
+        with os.fdopen(tmp_fd, "w") as f:
+            _json.dump(payload, f)
+
+        script = _PARENT_STAMP_SCRIPT.replace("__JSON_PATH__", tmp_path)
+        _run_pcbnew_script(script)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    print(f"Parent board stamped to {output_pcb} (subprocess)")
+    return output_pcb
+
+
+_PARENT_STAMP_SCRIPT = r"""
+import json, pcbnew
+
+with open("__JSON_PATH__") as _f:
+    _data = json.load(_f)
+
+_pcb_path = _data["pcb_path"]
+_out_path = _data["output_path"]
+_components = _data["components"]
+_traces = _data["traces"]
+_vias = _data["vias"]
+
+_LAYER_MAP = {0: pcbnew.F_Cu, 1: pcbnew.B_Cu}
+_LAYER_NAME_MAP = {"F.Cu": pcbnew.F_Cu, "B.Cu": pcbnew.B_Cu}
+
+board = pcbnew.LoadBoard(_pcb_path)
+
+# --- build component lookup ---
+_comp_map = {c["ref"]: c for c in _components}
+
+# --- move footprints to composed positions (keep all footprints) ---
+for _fp in board.Footprints():
+    _ref = _fp.GetReferenceAsString()
+    _comp = _comp_map.get(_ref)
+    if _comp is None:
+        continue
+    if _fp.IsLocked():
+        continue
+    _cur_layer = 1 if _fp.GetLayer() == pcbnew.B_Cu else 0
+    if _comp["layer"] != _cur_layer:
+        _fp.Flip(_fp.GetPosition(), False)
+    _fp.SetPosition(
+        pcbnew.VECTOR2I(pcbnew.FromMM(_comp["x"]), pcbnew.FromMM(_comp["y"]))
+    )
+    _fp.SetOrientationDegrees(_comp["rotation"])
+
+# --- clear existing tracks ---
+_tr = list(board.GetTracks())
+for _t in _tr:
+    board.Remove(_t)
+
+# --- clear existing zones ---
+_zr = [z for z in board.Zones() if not z.GetIsRuleArea()]
+for _z in _zr:
+    board.Remove(_z)
+
+# --- resolve net code ---
+_netinfo = board.GetNetInfo()
+
+def _resolve_net(name):
+    if not name:
+        return 0
+    ni = _netinfo.GetNetItem(name)
+    if ni is None:
+        return 0
+    try:
+        return int(ni.GetNetCode())
+    except Exception:
+        return 0
+
+# --- recreate child traces ---
+for _t in _traces:
+    _s = pcbnew.PCB_TRACK(board)
+    _s.SetStart(pcbnew.VECTOR2I(pcbnew.FromMM(_t["start_x"]), pcbnew.FromMM(_t["start_y"])))
+    _s.SetEnd(pcbnew.VECTOR2I(pcbnew.FromMM(_t["end_x"]), pcbnew.FromMM(_t["end_y"])))
+    _s.SetLayer(_LAYER_NAME_MAP.get(_t["layer"], pcbnew.F_Cu))
+    _s.SetWidth(pcbnew.FromMM(_t["width"]))
+    _nc = _resolve_net(_t["net_name"])
+    if _nc > 0:
+        _s.SetNetCode(_nc)
+    board.Add(_s)
+
+# --- recreate vias ---
+for _v in _vias:
+    _tv = pcbnew.PCB_VIA(board)
+    _tv.SetPosition(pcbnew.VECTOR2I(pcbnew.FromMM(_v["x"]), pcbnew.FromMM(_v["y"])))
+    _tv.SetDrill(pcbnew.FromMM(_v["drill"]))
+    try:
+        _tv.SetWidth(pcbnew.FromMM(_v["size"]))
+    except TypeError:
+        _tv.SetWidth(pcbnew.F_Cu, pcbnew.FromMM(_v["size"]))
+    _nc = _resolve_net(_v["net_name"])
+    if _nc > 0:
+        _tv.SetNetCode(_nc)
+    board.Add(_tv)
+
+board.BuildConnectivity()
+board.Save(_out_path)
+print("OK")
+"""
+
+
+def _route_parent_board(
+    stamped_pcb: Path,
+    state: ParentCompositionState,
+    project_dir: Path,
+    cfg: dict[str, Any],
+) -> dict[str, Any]:
+    """Route parent interconnects via FreeRouting, then import and validate.
+
+    1. Resolve output path for the routed board
+    2. Run FreeRouting (preserving stamped child copper in the DSN export)
+    3. Import routed copper from the result
+    4. Validate the routed board
+    5. Return a result dict
+    """
+    from autoplacer.freerouting_runner import (
+        import_routed_copper,
+        route_with_freerouting,
+        validate_routed_board,
+    )
+
+    composition = state.composition
+    if composition is None:
+        raise RuntimeError("ParentCompositionState has no composition object")
+
+    routed_pcb = stamped_pcb.parent / "parent_routed.kicad_pcb"
+
+    jar_path = cfg.get("freerouting_jar", "")
+    if not jar_path:
+        raise RuntimeError(
+            "No FreeRouting JAR path configured; pass --jar or set "
+            "freerouting_jar in project config"
+        )
+
+    # Build a routing config that preserves child copper already stamped
+    # onto the board.  FreeRouting's DSN export will see those traces as
+    # wires so it only routes the remaining unconnected (interconnect) nets.
+    route_cfg = dict(cfg)
+    route_cfg["freerouting_preserve_existing_copper"] = True
+    route_cfg["freerouting_clear_existing_copper"] = False
+    route_cfg["freerouting_clear_zones"] = False
+
+    try:
+        freerouting_stats = route_with_freerouting(
+            kicad_pcb_path=str(stamped_pcb),
+            output_path=str(routed_pcb),
+            jar_path=jar_path,
+            config=route_cfg,
+        )
+    except Exception as exc:
+        return {
+            "failed": True,
+            "error": str(exc),
+            "routed_board_path": str(routed_pcb),
+            "_trace_segments": [],
+            "_via_objects": [],
+            "validation": {},
+            "freerouting_stats": {},
+        }
+
+    # Import all copper from the routed board (child + new parent traces)
+    copper = import_routed_copper(str(routed_pcb))
+
+    # Collect interconnect net names for validation
+    interconnect_net_names = sorted(
+        composition.inferred_interconnect_nets.keys()
+    )
+
+    validation = validate_routed_board(
+        str(routed_pcb),
+        expected_anchor_names=interconnect_net_names,
+    )
+
+    return {
+        "failed": False,
+        "routed_board_path": str(routed_pcb),
+        "_trace_segments": copper.get("traces", []),
+        "_via_objects": copper.get("vias", []),
+        "validation": validation,
+        "freerouting_stats": freerouting_stats,
+    }
+
+
+def _persist_parent_artifact(
+    state: ParentCompositionState,
+    routing_result: dict[str, Any],
+    project_dir: Path,
+    cfg: dict[str, Any],
+) -> str:
+    """Persist a parent-level solved layout artifact.
+
+    1. Build a SubCircuitLayout from the composition's board_state
+       with routed copper from the routing result
+    2. Build and save the solved layout artifact payload
+    3. Save metadata and debug payloads
+    4. Return the artifact directory path
+    """
+    from autoplacer.brain.subcircuit_artifacts import (
+        build_solved_layout_artifact,
+        resolve_artifact_paths,
+        save_solved_layout_artifact,
+    )
+    from autoplacer.brain.types import SubCircuitLayout
+
+    composition = state.composition
+    if composition is None:
+        raise RuntimeError("ParentCompositionState has no composition object")
+
+    parent_id = composition.hierarchy_state.subcircuit.id
+    parent_def = composition.hierarchy_state.subcircuit
+
+    # Use routed copper (all traces: child + new parent interconnect)
+    all_traces = routing_result.get("_trace_segments", [])
+    all_vias = routing_result.get("_via_objects", [])
+
+    # Fall back to composition board_state copper if routing returned nothing
+    if not all_traces and not all_vias:
+        all_traces = list(composition.board_state.traces)
+        all_vias = list(composition.board_state.vias)
+
+    # Compute bounding box from the composition's board outline
+    tl, br = composition.board_state.board_outline
+    width = max(0.0, br.x - tl.x)
+    height = max(0.0, br.y - tl.y)
+
+    layout = SubCircuitLayout(
+        subcircuit_id=parent_id,
+        components=dict(composition.board_state.components),
+        traces=list(all_traces),
+        vias=list(all_vias),
+        bounding_box=(width, height),
+        ports=list(parent_def.ports),
+        interface_anchors=[],
+        score=state.score_total,
+        frozen=True,
+    )
+
+    # Build notes for the artifact
+    notes = [
+        "parent_composition=true",
+        f"child_count={len(state.entries)}",
+        f"mode={state.mode}",
+        f"interconnect_nets={state.interconnect_net_count}",
+        f"inferred_interconnects={state.inferred_interconnect_net_count}",
+    ]
+    validation = routing_result.get("validation", {})
+    if validation:
+        notes.append(f"validation_accepted={validation.get('accepted', False)}")
+
+    payload = build_solved_layout_artifact(
+        layout,
+        project_dir=str(project_dir),
+        solver_version="parent-compose-v1",
+        notes=notes,
+    )
+
+    save_solved_layout_artifact(payload)
+
+    # Save additional metadata alongside the solved layout
+    artifact_paths = resolve_artifact_paths(str(project_dir), parent_id)
+    artifact_dir = Path(artifact_paths.artifact_dir)
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write a metadata.json for the parent artifact
+    metadata_payload = {
+        "schema_version": "parent-compose-v1",
+        "subcircuit_id": {
+            "sheet_name": parent_id.sheet_name,
+            "sheet_file": parent_id.sheet_file,
+            "instance_path": parent_id.instance_path,
+            "parent_instance_path": parent_id.parent_instance_path,
+        },
+        "parent_composition": True,
+        "child_count": len(state.entries),
+        "mode": state.mode,
+        "component_count": state.component_count,
+        "trace_count": len(all_traces),
+        "via_count": len(all_vias),
+        "interconnect_net_count": state.interconnect_net_count,
+        "inferred_interconnect_net_count": state.inferred_interconnect_net_count,
+        "score_total": state.score_total,
+        "validation": validation,
+        "notes": notes,
+    }
+    metadata_path = artifact_dir / "metadata.json"
+    metadata_path.write_text(
+        json.dumps(metadata_payload, indent=2, sort_keys=True, default=str),
+        encoding="utf-8",
+    )
+
+    # Write a debug.json with routing details
+    debug_payload = {
+        "schema_version": "parent-compose-v1",
+        "parent_composition": True,
+        "routing_result": {
+            "routed_board_path": routing_result.get("routed_board_path", ""),
+            "trace_count": len(all_traces),
+            "via_count": len(all_vias),
+            "freerouting_stats": routing_result.get("freerouting_stats", {}),
+        },
+        "validation": validation,
+        "composition_state": state.to_dict(),
+    }
+    debug_path = artifact_dir / "debug.json"
+    debug_path.write_text(
+        json.dumps(debug_payload, indent=2, sort_keys=True, default=str),
+        encoding="utf-8",
+    )
+
+    return str(artifact_dir)
+
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Compose solved subcircuits into a parent composition state"
@@ -697,6 +1109,31 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--json",
         action="store_true",
         help="Emit JSON instead of human-readable text",
+    )
+    # --- New flags for parent board stamping and routing ---
+    parser.add_argument(
+        "--pcb",
+        help="Source .kicad_pcb file (template for stamping; needed for --stamp/--route)",
+    )
+    parser.add_argument(
+        "--stamp",
+        action="store_true",
+        help="Stamp composition into a real .kicad_pcb file",
+    )
+    parser.add_argument(
+        "--route",
+        action="store_true",
+        help="Route parent interconnects via FreeRouting (implies --stamp)",
+    )
+    parser.add_argument(
+        "--jar",
+        help="Path to FreeRouting JAR (overrides config)",
+    )
+    parser.add_argument(
+        "--rounds",
+        type=int,
+        default=1,
+        help="Number of placement rounds for parent composition (default: 1)",
     )
     return parser.parse_args(argv)
 
@@ -767,6 +1204,72 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     _print_human_summary(loaded_artifacts, state, transformed_payloads, output_path)
+
+    # --- Parent board stamping and routing ---
+    if args.route or args.stamp:
+        if not args.pcb:
+            print(
+                "error: --pcb is required for --stamp and --route",
+                file=sys.stderr,
+            )
+            return 2
+
+        pcb_path = Path(args.pcb)
+        if not pcb_path.exists():
+            print(f"error: PCB file not found: {pcb_path}", file=sys.stderr)
+            return 2
+
+        if project_dir is None:
+            print(
+                "error: --project is required for --stamp and --route",
+                file=sys.stderr,
+            )
+            return 2
+
+        # Build config
+        cfg: dict[str, Any] = {"pcb_path": str(pcb_path)}
+        if args.jar:
+            cfg["freerouting_jar"] = args.jar
+        else:
+            # Try to load from project config
+            from autoplacer.config import discover_project_config, load_project_config
+
+            proj_cfg_path = discover_project_config(str(project_dir))
+            if proj_cfg_path:
+                cfg.update(load_project_config(str(proj_cfg_path)))
+
+        try:
+            # Stamp
+            stamped_pcb = _stamp_parent_board(state, pcb_path, project_dir, cfg)
+            print(f"parent_stamped_pcb : {stamped_pcb}")
+
+            if args.route:
+                routing_result = _route_parent_board(
+                    stamped_pcb, state, project_dir, cfg
+                )
+                if not routing_result.get("failed"):
+                    artifact_dir = _persist_parent_artifact(
+                        state, routing_result, project_dir, cfg
+                    )
+                    print(f"parent_artifact    : {artifact_dir}")
+                    validation = routing_result.get("validation", {})
+                    if validation.get("accepted"):
+                        print("parent_status      : accepted")
+                    else:
+                        reasons = validation.get("rejection_reasons", [])
+                        print(
+                            f"parent_status      : rejected ({', '.join(reasons) if reasons else 'unknown'})"
+                        )
+                else:
+                    error_msg = routing_result.get("error", "unknown error")
+                    print(
+                        f"warning: parent routing failed: {error_msg}",
+                        file=sys.stderr,
+                    )
+        except Exception as exc:
+            print(f"error: parent stamping/routing failed: {exc}", file=sys.stderr)
+            return 1
+
     return 0
 
 

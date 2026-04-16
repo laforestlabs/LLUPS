@@ -23,7 +23,7 @@
     "R8",
     "RT1"
   ],
-  "config_hash": "9f66edf6bd981998148ad4072bf8c668a017c9c05431e253dde793241ef77ad2",
+  "config_hash": "576ecb228286a6be07033393bd014bf8d4a5b420bf76a47d5b74933b5d12b38c",
   "external_nets": [
     "/CHG_N",
     "/NTC_SENSE",
@@ -121,7 +121,7 @@
     "solved by solve_subcircuits.py",
     "best_round=0",
     "best_seed=773920557",
-    "best_score=85.549",
+    "best_score=82.411",
     "rounds=1",
     "solved_component_count=13",
     "canonical_layout_schema=subcircuits.layout.v1",
