@@ -1,9 +1,87 @@
 # LLUPS Subcircuits Pipeline Redesign
 
-> Status: Proposed design
+> Status: In progress
 > Branch target: `feature/sub-circuits-redesign`
 > Scope: Major architectural redesign of the KiCad helper pipeline
 > Goal: Replace whole-board-first layout with a scalable hierarchical subcircuit pipeline
+> Progress: Milestone 1 complete; Milestone 2 substantially implemented; Milestone 3 placement-only leaf solving, solved-geometry persistence, lightweight local routing, canonical solved artifacts, rigid instance loading, and parent composition scaffolding started
+
+---
+
+## Current Status and Agreed Direction
+
+This document remains the primary design reference for the subcircuits redesign. The implementation has advanced enough that the original milestone descriptions are no longer sufficient on their own, so this section records the current state, the current blocker, and the agreed architectural direction.
+
+### Current implementation status
+
+Implemented or substantially implemented:
+- true-sheet hierarchy parsing
+- normalized subcircuit/interface dataclasses
+- hierarchy inspection/debug CLI
+- leaf-local board-state extraction from the full PCB
+- internal/external/ignored net partitioning
+- leaf-local placement solving
+- lightweight local internal-net routing
+- canonical solved layout persistence in `solved_layout.json`
+- solved artifact loading and rigid transform helpers
+- parent composition scaffolding
+- hierarchy-aware parent selection in the composition CLI
+- lightweight parent-level scoring
+
+Partially implemented or provisional:
+- interface anchor inference exists in the leaf solve flow, but current solved artifacts do not yet reliably carry usable anchors for parent composition
+- parent composition can merge rigid children and score the result, but parent interconnect extraction is not yet robust
+- parent-local component support exists in the composition layer API, but is not yet fully wired through a real hierarchy-driven parent workflow
+- local routing is still heuristic and not yet a full routed-artifact flow
+
+Current observed blocker:
+- parent composition currently identifies the correct parent and child subcircuits, but often produces zero parent interconnect nets because the solved child artifacts do not yet provide a reliable physical interface-anchor contract
+
+### Agreed architectural direction
+
+The agreed direction is:
+
+1. schematic hierarchy is the source of truth for logical connectivity
+2. solved artifacts must carry explicit physical interface anchors
+3. parent composition combines logical interconnect definitions with physical anchor geometry
+4. heuristic anchor synthesis may exist as a fallback, but not as the primary contract
+
+In practical terms:
+
+- hierarchy and normalized interfaces define what connects
+- solved artifacts define where those connections can physically enter or leave a rigid child layout
+- parent composition should not depend on heuristic geometry reconstruction when canonical anchor data is available
+- fallback anchor synthesis is acceptable only for backward compatibility, incomplete artifacts, or debugging
+
+### Why this direction was chosen
+
+This hybrid model separates concerns cleanly:
+
+- logical connectivity belongs to the schematic hierarchy
+- physical routing entry points belong to solved layout artifacts
+- parent composition should consume both, rather than trying to derive both from one side alone
+
+This is more robust than a purely anchor-driven design because composition can still understand connectivity even when physical anchors are missing. It is also more robust than a purely hierarchy-driven design because parent routing eventually needs explicit physical entry points on rigid child layouts.
+
+### Immediate next implementation sequence
+
+The next implementation sequence should be:
+
+1. update this design doc to reflect the current state and the agreed interface-anchor strategy
+2. implement hierarchy-driven parent interconnect extraction so parent composition can build logical interconnect nets even when anchors are absent
+3. extend the KiCad helper skill and solved-artifact pipeline so leaf solves persist explicit interface anchors as first-class artifact data
+4. add validation and inspection tooling for required interface anchors
+5. add fallback synthetic-anchor generation for older or incomplete artifacts
+6. continue parent-local component support and parent-level routing on top of the stronger interface contract
+
+### Current LLUPS-specific reality
+
+At the time of writing, the LLUPS schematic hierarchy consists of:
+- one root sheet
+- direct leaf children only
+- no deeper non-root composite parents yet
+
+That means the current hierarchy-aware composition flow can already compose the real root parent, but deeper recursive parent composition cannot yet be exercised on this project until the schematic hierarchy grows beyond one level.
 
 ---
 
@@ -110,6 +188,30 @@ Where possible, interfaces should be derived from:
 
 The system should normalize these into strict typed interface objects.
 
+The interface model now has two distinct layers:
+
+1. logical interface definition
+2. physical interface realization
+
+Logical interface definition comes from the schematic hierarchy and includes:
+- port name
+- net name
+- role
+- direction
+- preferred side
+- access policy
+- cardinality
+- required/optional status
+
+Physical interface realization comes from the solved layout artifact and includes:
+- one or more physical anchor points for the port
+- layer
+- backing pad reference when applicable
+- anchor provenance
+- whether the anchor is canonical or fallback-generated
+
+This separation is intentional. The hierarchy defines what must connect. The solved artifact defines where that connection can physically occur on the rigid child layout.
+
 ### 3.5 Artifacts must be persistent and inspectable
 
 Each solved leaf subcircuit must produce:
@@ -163,6 +265,13 @@ For each leaf sheet:
 - build a local board state
 - synthesize a local solving envelope
 
+**Implemented so far:**
+- true leaf extraction from the full project `BoardState`
+- internal / external / ignored net partitioning
+- local synthetic board envelope derivation
+- local coordinate translation for components, pads, traces, and vias
+- JSON artifact/debug export under `.experiments/subcircuits/`
+
 ### 4.4 Phase 3: Leaf solve loop
 
 For each leaf:
@@ -171,6 +280,48 @@ For each leaf:
 - score each candidate
 - keep the best result
 - freeze it as a subcircuit layout artifact
+
+**Implemented so far:**
+- local placement search now runs on extracted leaf-local `BoardState` objects
+- the existing `PlacementSolver` is reused for early leaf solving
+- multiple local placement rounds can be searched per leaf
+- the best local placement round is selected by placement score
+- inferred interface anchors are generated from solved pad geometry
+- solved placement summaries are persisted into artifact debug output
+- solved local placement geometry is now persisted into artifact debug output
+- solved component positions, rotations, layers, body centers, and pad geometry are serialized for reuse
+- a first mini-board export utility now exists for solved leaf layouts
+- the leaf solve CLI now writes a synthetic `.kicad_pcb` snapshot for solved leaf layouts
+- lightweight local routing for internal nets is now implemented and active in the leaf solve flow
+- the current local router:
+  - routes only nets classified as internal by the extractor
+  - uses simple Manhattan routing
+  - connects multi-pin nets as a star from the first pad
+  - inserts vias when endpoints are on different layers
+  - is invoked by the solve CLI when local routing is enabled
+  - persists routed/failed internal-net summaries into debug output
+- canonical solved layout artifacts are now being introduced:
+  - solved component geometry
+  - solved trace/via geometry
+  - inferred interface anchors
+  - bounding box and score metadata
+  - stable artifact hashes for later reuse/loading
+  - a canonical `solved_layout.json` file per solved leaf artifact directory
+- rigid solved-artifact loading and transform helpers are now being introduced:
+  - solved artifacts can be reconstructed into `SubCircuitLayout`
+  - the loader prefers canonical `solved_layout.json` when present
+  - the loader falls back to `debug.json` for older artifacts that do not yet persist canonical solved layout files
+  - rigid instances can be created with translation + rotation
+  - transformed anchors, copper, and bounding boxes can be derived for parent composition
+- parent composition scaffolding is now being introduced:
+  - solved child artifacts can be treated as rigid modules
+  - transformed child geometry can be inspected before stamping into a parent state
+  - composition-side tooling can now reason about child bounding boxes and interface anchors
+
+**Not implemented yet:**
+- DSN/SES-based local autorouting for leaf mini-boards
+- persistence of solved copper into reusable high-fidelity mini `.kicad_pcb` artifacts from an actual routed solve
+- full parent-level composition using solved rigid child layouts
 
 ### 4.5 Phase 4: Artifact persistence
 
@@ -750,6 +901,12 @@ Deliverables:
 - interface normalization
 - debug CLI to print hierarchy and interfaces
 
+**Status: implemented**
+- shared subcircuit/interface dataclasses were added to `types.py`
+- a true-sheet hierarchy parser was added
+- a debug inspection CLI was added and wired to the shared parser
+- the current LLUPS hierarchy has been successfully parsed and inspected
+
 ### Milestone 2: Leaf extraction and artifact generation
 
 Goal:
@@ -761,6 +918,17 @@ Deliverables:
 - JSON artifact writer
 - mini PCB artifact writer
 - artifact schema versioning
+
+**Status: partially implemented**
+- leaf extraction records and artifact metadata helpers were added
+- artifact path resolution and stable hashing were added
+- a CLI now exports per-leaf metadata/debug artifacts
+- leaf-local board-state extraction from the full PCB is implemented
+- internal/external/ignored net partitioning is implemented
+- local envelope sizing and coordinate translation are implemented
+- mini `.kicad_pcb` generation is implemented for solved leaf layouts
+- canonical solved layout persistence is implemented
+- explicit physical interface-anchor persistence still needs to be strengthened into a first-class validated artifact contract
 
 ### Milestone 3: Leaf placement/routing solve
 
@@ -774,6 +942,29 @@ Deliverables:
 - candidate search loop
 - best-artifact selection
 
+**Status: partially implemented**
+- a leaf placement solver module was added
+- extracted local board states can now be solved with the existing placement engine
+- a CLI now runs multi-round local placement search across all leaf sheets
+- best-round selection is implemented using local placement score
+- solved interface anchors are inferred from placed pad geometry
+- solved placement/debug summaries are written back into artifact outputs
+- solved component geometry is serialized into artifact debug payloads
+- a first mini-board export utility was added for solved leaf layouts
+- the solve CLI now emits mini-board `.kicad_pcb` snapshots into the subcircuit artifact directories
+- lightweight local routing is now implemented for internal nets and is active in the solve flow
+- routed/failed internal-net summaries are now carried in solve debug output
+- canonical solved layout artifact persistence is implemented so parent composition can load a stable machine-readable layout bundle
+- canonical solved layouts are written as `solved_layout.json` alongside `metadata.json`, `debug.json`, and `layout.kicad_pcb`
+- rigid solved-artifact loading and transform helpers are implemented for parent-level composition work
+- the rigid artifact loader prefers canonical solved layout files and falls back to debug payload reconstruction for older artifacts
+- parent composition scaffolding is implemented on top of the rigid artifact layer:
+  - solved child artifacts can be loaded as rigid modules
+  - rigid transforms can be applied and inspected before parent stamping
+  - composition-side tooling can consume transformed child geometry
+- the current local routing stage is still heuristic and not yet a full DSN/SES-based routed artifact flow
+- explicit physical interface-anchor persistence and validation still need to be strengthened before parent routing can rely on them
+
 ### Milestone 4: Parent composition
 
 Goal:
@@ -784,6 +975,15 @@ Deliverables:
 - parent-local component support
 - interconnect net extraction
 - parent-level scoring
+
+**Status: started**
+- rigid child composition scaffolding is implemented
+- solved child artifacts can be loaded, transformed, and merged into a parent composition state
+- hierarchy-aware parent selection is implemented in the composition CLI
+- lightweight parent-level scoring is implemented
+- parent interconnect extraction is not yet robust enough for production use
+- parent-local component support is present in the composition API but not yet fully wired through a real hierarchy-driven workflow
+- the next major task is to make parent interconnect extraction hierarchy-driven and then bind it to explicit physical interface anchors from solved artifacts
 
 ### Milestone 5: Top-level routing and final assembly
 
@@ -827,6 +1027,13 @@ Recommended tasks:
 
 This creates a stable base for later routing and artifact work.
 
+**Completed:**
+- the design doc was added
+- hierarchy/interface/subcircuit dataclasses were added
+- true-sheet hierarchy parsing was implemented
+- the inspection CLI was added and validated against LLUPS
+- artifact export and leaf board-state extraction were started immediately after this foundation
+
 ---
 
 ## 18. Risks and Open Questions
@@ -849,6 +1056,12 @@ Mitigation:
 - prefer explicit hierarchical pins and labels
 - normalize aggressively
 - validate interface completeness early
+
+Updated design note:
+- logical interface completeness should be validated from the hierarchy
+- physical interface-anchor completeness should be validated from solved artifacts
+- parent composition should be able to build logical interconnect nets even when physical anchors are missing
+- physical routing should prefer canonical anchors and only fall back to synthesized anchors when necessary
 
 ### 18.3 Zone ownership
 
@@ -892,6 +1105,17 @@ The following are intentionally deferred:
 - interface-preferred-but-not-required routing mode
 - advanced thermal-aware floorplanning
 - automatic port ordering optimization from congestion feedback
+- parent-level rigid composition and stamping
+- solved leaf routing persistence into reusable layout artifacts
+- higher-fidelity local autorouting and scoring of internal leaf copper
+- upgrading the current lightweight routed leaf output into a reusable high-fidelity rigid artifact
+- upgrading the current mini-board exporter from debug snapshot quality to reusable routed artifact quality
+- DSN/SES-based local routing flow for synthetic leaf mini-boards
+- local routed-copper scoring and best-round selection that combines placement and internal routing quality
+- parent-level loading of canonical solved artifacts as rigid modules
+- parent-level transform/stamping of solved child layouts into composition states
+- parent-level composition-state builders that merge rigid child geometry and parent-local components into one working state
+- parent-level interface-to-interface interconnect extraction and routing
 
 ---
 
@@ -946,6 +1170,29 @@ For the first implementation, use these defaults:
 - SMT policy: preserve front-side preference opposite THT where useful
 - zone policy: mostly top-level
 - compatibility strategy: separate new pipeline path, keep legacy path intact
+
+**Current implementation note:**
+- JSON/debug artifact export is implemented
+- extracted local board-state sizing is now derived from the actual PCB geometry
+- placement-only leaf solving is implemented and validated on the current LLUPS leaf sheets
+- best-round local placement results are now persisted into artifact debug output
+- solved component geometry is now serialized into artifact debug payloads
+- a first mini-board export utility now exists for solved leaf layouts
+- placement-only mini-board `.kicad_pcb` snapshots are now emitted by the leaf solve flow
+- the data path needed for local routing is now implemented end-to-end at a lightweight level:
+  - extracted leaf-local board states
+  - internal/external net partitioning
+  - artifact/debug persistence
+  - mini-board copper rendering hooks
+  - heuristic Manhattan routing for internal nets
+  - solve-flow integration so local routing can run during leaf solving
+- canonical solved layout artifacts are now being added as the machine-readable representation parent composition will load
+- the canonical solved layout file is `solved_layout.json`
+- rigid solved-artifact loaders and transform helpers are now being added so solved children can be treated as true rigid modules
+- loader behavior is intentionally backward-compatible: use canonical solved layout files first, then fall back to debug payload reconstruction when needed
+- parent composition scaffolding is now being added on top of that rigid artifact layer so transformed child modules can be assembled into future parent composition states
+- reusable high-fidelity routed mini `.kicad_pcb` artifacts are still pending
+- DSN/SES-based local autorouting is still pending
 
 ---
 
