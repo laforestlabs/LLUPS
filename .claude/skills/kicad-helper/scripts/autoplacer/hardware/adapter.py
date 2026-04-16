@@ -340,20 +340,291 @@ class KiCadAdapter:
         board.Save(out)
         print(f"Placement saved to {out}")
 
-    def _apply_board_outline(self, width_mm: float, height_mm: float):
-        """Rewrite the Edge.Cuts rectangle to the given dimensions, centered."""
-        board = self.board
-        bbox = board.GetBoardEdgesBoundingBox()
-        # Keep the center of the original board
-        cx = (bbox.GetLeft() + bbox.GetRight()) // 2
-        cy = (bbox.GetTop() + bbox.GetBottom()) // 2
-        half_w = pcbnew.FromMM(width_mm / 2)
-        half_h = pcbnew.FromMM(height_mm / 2)
+    def stamp_board_state(
+        self,
+        state: BoardState,
+        output_path: str | None = None,
+        *,
+        clear_existing_tracks: bool = True,
+        clear_existing_zones: bool = True,
+    ):
+        """Stamp a pure-Python BoardState onto the current KiCad board.
 
-        new_left = cx - half_w
-        new_top = cy - half_h
-        new_right = cx + half_w
-        new_bottom = cy + half_h
+        Intended for hierarchical composition demos where a parent board should
+        visibly contain already-routed child subcircuits plus parent-level
+        interconnect routing before exporting DSN / launching FreeRouting.
+
+        Behavior:
+        - moves footprints to match `state.components`
+        - optionally clears existing tracks/vias
+        - optionally clears existing copper zones
+        - recreates traces/vias from `state.traces` / `state.vias`
+        - preserves the existing board outline unless board-size search is enabled
+        """
+        self._ensure_loaded()
+        board = self.board
+
+        if self.cfg.get("enable_board_size_search", False):
+            w_mm = self.cfg.get("board_width_mm", state.board_width)
+            h_mm = self.cfg.get("board_height_mm", state.board_height)
+            self._apply_board_outline(w_mm, h_mm)
+
+        component_map = state.components or {}
+        for fp in board.Footprints():
+            ref = fp.GetReferenceAsString()
+            comp = component_map.get(ref)
+            if comp is None:
+                continue
+            if fp.IsLocked():
+                continue
+            current_layer = _layer_to_enum(fp.GetLayer())
+            if comp.layer != current_layer:
+                fp.Flip(fp.GetPosition(), False)
+            fp.SetPosition(
+                pcbnew.VECTOR2I(
+                    pcbnew.FromMM(comp.pos.x),
+                    pcbnew.FromMM(comp.pos.y),
+                )
+            )
+            fp.SetOrientationDegrees(comp.rotation)
+
+        if clear_existing_tracks:
+            to_remove = [track for track in board.GetTracks()]
+            for track in to_remove:
+                board.Remove(track)
+
+        if clear_existing_zones:
+            to_remove = [zone for zone in board.Zones() if not zone.GetIsRuleArea()]
+            for zone in to_remove:
+                board.Remove(zone)
+
+        netinfo = board.GetNetInfo()
+
+        def _resolve_net_code(net_name: str) -> int:
+            if not net_name:
+                return 0
+            net_item = netinfo.GetNetItem(net_name)
+            if net_item is None:
+                return 0
+            try:
+                return int(net_item.GetNetCode())
+            except Exception:
+                return 0
+
+        for trace in state.traces:
+            seg = pcbnew.PCB_TRACK(board)
+            seg.SetStart(
+                pcbnew.VECTOR2I(
+                    pcbnew.FromMM(trace.start.x),
+                    pcbnew.FromMM(trace.start.y),
+                )
+            )
+            seg.SetEnd(
+                pcbnew.VECTOR2I(
+                    pcbnew.FromMM(trace.end.x),
+                    pcbnew.FromMM(trace.end.y),
+                )
+            )
+            seg.SetLayer(_enum_to_layer(trace.layer))
+            seg.SetWidth(pcbnew.FromMM(trace.width_mm))
+            net_code = _resolve_net_code(trace.net)
+            if net_code > 0:
+                seg.SetNetCode(net_code)
+            board.Add(seg)
+
+        for via in state.vias:
+            track_via = pcbnew.PCB_VIA(board)
+            track_via.SetPosition(
+                pcbnew.VECTOR2I(
+                    pcbnew.FromMM(via.pos.x),
+                    pcbnew.FromMM(via.pos.y),
+                )
+            )
+            track_via.SetDrill(pcbnew.FromMM(via.drill_mm))
+            try:
+                track_via.SetWidth(pcbnew.FromMM(via.size_mm))
+            except TypeError:
+                track_via.SetWidth(pcbnew.F_Cu, pcbnew.FromMM(via.size_mm))
+            net_code = _resolve_net_code(via.net)
+            if net_code > 0:
+                track_via.SetNetCode(net_code)
+            board.Add(track_via)
+
+        board.BuildConnectivity()
+        out = output_path or self.pcb_path
+        board.Save(out)
+        print(f"Board state stamped to {out}")
+
+    def stamp_subcircuit_board(
+        self,
+        state: BoardState,
+        output_path: str | None = None,
+        *,
+        clear_existing_tracks: bool = True,
+        clear_existing_zones: bool = True,
+        remove_unmapped_footprints: bool = True,
+    ):
+        """Stamp a leaf/subcircuit board onto a real KiCad board.
+
+        This helper is intended for routed leaf subcircuits where the exported
+        board must be loadable by pcbnew/FreeRouting as a real KiCad board, not
+        just a synthetic text snapshot.
+
+        Behavior:
+        - rewrites the board outline to match the subcircuit-local board size
+        - moves footprints that exist in `state.components`
+        - optionally removes footprints not present in the subcircuit state
+        - optionally clears existing tracks/vias and copper zones
+        - recreates traces/vias from the provided `BoardState`
+        """
+        self._ensure_loaded()
+        board = self.board
+
+        component_map = state.components or {}
+        left_mm = 0.0
+        top_mm = 0.0
+        if component_map:
+            min_x_mm = min(
+                min(
+                    [comp.pos.x - comp.width_mm / 2]
+                    + [pad.pos.x for pad in comp.pads]
+                    + (
+                        [comp.body_center.x - comp.width_mm / 2]
+                        if comp.body_center is not None
+                        else []
+                    )
+                )
+                for comp in component_map.values()
+            )
+            min_y_mm = min(
+                min(
+                    [comp.pos.y - comp.height_mm / 2]
+                    + [pad.pos.y for pad in comp.pads]
+                    + (
+                        [comp.body_center.y - comp.height_mm / 2]
+                        if comp.body_center is not None
+                        else []
+                    )
+                )
+                for comp in component_map.values()
+            )
+            left_mm = min(0.0, min_x_mm)
+            top_mm = min(0.0, min_y_mm)
+
+        self._apply_board_outline(
+            state.board_width,
+            state.board_height,
+            left_mm=left_mm,
+            top_mm=top_mm,
+        )
+
+        component_map = state.components or {}
+        footprints = list(board.Footprints())
+
+        for fp in footprints:
+            ref = fp.GetReferenceAsString()
+            comp = component_map.get(ref)
+            if comp is None:
+                if remove_unmapped_footprints:
+                    board.Remove(fp)
+                continue
+
+            if fp.IsLocked():
+                continue
+
+            current_layer = _layer_to_enum(fp.GetLayer())
+            if comp.layer != current_layer:
+                fp.Flip(fp.GetPosition(), False)
+            fp.SetPosition(
+                pcbnew.VECTOR2I(
+                    pcbnew.FromMM(comp.pos.x),
+                    pcbnew.FromMM(comp.pos.y),
+                )
+            )
+            fp.SetOrientationDegrees(comp.rotation)
+
+        if clear_existing_tracks:
+            to_remove = [track for track in board.GetTracks()]
+            for track in to_remove:
+                board.Remove(track)
+
+        if clear_existing_zones:
+            to_remove = [zone for zone in board.Zones() if not zone.GetIsRuleArea()]
+            for zone in to_remove:
+                board.Remove(zone)
+
+        netinfo = board.GetNetInfo()
+
+        def _resolve_net_code(net_name: str) -> int:
+            if not net_name:
+                return 0
+            net_item = netinfo.GetNetItem(net_name)
+            if net_item is None:
+                return 0
+            try:
+                return int(net_item.GetNetCode())
+            except Exception:
+                return 0
+
+        for trace in state.traces:
+            seg = pcbnew.PCB_TRACK(board)
+            seg.SetStart(
+                pcbnew.VECTOR2I(
+                    pcbnew.FromMM(trace.start.x),
+                    pcbnew.FromMM(trace.start.y),
+                )
+            )
+            seg.SetEnd(
+                pcbnew.VECTOR2I(
+                    pcbnew.FromMM(trace.end.x),
+                    pcbnew.FromMM(trace.end.y),
+                )
+            )
+            seg.SetLayer(_enum_to_layer(trace.layer))
+            seg.SetWidth(pcbnew.FromMM(trace.width_mm))
+            net_code = _resolve_net_code(trace.net)
+            if net_code > 0:
+                seg.SetNetCode(net_code)
+            board.Add(seg)
+
+        for via in state.vias:
+            track_via = pcbnew.PCB_VIA(board)
+            track_via.SetPosition(
+                pcbnew.VECTOR2I(
+                    pcbnew.FromMM(via.pos.x),
+                    pcbnew.FromMM(via.pos.y),
+                )
+            )
+            track_via.SetDrill(pcbnew.FromMM(via.drill_mm))
+            try:
+                track_via.SetWidth(pcbnew.FromMM(via.size_mm))
+            except TypeError:
+                track_via.SetWidth(pcbnew.F_Cu, pcbnew.FromMM(via.size_mm))
+            net_code = _resolve_net_code(via.net)
+            if net_code > 0:
+                track_via.SetNetCode(net_code)
+            board.Add(track_via)
+
+        board.BuildConnectivity()
+        out = output_path or self.pcb_path
+        board.Save(out)
+        print(f"Subcircuit board stamped to {out}")
+
+    def _apply_board_outline(
+        self,
+        width_mm: float,
+        height_mm: float,
+        *,
+        left_mm: float = 0.0,
+        top_mm: float = 0.0,
+    ):
+        """Rewrite the Edge.Cuts rectangle to the given dimensions at a chosen origin."""
+        board = self.board
+
+        new_left = pcbnew.FromMM(left_mm)
+        new_top = pcbnew.FromMM(top_mm)
+        new_right = pcbnew.FromMM(left_mm + width_mm)
+        new_bottom = pcbnew.FromMM(top_mm + height_mm)
 
         # Remove existing Edge.Cuts lines
         to_remove = []

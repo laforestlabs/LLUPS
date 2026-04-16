@@ -1,16 +1,16 @@
 # LLUPS Subcircuits Pipeline Redesign
 
-> Status: In progress
+> Status: In progress, but not yet MVP
 > Branch target: `feature/sub-circuits-redesign`
 > Scope: Major architectural redesign of the KiCad helper pipeline
 > Goal: Replace whole-board-first layout with a scalable hierarchical subcircuit pipeline
-> Progress: Milestone 1 complete; Milestone 2 substantially implemented; Milestone 3 placement-only leaf solving, solved-geometry persistence, lightweight local routing, canonical solved artifacts, rigid instance loading, and parent composition scaffolding started
+> Progress: Milestone 1 complete; Milestone 2 substantially implemented; Milestone 3 partially implemented with heuristic routing and parent composition; MVP not yet achieved
 
 ---
 
 ## Current Status and Agreed Direction
 
-This document remains the primary design reference for the subcircuits redesign. The implementation has advanced enough that the original milestone descriptions are no longer sufficient on their own, so this section records the current state, the current blocker, and the agreed architectural direction.
+This document remains the primary design reference for the subcircuits redesign. The implementation has advanced enough that the original milestone descriptions are no longer sufficient on their own, so this section records the current state, the current blocker, the agreed architectural direction, and the revised MVP definition.
 
 ### Current implementation status
 
@@ -21,21 +21,62 @@ Implemented or substantially implemented:
 - leaf-local board-state extraction from the full PCB
 - internal/external/ignored net partitioning
 - leaf-local placement solving
-- lightweight local internal-net routing
 - canonical solved layout persistence in `solved_layout.json`
 - solved artifact loading and rigid transform helpers
 - parent composition scaffolding
 - hierarchy-aware parent selection in the composition CLI
 - lightweight parent-level scoring
+- preservation of routed child copper in parent composition
+- lightweight parent interconnect routing from transformed interface anchors
+- stamping composed parent state into a real `.kicad_pcb` for inspection
 
-Partially implemented or provisional:
-- interface anchor inference exists in the leaf solve flow, but current solved artifacts do not yet reliably carry usable anchors for parent composition
-- parent composition can merge rigid children and score the result, but parent interconnect extraction is not yet robust
+Implemented but explicitly provisional:
+- leaf-local internal-net routing currently uses a lightweight Manhattan heuristic router
+- parent interconnect routing currently uses a lightweight Manhattan heuristic router
+- demo board stamping and preview generation exist only as inspection scaffolding
+- compact parent composition layout exists only as a readability aid, not as a real placement optimizer
+
+Partially implemented or incomplete:
+- interface anchor inference exists in the leaf solve flow, but solved artifacts still do not reliably carry complete usable anchors for all LLUPS leaves
+- parent composition can merge rigid children and route between some of them, but the result is not yet a production-quality routed parent board
 - parent-local component support exists in the composition layer API, but is not yet fully wired through a real hierarchy-driven parent workflow
-- local routing is still heuristic and not yet a full routed-artifact flow
+- no true leaf-level FreeRouting solve loop exists yet
+- no true parent-level FreeRouting session exists yet that starts from preloaded routed child copper and continues routing from that state
+- no hierarchical DRC gate exists that validates each solved leaf before it is accepted as a rigid artifact
+- no artifact acceptance policy exists yet for rejecting poor leaf layouts before parent composition
 
 Current observed blocker:
-- parent composition currently identifies the correct parent and child subcircuits, but often produces zero parent interconnect nets because the solved child artifacts do not yet provide a reliable physical interface-anchor contract
+- the current pipeline now reaches real stamped KiCad leaf boards and real FreeRouting invocation, but at least one LLUPS leaf (`USB INPUT`) is still illegal before routing begins
+- the stamped `leaf_pre_freerouting.kicad_pcb` is now explicitly rejected by a pre-route legality gate with `illegal_pre_route_geometry`
+- this means the immediate blocker is no longer “FreeRouting produced bad copper” but “the stamped pre-route leaf board is already malformed or preserves edge-coupled geometry incorrectly”
+- the current pipeline can therefore produce a technically composed parent board, but it is not yet a minimum viable product because accepted routed leaf artifacts do not yet exist, the parent board is not yet placement-optimized, and the resulting board is not yet credible for human review or DRC-driven acceptance
+
+### What is not acceptable as MVP
+
+The following are explicitly not sufficient for MVP:
+- a synthetic or readability-only demo board
+- a parent board composed from heuristic Manhattan-routed leaves without DRC acceptance
+- a parent board that visually demonstrates hierarchy but is not a credible routed PCB
+- a preview image that is readable only after manual interpretation
+- a FreeRouting DSN load that starts from a malformed or non-credible parent board
+
+The recent “demo” path proved that routed child copper can be preserved and stamped into a parent board, but it also proved that this is not enough. The resulting board was not human-readable, not placement-optimized, and not a convincing hierarchical routing product. That path should now be treated as a debugging scaffold, not as the target deliverable.
+
+### Revised MVP definition
+
+For LLUPS, the minimum viable product is:
+
+1. solve selected leaf subcircuits with real placement optimization
+2. route those leaf subcircuits with FreeRouting, not the heuristic Manhattan router
+3. validate each accepted leaf artifact with at least a basic DRC / legality gate
+4. persist those accepted routed leaf artifacts as the canonical child inputs
+5. compose a parent board from those routed leaf artifacts
+6. preserve the routed child copper exactly in the parent board
+7. launch parent FreeRouting from that preloaded parent board without clearing the child copper
+8. produce a parent board that is human-readable on screen and credible enough to inspect in KiCad
+9. make the entire flow reproducible from CLI without ad hoc manual patching
+
+This MVP does not require full recursive hierarchy, full global optimization, or perfect final routing quality. It does require a real hierarchical routing flow that starts from accepted routed leaves and continues at the parent level.
 
 ### Agreed architectural direction
 
@@ -45,6 +86,8 @@ The agreed direction is:
 2. solved artifacts must carry explicit physical interface anchors
 3. parent composition combines logical interconnect definitions with physical anchor geometry
 4. heuristic anchor synthesis may exist as a fallback, but not as the primary contract
+5. heuristic Manhattan routing may remain as a debugging fallback, but not as the canonical routed-artifact path for MVP
+6. FreeRouting-backed routed leaf artifacts must become the canonical inputs to parent routing for MVP
 
 In practical terms:
 
@@ -52,6 +95,7 @@ In practical terms:
 - solved artifacts define where those connections can physically enter or leave a rigid child layout
 - parent composition should not depend on heuristic geometry reconstruction when canonical anchor data is available
 - fallback anchor synthesis is acceptable only for backward compatibility, incomplete artifacts, or debugging
+- fallback heuristic routing is acceptable only for debugging, not for MVP acceptance
 
 ### Why this direction was chosen
 
@@ -63,16 +107,36 @@ This hybrid model separates concerns cleanly:
 
 This is more robust than a purely anchor-driven design because composition can still understand connectivity even when physical anchors are missing. It is also more robust than a purely hierarchy-driven design because parent routing eventually needs explicit physical entry points on rigid child layouts.
 
+The recent implementation work also clarified an additional point: preserving routed child copper in a parent board is necessary but not sufficient. The routed child artifacts themselves must be credible, and the parent board must start from a sane composed placement. Otherwise the result is only a technical proof of data flow, not a usable product.
+
 ### Immediate next implementation sequence
 
 The next implementation sequence should be:
 
-1. update this design doc to reflect the current state and the agreed interface-anchor strategy
-2. implement hierarchy-driven parent interconnect extraction so parent composition can build logical interconnect nets even when anchors are absent
-3. extend the KiCad helper skill and solved-artifact pipeline so leaf solves persist explicit interface anchors as first-class artifact data
-4. add validation and inspection tooling for required interface anchors
-5. add fallback synthetic-anchor generation for older or incomplete artifacts
-6. continue parent-local component support and parent-level routing on top of the stronger interface contract
+1. update this design doc to reflect the current state, the failed demo path, and the revised MVP definition
+2. stop treating the heuristic Manhattan-routed parent demo as a target deliverable
+3. keep the true leaf-level FreeRouting solve path and fix the stamped pre-route board legality:
+   - stamp a real leaf board
+   - validate the stamped pre-route board before routing
+   - reject immediately if the stamped board is already illegal
+   - only then run FreeRouting on the leaf board
+   - import SES
+   - persist the routed leaf board as the canonical artifact once accepted
+4. keep and extend the leaf acceptance gates:
+   - no Python exceptions
+   - no malformed board geometry
+   - no illegal pre-route board geometry
+   - no obviously illegal routed geometry
+   - basic DRC / legality summary persisted with the artifact
+   - render diagnostics persisted with the artifact
+5. improve anchor completeness for the LLUPS leaves that still have incomplete or missing anchors:
+   - `USB INPUT`
+   - `BATT PROT`
+   - battery holder / battery sheet artifacts as needed
+6. compose the real root parent from accepted routed leaf artifacts
+7. implement a parent FreeRouting path that preserves preloaded child copper instead of clearing all traces first
+8. produce a real parent `.kicad_pcb` that can be opened in KiCad and inspected before and after parent FreeRouting
+9. only after the above works, revisit preview rendering and presentation polish
 
 ### Current LLUPS-specific reality
 
@@ -82,6 +146,47 @@ At the time of writing, the LLUPS schematic hierarchy consists of:
 - no deeper non-root composite parents yet
 
 That means the current hierarchy-aware composition flow can already compose the real root parent, but deeper recursive parent composition cannot yet be exercised on this project until the schematic hierarchy grows beyond one level.
+
+This is acceptable for MVP. The immediate goal is not arbitrary recursive depth. The immediate goal is a credible root-level hierarchical routing flow for the existing LLUPS hierarchy.
+
+### Render diagnostics direction
+
+A lightweight render-diagnostics workflow is now part of the debugging direction for this branch.
+
+The purpose is not presentation polish. The purpose is to make these questions answerable quickly for each leaf artifact:
+
+- is the stamped pre-route leaf board already illegal?
+- are footprints outside or misaligned to `Edge.Cuts`?
+- did FreeRouting add meaningful copper?
+- did routing improve or worsen the board visually?
+
+The preferred artifact location is:
+
+- `.experiments/subcircuits/<slug>/renders/`
+
+The preferred minimal artifact set per leaf is:
+
+- `pre_route_copper_both.png`
+- `pre_route_front_all.png`
+- `pre_route_drc.json`
+- `pre_route_drc_overlay.png` when coordinate-bearing violations exist
+- `routed_copper_both.png`
+- `routed_front_all.png`
+- `routed_drc.json`
+- `routed_drc_overlay.png` when coordinate-bearing violations exist
+- `pre_vs_routed_contact_sheet.png`
+
+These artifacts should be treated as debugging aids that expose geometry and legality problems early. They do not change the MVP definition, but they do make the current blocker much easier to inspect.
+
+### Current LLUPS-specific blockers
+
+The current LLUPS blockers are:
+- `USB INPUT` still has incomplete anchor coverage
+- `BATT PROT` still has no usable anchors
+- battery-related artifacts are not yet integrated into a credible parent routing story
+- the stamped `USB INPUT` pre-route leaf board is still illegal before routing, indicating that source-board edge relationships for edge-pinned parts are not yet preserved correctly
+- parent composition layout is still synthetic rather than placement-optimized
+- the current on-screen preview path is useful for debugging, but not yet suitable for product evaluation
 
 ---
 
@@ -1046,6 +1151,11 @@ Open question:
 
 Recommendation:
 - JSON should be canonical for pipeline logic
+- mini PCB should be a human-inspection/debug artifact
+
+Additional clarification from current implementation experience:
+- a stamped parent `.kicad_pcb` is useful for inspection and DSN export, but it is not by itself proof of a valid hierarchical routing product
+- the canonical acceptance boundary should remain the routed artifact contract plus validation metadata, not a one-off demo board
 - mini PCB should be an inspectable export
 
 ### 18.2 Interface inference quality

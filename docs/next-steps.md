@@ -1,8 +1,144 @@
 # LLUPS — Next Steps
 
-> Updated: 2026-04-13
+> Updated: 2026-04-16
 > Current best: **92.7** (seed bank). 26/26 nets routed, 0 shorts, 0 pads outside board. Placement score ~85.
 > Recent fixes: connector body-edge alignment, SMT/THT dual-sided layout, dynamic board sizing, area-proportional courtyard scoring, placement iteration increase.
+> Subcircuits redesign status: in progress, but not yet MVP. Current hierarchical work proves data flow and routed-child preservation, but does not yet produce a credible routed parent board.
+> Current blocker: the real leaf FreeRouting path now reaches stamped KiCad leaf boards and visible routing activity, but the stamped `leaf_pre_freerouting.kicad_pcb` is still illegal before routing, so the pipeline now correctly fails at a pre-route legality gate instead of blaming routed copper.
+
+---
+
+## Subcircuits MVP Takeover (next session)
+
+### Current reality
+
+The current subcircuits branch has these pieces working:
+
+- true-sheet hierarchy parsing
+- leaf extraction from the full board into local board states
+- leaf placement solving
+- canonical solved artifact persistence in `solved_layout.json`
+- rigid solved-artifact loading and transform helpers
+- parent composition from solved child artifacts
+- preservation of routed child copper in parent composition
+- lightweight parent interconnect routing from transformed anchors
+- stamping a composed parent state into a real `.kicad_pcb`
+- real leaf FreeRouting invocation from stamped KiCad leaf boards
+- canonical routed-copper import from routed KiCad leaf boards
+- per-leaf render diagnostics under `.experiments/subcircuits/<slug>/renders/`
+
+However, this is **not yet MVP**.
+
+The current routed subcircuit flow no longer falls back to the lightweight leaf router in the real leaf path, but the stamped pre-route leaf board is still illegal before FreeRouting can be fairly judged. A recent on-screen FreeRouting capture was still encouraging because it showed visible leaf routing activity on a real stamped board, but the pipeline now correctly rejects the leaf earlier when the pre-route board itself is malformed or edge-coupled geometry is wrong. The preview/demo path should therefore be treated as a debugging scaffold, not as the target deliverable.
+
+### What is explicitly not MVP
+
+The following do **not** count as MVP:
+
+- a synthetic or readability-only hierarchical demo
+- a parent board composed from heuristic Manhattan-routed leaves
+- a parent board that merely proves routed child copper can be stamped into a parent board
+- a DSN that loads in FreeRouting but starts from a malformed or non-credible parent board
+- a preview image that requires interpretation rather than showing a sane board directly
+
+### MVP definition for subcircuits
+
+The minimum viable product for the LLUPS subcircuits redesign is:
+
+1. solve selected leaf subcircuits with real placement optimization
+2. route those leaf subcircuits with **FreeRouting**, not the heuristic Manhattan router
+3. validate each accepted leaf artifact with at least a basic DRC / legality gate
+4. persist those accepted routed leaf artifacts as the canonical child inputs
+5. compose a parent board from those routed leaf artifacts
+6. preserve the routed child copper exactly in the parent board
+7. launch parent FreeRouting from that preloaded parent board **without clearing the child copper**
+8. produce a parent board that is human-readable in KiCad and credible enough to inspect before and after parent routing
+9. make the flow reproducible from CLI without ad hoc manual patching
+
+### Immediate takeover priorities
+
+The next agent should work in this order:
+
+#### 1. Fix stamped pre-route leaf legality so FreeRouting-backed leaf artifacts can be accepted
+The real leaf solve path now does:
+
+- leaf placement
+- stamp a real leaf `.kicad_pcb`
+- export DSN
+- run FreeRouting
+- import SES
+- import routed copper back into canonical artifact structures
+
+The current blocker is earlier in the flow: the stamped `leaf_pre_freerouting.kicad_pcb` is still illegal for at least the `USB INPUT` leaf, so the next session should focus on preserving source-board edge relationships for edge-pinned parts rather than tweaking routed-copper acceptance first.
+
+The current Manhattan router may remain as a fallback for debugging elsewhere, but it must not be reintroduced as the canonical routed-artifact path for MVP.
+
+#### 2. Keep and extend the leaf acceptance gates
+Each leaf artifact should carry validation metadata and be rejected if it is obviously bad.
+
+Minimum acceptance checks:
+- no Python exceptions
+- no malformed board geometry
+- no illegal pre-route board geometry
+- no obviously illegal routed geometry
+- basic DRC / legality summary persisted with the artifact
+- anchor completeness summary persisted with the artifact
+- render diagnostics persisted with the artifact
+
+Current status:
+- a pre-route legality gate now exists and correctly fails with `illegal_pre_route_geometry`
+- this is an improvement because it distinguishes “bad stamped board” from “bad routed copper”
+
+#### 3. Fix LLUPS leaf anchor completeness
+The current LLUPS-specific blockers are still:
+- `USB INPUT` has incomplete anchor coverage
+- `BATT PROT` has no usable anchors
+- battery-related artifacts are not yet integrated into a credible parent routing story
+
+These must be improved before the parent routing story is credible.
+
+#### 4. Compose the real root parent from accepted routed leaves
+Once routed leaf artifacts are real and accepted, compose the actual root parent from those artifacts.
+
+Important:
+- preserve child copper exactly
+- do not treat the compact demo layout as a final placement strategy
+- if necessary, add a simple but sane parent placement heuristic before parent FreeRouting
+
+#### 5. Run parent FreeRouting without clearing child copper
+This is the key MVP milestone.
+
+The parent routing path must:
+- start from the composed parent board with routed child copper already present
+- export DSN from that board
+- run FreeRouting without first wiping the child traces
+- import SES back into a routed parent board
+
+This is the first point where the hierarchical routing flow becomes real.
+
+### Files most relevant to takeover
+
+Primary files:
+- `docs/subcircuits_pipeline_design.md`
+- `.claude/skills/kicad-helper/scripts/solve_subcircuits.py`
+- `.claude/skills/kicad-helper/scripts/compose_subcircuits.py`
+- `.claude/skills/kicad-helper/scripts/demo_hierarchical_freerouting.py`
+- `.claude/skills/kicad-helper/scripts/autoplacer/brain/subcircuit_solver.py`
+- `.claude/skills/kicad-helper/scripts/autoplacer/brain/subcircuit_composer.py`
+- `.claude/skills/kicad-helper/scripts/autoplacer/brain/subcircuit_instances.py`
+- `.claude/skills/kicad-helper/scripts/autoplacer/hardware/adapter.py`
+- `.claude/skills/kicad-helper/scripts/autoplacer/freerouting_runner.py`
+
+### Important caution for the next agent
+
+Do **not** spend the next session polishing demo cosmetics first.
+
+The correct next milestone is:
+- legal stamped pre-route leaf boards
+- accepted real FreeRouting-backed leaf artifacts
+- parent FreeRouting preserving child copper
+
+That said, lightweight render diagnostics are now worth keeping because they directly expose the current blocker. Use rendering to diagnose geometry, not to mask it.
 
 ---
 
@@ -69,14 +205,81 @@
 
 ## High Priority
 
-### 1. Reduce DRC clearance violations
+### 0. Subcircuits MVP takeover
 
-Clearance violations remain the largest DRC category (~80-160 per round). Likely causes:
-- FreeRouting trace-to-pad clearance doesn't match KiCad design rules
-- Placement clearance and trace width settings may be misaligned
-- **Action**: Compare KiCad net class clearance rules with FreeRouting DSN clearance values. Increase `SIGNAL_WIDTH_MM` / `POWER_WIDTH_MM` if violations are predominantly narrow traces.
+Before further demo work, hierarchical subcircuits need to become a real MVP.
+
+Top actions:
+- fix stamped pre-route leaf legality, especially for edge-pinned connectors like `J1`
+- keep the real FreeRouting-backed leaf routing path as the only success path
+- keep and extend leaf artifact acceptance / validation
+- fix incomplete LLUPS anchors (`USB INPUT`, `BATT PROT`, battery-related sheets)
+- compose the real root parent from accepted routed leaves
+- run parent FreeRouting while preserving preloaded child copper
+
+Success condition:
+- you can visibly inspect legal pre-route leaf boards, then routed leaf boards, then open a parent board that already contains those routed leaves, then continue parent routing from that state
+
+Diagnostic note:
+- each leaf artifact should now grow a small render bundle under `.experiments/subcircuits/<slug>/renders/`
+- preferred artifacts: pre-route/routed board snapshots, DRC JSON sidecars, DRC overlays, and a pre-vs-routed contact sheet
+
+### 1. Fix pre-route leaf legality before tuning routed DRC
+
+For the current subcircuits branch, the most important DRC issue is no longer “routed board has violations” in the abstract. The immediate blocker is:
+
+- the stamped `leaf_pre_freerouting.kicad_pcb` is already illegal before routing
+- the pipeline now explicitly fails with `illegal_pre_route_geometry`
+- this means the next debugging target is board/footprint/edge relationship preservation, not router tuning alone
+
+Likely causes:
+- edge-coupled connector geometry is not preserved when extracting/stamping a leaf board
+- the local synthetic outline is still derived too generically from component extents
+- source-board edge relationships for edge-pinned parts are being lost during extraction or stamping
+
+Action:
+- preserve source-board edge-relative placement for edge-pinned connectors during leaf extraction/stamping
+- validate `leaf_pre_freerouting.kicad_pcb` before FreeRouting and keep failing early when illegal
+- only after pre-route legality is fixed, revisit DSN clearance tuning and routed-board DRC interpretation
 
 ---
+
+## Render Diagnostics Workflow (new)
+
+A minimal render-diagnostics workflow should now be considered part of subcircuit debugging.
+
+### Purpose
+
+The goal is not presentation polish. The goal is to make these questions answerable quickly:
+
+- is the stamped pre-route leaf board already illegal?
+- are footprints outside or misaligned to `Edge.Cuts`?
+- did FreeRouting add meaningful copper?
+- did routing improve or worsen the board visually?
+
+### Standard artifact location
+
+For each leaf artifact:
+
+- `.experiments/subcircuits/<slug>/renders/`
+
+### Preferred artifact set
+
+Per leaf, generate:
+
+- `pre_route_copper_both.png`
+- `pre_route_front_all.png`
+- `pre_route_drc.json`
+- `pre_route_drc_overlay.png` when coordinate-bearing violations exist
+- `routed_copper_both.png`
+- `routed_front_all.png`
+- `routed_drc.json`
+- `routed_drc_overlay.png` when coordinate-bearing violations exist
+- `pre_vs_routed_contact_sheet.png`
+
+### Current debugging interpretation
+
+If the pre-route board is already illegal, treat routed-board rejection as secondary. The first question should always be whether the stamped leaf board itself is sane.
 
 ## Medium Priority
 

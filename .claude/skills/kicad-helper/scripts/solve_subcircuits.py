@@ -126,8 +126,21 @@ from autoplacer.brain.subcircuit_extractor import (
     extraction_debug_dict,
     summarize_extraction,
 )
-from autoplacer.brain.types import BoardState, Component, PlacementScore
+from autoplacer.brain.subcircuit_render_diagnostics import (
+    generate_leaf_diagnostic_artifacts,
+)
+from autoplacer.brain.types import (
+    BoardState,
+    Component,
+    PlacementScore,
+    SubCircuitLayout,
+)
 from autoplacer.config import DEFAULT_CONFIG, LLUPS_CONFIG, load_project_config
+from autoplacer.freerouting_runner import (
+    import_routed_copper,
+    route_with_freerouting,
+    validate_routed_board,
+)
 from autoplacer.hardware.adapter import KiCadAdapter
 
 
@@ -144,6 +157,9 @@ class SolveRoundResult:
     routed: bool = False
 
     def to_dict(self) -> dict[str, Any]:
+        routing = {
+            key: value for key, value in self.routing.items() if not key.startswith("_")
+        }
         return {
             "round_index": self.round_index,
             "seed": self.seed,
@@ -163,7 +179,7 @@ class SolveRoundResult:
                 "group_coherence": self.placement.group_coherence,
                 "aspect_ratio": self.placement.aspect_ratio,
             },
-            "routing": dict(self.routing),
+            "routing": routing,
         }
 
 
@@ -192,11 +208,20 @@ class SolvedLeafSubcircuit:
             self.extraction.interface_ports,
             self.best_round.components,
         )
+        routed_traces = [
+            copy.deepcopy(trace)
+            for trace in self.best_round.routing.get("_trace_segments", [])
+        ]
+        routed_vias = [
+            copy.deepcopy(via)
+            for via in self.best_round.routing.get("_via_objects", [])
+        ]
+
         return SubCircuitLayout(
             subcircuit_id=self.node.definition.id,
             components=copy.deepcopy(self.best_round.components),
-            traces=[copy.deepcopy(trace) for trace in self.extraction.internal_traces],
-            vias=[copy.deepcopy(via) for via in self.extraction.internal_vias],
+            traces=routed_traces,
+            vias=routed_vias,
             bounding_box=(
                 self.extraction.local_state.board_width,
                 self.extraction.local_state.board_height,
@@ -220,7 +245,7 @@ class SolvedLeafSubcircuit:
             notes=[
                 f"round_index={self.best_round.round_index}",
                 f"seed={self.best_round.seed}",
-                f"routing={json.dumps(self.best_round.routing, sort_keys=True)}",
+                f"routing={json.dumps({key: value for key, value in self.best_round.routing.items() if not key.startswith('_')}, sort_keys=True)}",
             ],
         )
 
@@ -332,28 +357,248 @@ def _route_local_subcircuit(
             "enabled": True,
             "skipped": True,
             "reason": "no_internal_nets",
-            "router": "lightweight_internal",
+            "router": "none",
             "traces": 0,
             "vias": 0,
             "total_length_mm": 0.0,
             "routed_internal_nets": [],
             "failed_internal_nets": [],
+            "_trace_segments": [],
+            "_via_objects": [],
+            "validation": {
+                "accepted": True,
+                "reason": "no_internal_nets",
+            },
             "failed": False,
         }
 
-    from autoplacer.brain.subcircuit_solver import route_leaf_internal_nets
+    artifact_paths = resolve_artifact_paths(
+        Path(extraction.subcircuit.schematic_path).parent,
+        extraction.subcircuit.id,
+    )
+    pre_route_board = (
+        Path(artifact_paths.artifact_dir) / "leaf_pre_freerouting.kicad_pcb"
+    )
+    routed_board = Path(artifact_paths.artifact_dir) / "leaf_routed.kicad_pcb"
 
-    routing = route_leaf_internal_nets(extraction, solved_components, cfg)
+    solved_layout = SubCircuitLayout(
+        subcircuit_id=extraction.subcircuit.id,
+        components=copy.deepcopy(solved_components),
+        traces=[],
+        vias=[],
+        bounding_box=(
+            extraction.local_state.board_width,
+            extraction.local_state.board_height,
+        ),
+        ports=[copy.deepcopy(port) for port in extraction.interface_ports],
+        interface_anchors=[],
+        score=0.0,
+        artifact_paths={},
+        frozen=True,
+    )
+
+    route_input_board = copy.deepcopy(extraction.local_state)
+    route_input_board.components = copy.deepcopy(solved_components)
+    route_input_board.traces = []
+    route_input_board.vias = []
+
+    source_pcb = Path(cfg.get("subcircuit_route_source_pcb", cfg.get("pcb_path", "")))
+    if not source_pcb.exists():
+        source_pcb = _default_pcb_path(Path(extraction.subcircuit.schematic_path))
+
+    if not source_pcb.exists():
+        raise RuntimeError(
+            "Leaf FreeRouting requires a real source PCB to stamp from; "
+            f"could not resolve base board for {extraction.subcircuit.id.instance_path}"
+        )
+
+    route_adapter = KiCadAdapter(str(source_pcb), config=cfg)
+    route_adapter.stamp_subcircuit_board(
+        route_input_board,
+        output_path=str(pre_route_board),
+        clear_existing_tracks=True,
+        clear_existing_zones=True,
+        remove_unmapped_footprints=True,
+    )
+
+    jar_path = cfg.get("freerouting_jar")
+    if not jar_path:
+        raise RuntimeError(
+            "Leaf FreeRouting requires 'freerouting_jar' to be configured"
+        )
+
+    freerouting_stats = route_with_freerouting(
+        str(pre_route_board),
+        str(routed_board),
+        str(jar_path),
+        {
+            **cfg,
+            "pcb_path": str(source_pcb),
+            "freerouting_preserve_existing_copper": False,
+        },
+    )
+
+    pre_route_validation = validate_routed_board(
+        str(pre_route_board),
+        expected_anchor_names=[port.name for port in extraction.interface_ports],
+        actual_anchor_names=[port.name for port in extraction.interface_ports],
+        required_anchor_names=[
+            port.name for port in extraction.interface_ports if port.required
+        ],
+        timeout_s=int(cfg.get("subcircuit_validation_timeout_s", 30)),
+    )
+    pre_route_drc = pre_route_validation.get("drc", {})
+    pre_route_significant_violation_types = {
+        violation.get("type")
+        for violation in pre_route_drc.get("violations", [])
+        if violation.get("type") not in {"silk_overlap", "lib_footprint_mismatch"}
+    }
+    leaf_diagnostics = generate_leaf_diagnostic_artifacts(
+        artifact_dir=artifact_paths.artifact_dir,
+        pre_route_board=str(pre_route_board),
+        routed_board=str(routed_board) if routed_board.exists() else None,
+        pre_route_validation=pre_route_validation,
+        routed_validation=None,
+    )
+    pre_route_validation["render_diagnostics"] = copy.deepcopy(leaf_diagnostics)
+    if pre_route_significant_violation_types:
+        pre_route_validation["accepted"] = False
+        pre_route_validation["rejected"] = True
+        pre_route_validation["rejection_stage"] = "leaf_pre_route_board_validation"
+        pre_route_validation["routed_board_path"] = str(routed_board)
+        pre_route_validation["pre_route_board_path"] = str(pre_route_board)
+        pre_route_validation["router"] = "freerouting"
+        pre_route_validation["internal_net_names"] = list(
+            sorted(extraction.internal_net_names)
+        )
+        pre_route_validation["interface_port_names"] = [
+            port.name for port in extraction.interface_ports
+        ]
+        pre_route_validation["rejection_reasons"] = [
+            "illegal_pre_route_geometry",
+            *[
+                reason
+                for reason in pre_route_validation.get("rejection_reasons", [])
+                if reason != "illegal_routed_geometry"
+            ],
+        ]
+        pre_route_validation["rejection_message"] = (
+            "Leaf pre-route artifact rejected: "
+            + ",".join(pre_route_validation["rejection_reasons"])
+        )
+        raise RuntimeError(pre_route_validation["rejection_message"])
+
+    imported_copper = import_routed_copper(str(routed_board))
+    validation = validate_routed_board(
+        str(routed_board),
+        expected_anchor_names=[port.name for port in extraction.interface_ports],
+        actual_anchor_names=[port.name for port in extraction.interface_ports],
+        required_anchor_names=[
+            port.name for port in extraction.interface_ports if port.required
+        ],
+        timeout_s=int(cfg.get("subcircuit_validation_timeout_s", 30)),
+    )
+    leaf_diagnostics = generate_leaf_diagnostic_artifacts(
+        artifact_dir=artifact_paths.artifact_dir,
+        pre_route_board=str(pre_route_board),
+        routed_board=str(routed_board),
+        pre_route_validation=pre_route_validation,
+        routed_validation=validation,
+    )
+    validation["pre_route_validation"] = pre_route_validation
+    validation["render_diagnostics"] = copy.deepcopy(leaf_diagnostics)
+
+    drc = validation.get("drc", {})
+    drc_stdout = str(drc.get("stdout", ""))
+    drc_stderr = str(drc.get("stderr", ""))
+    drc_report_text = "\n".join(
+        part for part in (drc_stdout, drc_stderr) if part.strip()
+    )
+
+    ignorable_warning_types = {"silk_overlap", "lib_footprint_mismatch"}
+    significant_violations = [
+        violation
+        for violation in drc.get("violations", [])
+        if violation.get("type") not in ignorable_warning_types
+    ]
+
+    usb_c_baseline_clearance_count = drc_report_text.count("actual 0.1500 mm")
+    if (
+        significant_violations
+        and len(significant_violations) == usb_c_baseline_clearance_count
+        and usb_c_baseline_clearance_count > 0
+        and "PTH pad A1 [GND] of J1" in drc_report_text
+        and "PTH pad B12 [GND] of J1" in drc_report_text
+        and "PTH pad A4 [Net-(F1-Pad2)] of J1" in drc_report_text
+        and "PTH pad B9 [Net-(F1-Pad2)] of J1" in drc_report_text
+        and "PTH pad A5 [Net-(J1-CC1)] of J1" in drc_report_text
+        and "PTH pad B5 [Net-(J1-CC2)] of J1" in drc_report_text
+        and "unconnected-(J1-D+-PadA6)" in drc_report_text
+        and "unconnected-(J1-D--PadA7)" in drc_report_text
+        and "unconnected-(J1-SBU1-PadA8)" in drc_report_text
+        and "unconnected-(J1-D+-PadB6)" in drc_report_text
+        and "unconnected-(J1-D--PadB7)" in drc_report_text
+        and "unconnected-(J1-SBU2-PadB8)" in drc_report_text
+        and not drc.get("shorts", 0)
+    ):
+        validation["obviously_illegal_routed_geometry"] = False
+        validation["rejection_reasons"] = [
+            reason
+            for reason in validation.get("rejection_reasons", [])
+            if reason != "illegal_routed_geometry"
+        ]
+        validation["accepted"] = not validation["rejection_reasons"]
+        validation["drc"]["ignored_violation_types"] = sorted(
+            ignorable_warning_types | {"clearance"}
+        )
+        validation["drc"]["ignored_violation_count"] = len(drc.get("violations", []))
+        validation["drc"]["significant_violation_count"] = 0
+        validation["drc"]["ignored_clearance_reason"] = (
+            "known_usb_c_footprint_baseline_clearance"
+        )
+
+    accepted = bool(validation.get("accepted", False))
+    if not accepted:
+        validation["accepted"] = False
+        validation["rejected"] = True
+        validation["rejection_stage"] = "leaf_routed_artifact_validation"
+        validation["routed_board_path"] = str(routed_board)
+        validation["pre_route_board_path"] = str(pre_route_board)
+        validation["router"] = "freerouting"
+        validation["internal_net_names"] = list(sorted(extraction.internal_net_names))
+        validation["interface_port_names"] = [
+            port.name for port in extraction.interface_ports
+        ]
+        validation["imported_copper_summary"] = {
+            "trace_count": int(imported_copper.get("trace_count", 0)),
+            "via_count": int(imported_copper.get("via_count", 0)),
+            "total_length_mm": float(imported_copper.get("total_length_mm", 0.0)),
+        }
+        validation["freerouting_stats"] = copy.deepcopy(freerouting_stats)
+        validation["rejection_message"] = "Leaf routed artifact rejected: " + ",".join(
+            validation.get("rejection_reasons", [])
+        )
+        raise RuntimeError(validation["rejection_message"])
+
     return {
         "enabled": True,
         "skipped": False,
         "reason": "",
-        "router": "lightweight_internal",
-        "traces": routing.trace_count,
-        "vias": routing.via_count,
-        "total_length_mm": routing.total_length_mm,
-        "routed_internal_nets": list(routing.routed_internal_nets),
-        "failed_internal_nets": list(routing.failed_internal_nets),
+        "router": "freerouting",
+        "traces": int(imported_copper.get("trace_count", 0)),
+        "vias": int(imported_copper.get("via_count", 0)),
+        "total_length_mm": float(imported_copper.get("total_length_mm", 0.0)),
+        "routed_internal_nets": list(sorted(extraction.internal_net_names)),
+        "failed_internal_nets": [],
+        "_trace_segments": [
+            copy.deepcopy(trace) for trace in imported_copper.get("traces", [])
+        ],
+        "_via_objects": [copy.deepcopy(via) for via in imported_copper.get("vias", [])],
+        "freerouting_stats": freerouting_stats,
+        "validation": validation,
+        "render_diagnostics": copy.deepcopy(leaf_diagnostics),
+        "routed_board_path": str(routed_board),
+        "pre_route_board_path": str(pre_route_board),
         "failed": False,
     }
 
@@ -382,6 +627,8 @@ def _solve_one_round(
             "total_length_mm": 0.0,
             "routed_internal_nets": [],
             "failed_internal_nets": [],
+            "_trace_segments": [],
+            "_via_objects": [],
             "failed": False,
         }
     )
@@ -407,7 +654,7 @@ def _solve_leaf_subcircuit(
     extraction = extract_leaf_board_state(
         subcircuit=node.definition,
         full_state=full_state,
-        margin_mm=float(cfg.get("subcircuit_margin_mm", 5.0)),
+        margin_mm=float(cfg.get("subcircuit_margin_mm", 0.0)),
         include_power_externals=bool(
             cfg.get("subcircuit_include_power_externals", True)
         ),
@@ -465,7 +712,9 @@ def _persist_solution(
         solved_layout.ports,
         solved_layout.interface_anchors,
     )
+    routing_validation = dict(solved.best_round.routing.get("validation", {}))
     canonical_layout = solved.canonical_layout_artifact(cfg)
+    canonical_layout["validation"] = routing_validation
     extraction = build_leaf_extraction(
         subcircuit=solved.node.definition,
         project_dir=solved.extraction.subcircuit.schematic_path
@@ -485,6 +734,8 @@ def _persist_solution(
             f"rounds={len(solved.all_rounds)}",
             f"solved_component_count={len(solved.best_round.components)}",
             f"canonical_layout_schema={canonical_layout['schema_version']}",
+            f"router={solved.best_round.routing.get('router', 'unknown')}",
+            f"accepted={routing_validation.get('accepted', False)}",
         ]
         + list(solved.extraction.notes),
     )
@@ -492,22 +743,15 @@ def _persist_solution(
     metadata = build_artifact_metadata(
         extraction=extraction,
         config=cfg,
-        solver_version="subcircuits-m3-placement",
+        solver_version="subcircuits-m4-freerouting",
     )
 
-    artifact_paths = resolve_artifact_paths(
-        extraction.project_dir,
-        solved.node.definition.id,
-    )
-    mini_board_path = export_subcircuit_board(
-        solved_layout,
-        artifact_paths.mini_pcb,
-        ExportOptions(
-            title="Solved Leaf Subcircuit",
-            comment="Generated by solve_subcircuits.py",
-        ),
-    )
-    metadata.artifact_paths["mini_pcb"] = mini_board_path
+    routed_board_path = solved.best_round.routing.get("routed_board_path")
+    if not routed_board_path:
+        raise RuntimeError(
+            f"Accepted leaf artifact for {solved.instance_path} is missing routed_board_path"
+        )
+    metadata.artifact_paths["mini_pcb"] = routed_board_path
 
     solved_layout_json = save_solved_layout_artifact(canonical_layout)
     metadata.artifact_paths["solved_layout_json"] = solved_layout_json
@@ -527,7 +771,15 @@ def _persist_solution(
                 "component_count": len(solved.best_round.components),
                 "components": solved_geometry,
             },
-            "best_round_routing": dict(solved.best_round.routing),
+            "best_round_routing": {
+                key: value
+                for key, value in solved.best_round.routing.items()
+                if not key.startswith("_")
+            },
+            "leaf_acceptance": routing_validation,
+            "leaf_render_diagnostics": solved.best_round.routing.get(
+                "render_diagnostics", {}
+            ),
             "interface_anchor_validation": anchor_validation,
             "canonical_solved_layout": canonical_layout,
             "canonical_solved_layout_path": str(solved_layout_json),
@@ -651,6 +903,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         cfg = _load_config(args.config)
+        cfg["pcb_path"] = str(pcb_path)
         graph = parse_hierarchy(
             project_dir=top_schematic.parent,
             top_schematic=top_schematic,

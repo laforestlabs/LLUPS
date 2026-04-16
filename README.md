@@ -147,6 +147,58 @@ Automation scripts using the KiCad 9 `pcbnew` Python API:
 
 All in `.claude/skills/kicad-helper/scripts/`.
 
+## Subcircuits Workflow
+
+The hierarchical/subcircuits redesign is currently focused on a real leaf-first routing flow:
+
+1. parse the true schematic hierarchy from `LLUPS.kicad_sch`
+2. extract each leaf sheet into a local board state
+3. stamp a real KiCad leaf board under `.experiments/subcircuits/<slug>/`
+4. validate the stamped pre-route leaf board before routing
+5. route the leaf through the real FreeRouting path
+6. validate the routed leaf artifact before accepting it
+7. persist accepted routed copper canonically in `solved_layout.json`
+
+Current verification command:
+
+```bash
+python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch \
+  --pcb LLUPS.kicad_pcb \
+  --rounds 1 \
+  --route
+```
+
+### Leaf render diagnostics
+
+Each leaf artifact may now include a small visual diagnostic bundle under:
+
+```text
+.experiments/subcircuits/<slug>/renders/
+```
+
+These diagnostics are intended for debugging real stamped/routed leaf boards, not for demo polish. The preferred artifact set is:
+
+- `pre_route_copper_both.png`
+- `pre_route_front_all.png`
+- `pre_route_drc.json`
+- `pre_route_drc_overlay.png` when coordinate-bearing violations exist
+- `routed_copper_both.png`
+- `routed_front_all.png`
+- `routed_drc.json`
+- `routed_drc_overlay.png` when coordinate-bearing violations exist
+- `pre_vs_routed_contact_sheet.png`
+
+This makes it easier to answer:
+
+- is the stamped pre-route leaf board already illegal?
+- are footprints or edge-coupled connectors misaligned to `Edge.Cuts`?
+- did FreeRouting add meaningful copper?
+- did routing improve or worsen the board visually?
+
+### Current subcircuits blocker
+
+The current blocker on `feature/sub-circuits-redesign` is that at least one LLUPS leaf reaches real stamped KiCad board export and visible FreeRouting activity, but the stamped `leaf_pre_freerouting.kicad_pcb` is still illegal before routing begins. In practice, this means the next debugging target is preserving source-board edge relationships for edge-pinned parts, rather than treating routed copper as the first failure.
+
 ## License
 
 GPLv3 — see [LICENSE](LICENSE).
