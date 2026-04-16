@@ -16,7 +16,7 @@
     "R1",
     "R2"
   ],
-  "config_hash": "576ecb228286a6be07033393bd014bf8d4a5b420bf76a47d5b74933b5d12b38c",
+  "config_hash": "2df5402f45cf8b122ba04980361fba9c9b6edfafeea82aa062627e8f92bb0605",
   "external_nets": [
     "/VBUS",
     "GND"
@@ -61,7 +61,7 @@
     "solved by solve_subcircuits.py",
     "best_round=0",
     "best_seed=1654615998",
-    "best_score=68.584",
+    "best_score=71.523",
     "rounds=1",
     "solved_component_count=6",
     "canonical_layout_schema=subcircuits.layout.v1",

@@ -17,15 +17,15 @@
       "parent=LLUPS",
       "child_count=6",
       "component_count=37",
-      "trace_count=286",
-      "via_count=10",
+      "trace_count=289",
+      "via_count=6",
       "inferred_interconnect_nets=6",
       "interconnect_nets=6",
       "routed_interconnect_nets=6",
       "failed_interconnect_nets=0",
-      "parent_route_trace_count=17",
+      "parent_route_trace_count=18",
       "parent_route_via_count=0",
-      "score_total=61.730"
+      "score_total=62.390"
     ],
     "entries": [
       {
@@ -57,12 +57,12 @@
         },
         "rotation": 0.0,
         "sheet_name": "LDO 3.3V",
-        "trace_count": 40,
+        "trace_count": 38,
         "transformed_bbox": {
           "height_mm": 20.865,
           "width_mm": 49.949999999999996
         },
-        "via_count": 1
+        "via_count": 2
       },
       {
         "anchor_count": 5,
@@ -75,12 +75,12 @@
         },
         "rotation": 0.0,
         "sheet_name": "CHARGER",
-        "trace_count": 102,
+        "trace_count": 106,
         "transformed_bbox": {
           "height_mm": 18.565,
           "width_mm": 34.93
         },
-        "via_count": 9
+        "via_count": 4
       },
       {
         "anchor_count": 1,
@@ -149,40 +149,40 @@
     "score_breakdown": {
       "anchor_coverage": 93.75,
       "area_utilization": 12.661866847828197,
-      "child_layout_quality": 82.28170504215532,
+      "child_layout_quality": 83.74655495651434,
       "interconnect_compactness": 0.0
     },
     "score_notes": [
       "parent=LLUPS",
-      "child_score_avg=82.282",
+      "child_score_avg=83.747",
       "anchor_coverage=0.938",
-      "avg_anchor_distance_mm=111.495",
+      "avg_anchor_distance_mm=109.406",
       "area_utilization=0.127",
       "interconnect_nets=6"
     ],
-    "score_total": 61.730453953752715,
+    "score_total": 62.38963641521427,
     "spacing_mm": 5.0,
-    "trace_count": 286,
-    "via_count": 10
+    "trace_count": 289,
+    "via_count": 6
   },
   "parent_composition": true,
   "routing_result": {
     "freerouting_stats": {
       "_raw_stderr": "",
-      "_raw_stdout": "2026-04-16 14:41:13.752 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\n2026-04-16 14:41:13.779 [main] INFO  Settings were loaded from freerouting.json\n2026-04-16 14:41:14.786 [main] INFO  Opening '/tmp/tmppuc1jlum/board.dsn'...\n2026-04-16 14:41:15.140 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\n2026-04-16 14:41:15.722 [Thread-23] INFO  Starting auto-routing...\n2026-04-16 14:41:15.928 [Thread-23] WARN  FloatLine: Parameter is null\n2026-04-16 14:41:17.030 [Thread-23] INFO  Auto-routing was completed in 1.31 seconds.\n2026-04-16 14:41:17.131 [Thread-23] INFO  Starting route optimization on 1 thread...\n2026-04-16 14:41:28.241 [Thread-23] INFO  Route optimization was completed in 11.11 seconds and it improved the design by ~50.07%.\n2026-04-16 14:41:28.248 [Thread-23] INFO  Saving '/tmp/tmppuc1jlum/board.ses'...\n",
+      "_raw_stdout": "2026-04-16 14:46:26.617 [main] INFO  Freerouting v1.9.0 (build-date: 2023-10-30)\n2026-04-16 14:46:26.644 [main] INFO  Settings were loaded from freerouting.json\n2026-04-16 14:46:27.652 [main] INFO  Opening '/tmp/tmpu7r2gzha/board.dsn'...\n2026-04-16 14:46:27.961 [ForkJoinPool.commonPool-worker-1] INFO  New version available: v2.1.0\n2026-04-16 14:46:28.665 [Thread-23] INFO  Starting auto-routing...\n2026-04-16 14:46:28.879 [Thread-23] WARN  FloatLine: Parameter is null\n2026-04-16 14:46:28.890 [Thread-23] WARN  FloatLine: Parameter is null\n2026-04-16 14:46:30.691 [Thread-23] INFO  Auto-routing was completed in 2.02 seconds.\n2026-04-16 14:46:30.791 [Thread-23] INFO  Starting route optimization on 1 thread...\n2026-04-16 14:46:51.934 [Thread-23] INFO  Route optimization was completed in 21.14 seconds and it improved the design by ~50.70%.\n2026-04-16 14:46:51.941 [Thread-23] INFO  Saving '/tmp/tmpu7r2gzha/board.ses'...\n",
       "cleared_zones_before_export": false,
-      "optimization_seconds": 11.11,
+      "optimization_seconds": 21.14,
       "passes": 0,
       "preserved_existing_copper": true,
       "returncode": 0,
-      "routing_seconds": 1.31,
+      "routing_seconds": 2.02,
       "score": 0.0,
       "unrouted": -1,
       "violations": -1
     },
     "routed_board_path": "/home/jason/Documents/LLUPS/.experiments/subcircuits/subcircuit__8a5edab282/parent_routed.kicad_pcb",
-    "trace_count": 392,
-    "via_count": 19
+    "trace_count": 411,
+    "via_count": 12
   },
   "schema_version": "parent-compose-v1",
   "validation": {
@@ -217,13 +217,13 @@
       "courtyard": 0,
       "missing_cli": false,
       "ran": true,
-      "report_path": "/tmp/tmpvjpn3bw0.txt",
-      "report_text": "** Drc report for parent_routed.kicad_pcb **\n** Created on 2026-04-16T14:41:29-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 32 DRC violations **\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(6.1300 mm, 65.7700 mm): PTH pad A1 [GND] of J1\n    @(6.1300 mm, 64.9200 mm): PTH pad A4 [Net-(F1-Pad2)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(6.1300 mm, 64.9200 mm): PTH pad A4 [Net-(F1-Pad2)] of J1\n    @(6.1300 mm, 64.0700 mm): PTH pad A5 [Net-(J1-CC1)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(6.1300 mm, 64.0700 mm): PTH pad A5 [Net-(J1-CC1)] of J1\n    @(6.1300 mm, 63.2200 mm): PTH pad A6 [unconnected-(J1-D+-PadA6)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(6.1300 mm, 63.2200 mm): PTH pad A6 [unconnected-(J1-D+-PadA6)] of J1\n    @(6.1300 mm, 62.3700 mm): PTH pad A7 [unconnected-(J1-D--PadA7)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(6.1300 mm, 62.3700 mm): PTH pad A7 [unconnected-(J1-D--PadA7)] of J1\n    @(6.1300 mm, 61.5200 mm): PTH pad A8 [unconnected-(J1-SBU1-PadA8)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(6.1300 mm, 61.5200 mm): PTH pad A8 [unconnected-(J1-SBU1-PadA8)] of J1\n    @(6.1300 mm, 60.6700 mm): PTH pad A9 [Net-(F1-Pad2)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(6.1300 mm, 60.6700 mm): PTH pad A9 [Net-(F1-Pad2)] of J1\n    @(6.1300 mm, 59.8200 mm): PTH pad A12 [GND] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(4.7800 mm, 59.8200 mm): PTH pad B1 [GND] of J1\n    @(4.7800 mm, 60.6700 mm): PTH pad B4 [Net-(F1-Pad2)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(4.7800 mm, 60.6700 mm): PTH pad B4 [Net-(F1-Pad2)] of J1\n    @(4.7800 mm, 61.5200 mm): PTH pad B5 [Net-(J1-CC2)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(4.7800 mm, 61.5200 mm): PTH pad B5 [Net-(J1-CC2)] of J1\n    @(4.7800 mm, 62.3700 mm): PTH pad B6 [unconnected-(J1-D+-PadB6)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(4.7800 mm, 62.3700 mm): PTH pad B6 [unconnected-(J1-D+-PadB6)] of J1\n    @(4.7800 mm, 63.2200 mm): PTH pad B7 [unconnected-(J1-D--PadB7)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(4.7800 mm, 63.2200 mm): PTH pad B7 [unconnected-(J1-D--PadB7)] of J1\n    @(4.7800 mm, 64.0700 mm): PTH pad B8 [unconnected-(J1-SBU2-PadB8)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(4.7800 mm, 64.0700 mm): PTH pad B8 [unconnected-(J1-SBU2-PadB8)] of J1\n    @(4.7800 mm, 64.9200 mm): PTH pad B9 [Net-(F1-Pad2)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(4.7800 mm, 64.9200 mm): PTH pad B9 [Net-(F1-Pad2)] of J1\n    @(4.7800 mm, 65.7700 mm): PTH pad B12 [GND] of J1\n[silk_overlap]: Silkscreen overlap\n    Rule: board setup constraints silk; warning\n    @(207.6399 mm, 9.1700 mm): Reference field of R8\n    @(207.7935 mm, 8.3800 mm): Segment of R8 on F.Silkscreen\n[silk_overlap]: Silkscreen overlap\n    Rule: board setup constraints silk; warning\n    @(197.2775 mm, 8.0000 mm): Reference field of C4\n    @(198.0775 mm, 8.1078 mm): Segment of C4 on F.Silkscreen\n[silk_overlap]: Silkscreen overlap\n    Rule: board setup constraints silk; warning\n    @(2.0000 mm, 71.0000 mm): Reference field of R2\n    @(1.8464 mm, 71.7900 mm): Segment of R2 on F.Silkscreen\n[silk_over_copper]: Silkscreen clipped by solder mask\n    Local override; warning\n    @(9.3300 mm, 2.0000 mm): PCB text 'USB INPUT' on F.Silkscreen\n[silk_over_copper]: Silkscreen clipped by solder mask\n    Local override; warning\n    @(3.5000 mm, 52.5000 mm): Reference field of H4\n[silk_over_copper]: Silkscreen clipped by solder mask\n    Local override; warning\n    @(86.5000 mm, 52.5000 mm): Reference field of H86\n[lib_footprint_issues]: Footprint 'VQFN-16-1EP_3.5x3.5mm_P0.5mm_EP2.1x2.1mm' not found in library 'Package_DFN_QFN'.\n    Local override; warning\n    @(200.5800 mm, 14.0000 mm): Footprint U2\n[lib_footprint_mismatch]: Footprint 'R_0402_1005Metric' does not match copy in library 'Resistor_SMD'.\n    Local override; warning\n    @(19.0000 mm, 68.0100 mm): Footprint R1\n[lib_footprint_issues]: Footprint 'MountingHole_2.2mm' not found in library 'MountingHole'.\n    Local override; warning\n    @(3.5000 mm, 55.0000 mm): Footprint H4\n[lib_footprint_mismatch]: Footprint 'R_0402_1005Metric' does not match copy in library 'Resistor_SMD'.\n    Local override; warning\n    @(2.0000 mm, 72.1700 mm): Footprint R2\n[lib_footprint_issues]: Footprint 'MountingHole_2.2mm' not found in library 'MountingHole'.\n    Local override; warning\n    @(86.5000 mm, 55.0000 mm): Footprint H86\n[lib_footprint_mismatch]: Footprint 'R_0402_1005Metric' does not match copy in library 'Resistor_SMD'.\n    Local override; warning\n    @(207.6399 mm, 8.0000 mm): Footprint R8\n[lib_footprint_mismatch]: Footprint 'C_0402_1005Metric' does not match copy in library 'Capacitor_SMD'.\n    Local override; warning\n    @(198.4375 mm, 8.0000 mm): Footprint C4\n[lib_footprint_issues]: The current configuration does not include the footprint library 'LLUPS'.\n    Local override; warning\n    @(228.5800 mm, 73.1700 mm): Footprint BT1\n[lib_footprint_mismatch]: Footprint 'USB_C_Receptacle_GCT_USB4085' does not match copy in library 'Connector_USB'.\n    Local override; warning\n    @(6.1300 mm, 65.7700 mm): Footprint J1\n[lib_footprint_issues]: The current configuration does not include the footprint library 'LLUPS'.\n    Local override; warning\n    @(229.5800 mm, 97.1700 mm): Footprint BT2\n[silk_edge_clearance]: Silkscreen clipped by board edge\n    Rule: board setup constraints silk; warning\n    @(-0.5150 mm, 110.2550 mm): Segment on Edge.Cuts\n    @(0.1300 mm, 58.2000 mm): Segment of J1 on B.Silkscreen\n[silk_edge_clearance]: Silkscreen clipped by board edge\n    Rule: board setup constraints silk; warning\n    @(-0.5150 mm, 110.2550 mm): Segment on Edge.Cuts\n    @(0.1300 mm, 67.3900 mm): Segment of J1 on B.Silkscreen\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
+      "report_path": "/tmp/tmp6vfx3sxj.txt",
+      "report_text": "** Drc report for parent_routed.kicad_pcb **\n** Created on 2026-04-16T14:46:53-0400 **\n** Report includes: Errors, Warnings **\n\n** Found 32 DRC violations **\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(6.1300 mm, 65.7700 mm): PTH pad A1 [GND] of J1\n    @(6.1300 mm, 64.9200 mm): PTH pad A4 [Net-(F1-Pad2)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(6.1300 mm, 64.9200 mm): PTH pad A4 [Net-(F1-Pad2)] of J1\n    @(6.1300 mm, 64.0700 mm): PTH pad A5 [Net-(J1-CC1)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(6.1300 mm, 64.0700 mm): PTH pad A5 [Net-(J1-CC1)] of J1\n    @(6.1300 mm, 63.2200 mm): PTH pad A6 [unconnected-(J1-D+-PadA6)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(6.1300 mm, 63.2200 mm): PTH pad A6 [unconnected-(J1-D+-PadA6)] of J1\n    @(6.1300 mm, 62.3700 mm): PTH pad A7 [unconnected-(J1-D--PadA7)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(6.1300 mm, 62.3700 mm): PTH pad A7 [unconnected-(J1-D--PadA7)] of J1\n    @(6.1300 mm, 61.5200 mm): PTH pad A8 [unconnected-(J1-SBU1-PadA8)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(6.1300 mm, 61.5200 mm): PTH pad A8 [unconnected-(J1-SBU1-PadA8)] of J1\n    @(6.1300 mm, 60.6700 mm): PTH pad A9 [Net-(F1-Pad2)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(6.1300 mm, 60.6700 mm): PTH pad A9 [Net-(F1-Pad2)] of J1\n    @(6.1300 mm, 59.8200 mm): PTH pad A12 [GND] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(4.7800 mm, 59.8200 mm): PTH pad B1 [GND] of J1\n    @(4.7800 mm, 60.6700 mm): PTH pad B4 [Net-(F1-Pad2)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(4.7800 mm, 60.6700 mm): PTH pad B4 [Net-(F1-Pad2)] of J1\n    @(4.7800 mm, 61.5200 mm): PTH pad B5 [Net-(J1-CC2)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(4.7800 mm, 61.5200 mm): PTH pad B5 [Net-(J1-CC2)] of J1\n    @(4.7800 mm, 62.3700 mm): PTH pad B6 [unconnected-(J1-D+-PadB6)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(4.7800 mm, 62.3700 mm): PTH pad B6 [unconnected-(J1-D+-PadB6)] of J1\n    @(4.7800 mm, 63.2200 mm): PTH pad B7 [unconnected-(J1-D--PadB7)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(4.7800 mm, 63.2200 mm): PTH pad B7 [unconnected-(J1-D--PadB7)] of J1\n    @(4.7800 mm, 64.0700 mm): PTH pad B8 [unconnected-(J1-SBU2-PadB8)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(4.7800 mm, 64.0700 mm): PTH pad B8 [unconnected-(J1-SBU2-PadB8)] of J1\n    @(4.7800 mm, 64.9200 mm): PTH pad B9 [Net-(F1-Pad2)] of J1\n[clearance]: Clearance violation ( clearance 0.2000 mm; actual 0.1500 mm)\n    Local override; error\n    @(4.7800 mm, 64.9200 mm): PTH pad B9 [Net-(F1-Pad2)] of J1\n    @(4.7800 mm, 65.7700 mm): PTH pad B12 [GND] of J1\n[silk_overlap]: Silkscreen overlap\n    Rule: board setup constraints silk; warning\n    @(2.0000 mm, 71.0000 mm): Reference field of R2\n    @(1.8464 mm, 71.7900 mm): Segment of R2 on F.Silkscreen\n[silk_overlap]: Silkscreen overlap\n    Rule: board setup constraints silk; warning\n    @(191.4200 mm, 5.0000 mm): Reference field of C4\n    @(192.2200 mm, 5.1078 mm): Segment of C4 on F.Silkscreen\n[silk_overlap]: Silkscreen overlap\n    Rule: board setup constraints silk; warning\n    @(193.5800 mm, 14.1700 mm): Reference field of R8\n    @(193.7336 mm, 13.3800 mm): Segment of R8 on F.Silkscreen\n[silk_over_copper]: Silkscreen clipped by solder mask\n    Local override; warning\n    @(9.3300 mm, 2.0000 mm): PCB text 'USB INPUT' on F.Silkscreen\n[silk_over_copper]: Silkscreen clipped by solder mask\n    Local override; warning\n    @(3.5000 mm, 52.5000 mm): Reference field of H4\n[silk_over_copper]: Silkscreen clipped by solder mask\n    Local override; warning\n    @(86.5000 mm, 52.5000 mm): Reference field of H86\n[lib_footprint_issues]: Footprint 'VQFN-16-1EP_3.5x3.5mm_P0.5mm_EP2.1x2.1mm' not found in library 'Package_DFN_QFN'.\n    Local override; warning\n    @(199.4425 mm, 14.0000 mm): Footprint U2\n[lib_footprint_mismatch]: Footprint 'R_0402_1005Metric' does not match copy in library 'Resistor_SMD'.\n    Local override; warning\n    @(19.0000 mm, 68.0100 mm): Footprint R1\n[lib_footprint_issues]: Footprint 'MountingHole_2.2mm' not found in library 'MountingHole'.\n    Local override; warning\n    @(3.5000 mm, 55.0000 mm): Footprint H4\n[lib_footprint_mismatch]: Footprint 'R_0402_1005Metric' does not match copy in library 'Resistor_SMD'.\n    Local override; warning\n    @(2.0000 mm, 72.1700 mm): Footprint R2\n[lib_footprint_issues]: Footprint 'MountingHole_2.2mm' not found in library 'MountingHole'.\n    Local override; warning\n    @(86.5000 mm, 55.0000 mm): Footprint H86\n[lib_footprint_mismatch]: Footprint 'R_0402_1005Metric' does not match copy in library 'Resistor_SMD'.\n    Local override; warning\n    @(193.5800 mm, 13.0000 mm): Footprint R8\n[lib_footprint_mismatch]: Footprint 'C_0402_1005Metric' does not match copy in library 'Capacitor_SMD'.\n    Local override; warning\n    @(192.5800 mm, 5.0000 mm): Footprint C4\n[lib_footprint_issues]: The current configuration does not include the footprint library 'LLUPS'.\n    Local override; warning\n    @(228.5800 mm, 73.1700 mm): Footprint BT1\n[lib_footprint_mismatch]: Footprint 'USB_C_Receptacle_GCT_USB4085' does not match copy in library 'Connector_USB'.\n    Local override; warning\n    @(6.1300 mm, 65.7700 mm): Footprint J1\n[lib_footprint_issues]: The current configuration does not include the footprint library 'LLUPS'.\n    Local override; warning\n    @(229.5800 mm, 97.1700 mm): Footprint BT2\n[silk_edge_clearance]: Silkscreen clipped by board edge\n    Rule: board setup constraints silk; warning\n    @(-0.5150 mm, 110.2550 mm): Segment on Edge.Cuts\n    @(0.1300 mm, 58.2000 mm): Segment of J1 on B.Silkscreen\n[silk_edge_clearance]: Silkscreen clipped by board edge\n    Rule: board setup constraints silk; warning\n    @(-0.5150 mm, 110.2550 mm): Segment on Edge.Cuts\n    @(0.1300 mm, 67.3900 mm): Segment of J1 on B.Silkscreen\n\n** Found 0 unconnected pads **\n\n** Found 0 Footprint errors **\n\n** End of Report **\n",
       "returncode": 0,
       "shorts": 0,
       "solder_mask_bridge": 0,
       "stderr": "",
-      "stdout": "Found 32 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmpvjpn3bw0.txt\n",
+      "stdout": "Found 32 violations\nFound 0 unconnected items\nSaved DRC Report to /tmp/tmp6vfx3sxj.txt\n",
       "timed_out": false,
       "total": 32,
       "unconnected": 0,
@@ -494,9 +494,9 @@
       "missing_required_anchors"
     ],
     "track_summary": {
-      "total_length_mm": 2259.62,
-      "traces": 392,
-      "vias": 19
+      "total_length_mm": 2205.72,
+      "traces": 411,
+      "vias": 12
     }
   }
 }
