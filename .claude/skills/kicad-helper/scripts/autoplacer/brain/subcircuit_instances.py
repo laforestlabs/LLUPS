@@ -326,6 +326,7 @@ def _layout_from_artifact_payload(
         solved_components = _extract_solved_components_from_layout(solved_layout)
         solved_traces = _extract_solved_traces_from_layout(solved_layout)
         solved_vias = _extract_solved_vias_from_layout(solved_layout)
+        ports = _extract_interface_ports_from_layout(solved_layout)
         interface_anchors = _extract_interface_anchors_from_layout(solved_layout)
         bbox = _extract_layout_bbox_from_layout(solved_layout, solved_components)
         score = _extract_layout_score_from_layout(solved_layout)
@@ -333,12 +334,12 @@ def _layout_from_artifact_payload(
         solved_components = _extract_solved_components(debug)
         solved_traces = _extract_solved_traces(debug)
         solved_vias = _extract_solved_vias(debug)
+        ports = _extract_interface_ports(metadata)
         interface_anchors = _extract_interface_anchors(debug)
         bbox = _extract_layout_bbox(metadata, debug, solved_components)
         score = _extract_layout_score(debug)
 
     artifact_paths = dict(metadata.get("artifact_paths", {}))
-    ports = _extract_interface_ports(metadata)
 
     return SubCircuitLayout(
         subcircuit_id=subcircuit_id,
@@ -371,6 +372,19 @@ def _subcircuit_id_from_metadata(metadata: dict[str, Any]):
 def _extract_interface_ports(metadata: dict[str, Any]) -> list[InterfacePort]:
     """Extract logical interface ports from artifact metadata."""
     ports = metadata.get("interface_ports", [])
+    return _interface_ports_from_payload(ports)
+
+
+def _extract_interface_ports_from_layout(
+    solved_layout: dict[str, Any],
+) -> list[InterfacePort]:
+    """Extract logical interface ports from canonical solved layout payload."""
+    ports = solved_layout.get("ports", [])
+    return _interface_ports_from_payload(ports)
+
+
+def _interface_ports_from_payload(ports: Any) -> list[InterfacePort]:
+    """Build logical interface ports from a serialized payload list."""
     if not isinstance(ports, list):
         return []
 

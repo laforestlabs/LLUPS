@@ -106,6 +106,7 @@ from autoplacer.brain.hierarchy_parser import (
 )
 from autoplacer.brain.placement import PlacementScorer, PlacementSolver
 from autoplacer.brain.subcircuit_artifacts import (
+    build_anchor_validation,
     build_artifact_metadata,
     build_leaf_extraction,
     build_solved_layout_artifact,
@@ -458,7 +459,12 @@ def _persist_solution(
     solved: SolvedLeafSubcircuit,
     cfg: dict[str, Any],
 ) -> dict[str, Any]:
+    solved_layout = solved.best_round_to_layout()
     solved_geometry = serialize_components(solved.best_round.components)
+    anchor_validation = build_anchor_validation(
+        solved_layout.ports,
+        solved_layout.interface_anchors,
+    )
     canonical_layout = solved.canonical_layout_artifact(cfg)
     extraction = build_leaf_extraction(
         subcircuit=solved.node.definition,
@@ -494,7 +500,7 @@ def _persist_solution(
         solved.node.definition.id,
     )
     mini_board_path = export_subcircuit_board(
-        solved.best_round_to_layout(),
+        solved_layout,
         artifact_paths.mini_pcb,
         ExportOptions(
             title="Solved Leaf Subcircuit",
@@ -522,6 +528,7 @@ def _persist_solution(
                 "components": solved_geometry,
             },
             "best_round_routing": dict(solved.best_round.routing),
+            "interface_anchor_validation": anchor_validation,
             "canonical_solved_layout": canonical_layout,
             "canonical_solved_layout_path": str(solved_layout_json),
         },
