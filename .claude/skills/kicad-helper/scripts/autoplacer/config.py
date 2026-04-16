@@ -112,6 +112,12 @@ DEFAULT_CONFIG = {
     "gnd_zone_net": "GND",
     "gnd_zone_layer": "B.Cu",
     "gnd_zone_margin_mm": 0.5,
+    # Ignorable DRC patterns — list of regex strings.  During post-route
+    # DRC validation, if ALL significant violations match at least one
+    # pattern (searched against the violation description text), they are
+    # treated as ignorable.  This is in addition to the automatic
+    # footprint-baseline clearance heuristic.
+    "ignorable_drc_patterns": [],
     # --- Functional group settings ---
     # Group source: how to discover functional groups.
     #   "auto"      — try schematic sheets first, fall back to netlist analysis
@@ -144,6 +150,10 @@ DEFAULT_CONFIG = {
     # Board size overhead factor — minimum board area is estimated as
     # total_component_area * overhead_factor.  Larger = more routing room.
     "board_size_overhead_factor": 2.0,
+    # Subcircuit margin — extra space (mm) added around the tight bounding
+    # box of component positions when building a local subcircuit board.
+    # Gives the solver room to rearrange components.
+    "subcircuit_margin_mm": 5.0,
 }
 
 
@@ -229,3 +239,30 @@ def load_project_config(config_path: str = None) -> dict:
         cfg["power_nets"] = set(cfg["power_nets"])
 
     return cfg
+
+
+
+def discover_project_config(project_dir: str | Path) -> Path | None:
+    """Auto-discover a project-specific config file in *project_dir*.
+
+    Search order:
+    1. ``autoplacer.json``
+    2. <dir_stem>_autoplacer.json  (e.g. LLUPS_autoplacer.json)
+    3. [autoplacer] section in a .kicad_pro file (not yet implemented)
+
+    Returns the :class:`Path` to the first match, or ``None``.
+    """
+    project_dir = Path(project_dir)
+
+    # 1. Generic name
+    generic = project_dir / "autoplacer.json"
+    if generic.is_file():
+        return generic
+
+    # 2. <stem>_autoplacer.json
+    stem_cfg = project_dir / f"{project_dir.name}_autoplacer.json"
+    if stem_cfg.is_file():
+        return stem_cfg
+
+    # 3. .kicad_pro [autoplacer] section -- not yet implemented
+    return None

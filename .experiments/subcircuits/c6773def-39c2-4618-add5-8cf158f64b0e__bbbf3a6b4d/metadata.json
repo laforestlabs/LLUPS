@@ -5,7 +5,7 @@
     "base_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits",
     "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d/debug.json",
     "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d/metadata.json",
-    "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d/layout.kicad_pcb",
+    "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d/leaf_routed.kicad_pcb",
     "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/c6773def-39c2-4618-add5-8cf158f64b0e__bbbf3a6b4d/solved_layout.json"
   },
   "component_refs": [
@@ -16,7 +16,7 @@
     "R1",
     "R2"
   ],
-  "config_hash": "5fb9f5db3f65c9f9a55c6aba9d3d5e265489d3813a49812680974ab3b3bb8fa4",
+  "config_hash": "9f66edf6bd981998148ad4072bf8c668a017c9c05431e253dde793241ef77ad2",
   "external_nets": [
     "/VBUS",
     "GND"
@@ -46,25 +46,27 @@
   "internal_trace_count": 0,
   "internal_via_count": 0,
   "local_board_outline": {
-    "bottom_right_x": 33.25,
-    "bottom_right_y": 23.290000000000003,
-    "height_mm": 23.290000000000003,
+    "bottom_right_x": 28.25,
+    "bottom_right_y": 20.845000000000002,
+    "height_mm": 20.845000000000002,
     "top_left_x": 0.0,
     "top_left_y": 0.0,
-    "width_mm": 33.25
+    "width_mm": 28.25
   },
   "local_translation": {
-    "x": 13.155,
-    "y": 2.495
+    "x": 8.155,
+    "y": 0.04999999999999982
   },
   "notes": [
     "solved by solve_subcircuits.py",
     "best_round=0",
     "best_seed=1654615998",
-    "best_score=83.047",
+    "best_score=68.584",
     "rounds=1",
     "solved_component_count=6",
     "canonical_layout_schema=subcircuits.layout.v1",
+    "router=freerouting",
+    "accepted=True",
     "leaf=USB INPUT",
     "instance_path=/c6773def-39c2-4618-add5-8cf158f64b0e",
     "component_count=6",
@@ -79,7 +81,7 @@
   "schematic_path": "/home/jason/Documents/LLUPS/USB_INPUT.kicad_sch",
   "sheet_file": "USB_INPUT.kicad_sch",
   "sheet_name": "USB INPUT",
-  "solver_version": "subcircuits-m3-placement",
+  "solver_version": "subcircuits-m4-freerouting",
   "source_hash": "8753d37d9399c22cb3d211cccef8a3fe6482073c3dad6b30553419c86f01dd73",
   "subcircuit_id": {
     "instance_path": "/c6773def-39c2-4618-add5-8cf158f64b0e",

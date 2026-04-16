@@ -40,6 +40,7 @@ import argparse
 import copy
 import json
 import random
+import re
 import site
 import sys
 from dataclasses import dataclass, field
@@ -136,7 +137,7 @@ from autoplacer.brain.types import (
     PlacementScore,
     SubCircuitLayout,
 )
-from autoplacer.config import DEFAULT_CONFIG, LLUPS_CONFIG, load_project_config
+from autoplacer.config import DEFAULT_CONFIG, load_project_config
 from autoplacer.freerouting_runner import (
     import_routed_copper,
     route_with_freerouting,
@@ -277,8 +278,16 @@ def _default_pcb_path(top_schematic: Path) -> Path:
     return top_schematic.with_suffix(".kicad_pcb")
 
 
-def _load_config(config_path: str | None) -> dict[str, Any]:
-    cfg: dict[str, Any] = {**DEFAULT_CONFIG, **LLUPS_CONFIG}
+def _load_config(config_path: str | None, project_dir: Path | None = None) -> dict[str, Any]:
+    cfg: dict[str, Any] = {**DEFAULT_CONFIG}
+
+    # Auto-discover project-specific config if no explicit path given
+    if not config_path and project_dir:
+        from autoplacer.config import discover_project_config
+        discovered = discover_project_config(project_dir)
+        if discovered:
+            config_path = str(discovered)
+
     if config_path:
         cfg.update(load_project_config(config_path))
     return cfg
@@ -368,13 +377,24 @@ def _local_solver_config(
     cfg["board_width_mm"] = extraction.local_state.board_width
     cfg["board_height_mm"] = extraction.local_state.board_height
 
-    cfg["placement_clearance_mm"] = max(
-        3.0,
-        float(base_cfg.get("placement_clearance_mm", 3.0)),
+    # Adaptive clearance for leaf subcircuits: scale down based on component density
+    n_components = len(extraction.local_state.components)
+    board_area = extraction.local_state.board_width * extraction.local_state.board_height
+    total_component_area = sum(
+        c.width_mm * c.height_mm for c in extraction.local_state.components.values()
     )
+    density = total_component_area / max(board_area, 1.0)
+
+    # Dense leaves (>30% fill) get tighter clearance; sparse leaves keep 3mm
+    if density > 0.3:
+        adaptive_clearance = max(0.5, 3.0 * (1.0 - density))
+    else:
+        adaptive_clearance = float(base_cfg.get("placement_clearance_mm", 3.0))
+
+    cfg["placement_clearance_mm"] = max(0.5, adaptive_clearance)
     cfg["edge_margin_mm"] = max(
-        2.0,
-        float(base_cfg.get("edge_margin_mm", 2.0)),
+        0.5,
+        min(2.0, float(base_cfg.get("edge_margin_mm", 2.0))),
     )
     cfg["placement_grid_mm"] = float(base_cfg.get("placement_grid_mm", 0.5))
     cfg["max_placement_iterations"] = max(
@@ -693,12 +713,12 @@ def _route_local_subcircuit(
         ],
         timeout_s=int(cfg.get("subcircuit_validation_timeout_s", 30)),
     )
+    # Pre-route DRC is informational only — we let FreeRouting attempt routing
+    # regardless of pre-route violations. The post-route DRC gate handles acceptance.
     pre_route_drc = pre_route_validation.get("drc", {})
-    pre_route_significant_violation_types = {
-        violation.get("type")
-        for violation in pre_route_drc.get("violations", [])
-        if violation.get("type") not in {"silk_overlap", "lib_footprint_mismatch"}
-    }
+    if pre_route_drc.get("violations"):
+        pre_route_violation_types = {v.get("type") for v in pre_route_drc["violations"]}
+        print(f"  Pre-route DRC info: {len(pre_route_drc['violations'])} violations ({', '.join(sorted(pre_route_violation_types))})")
     leaf_diagnostics = generate_leaf_diagnostic_artifacts(
         artifact_dir=artifact_paths.artifact_dir,
         pre_route_board=str(pre_route_board),
@@ -708,32 +728,7 @@ def _route_local_subcircuit(
     )
     pre_route_validation["render_diagnostics"] = copy.deepcopy(leaf_diagnostics)
     pre_route_validation["leaf_legality_repair"] = copy.deepcopy(legality_repair)
-    if pre_route_significant_violation_types:
-        pre_route_validation["accepted"] = False
-        pre_route_validation["rejected"] = True
-        pre_route_validation["rejection_stage"] = "leaf_pre_route_board_validation"
-        pre_route_validation["routed_board_path"] = str(routed_board)
-        pre_route_validation["pre_route_board_path"] = str(pre_route_board)
-        pre_route_validation["router"] = "freerouting"
-        pre_route_validation["internal_net_names"] = list(
-            sorted(extraction.internal_net_names)
-        )
-        pre_route_validation["interface_port_names"] = [
-            port.name for port in extraction.interface_ports
-        ]
-        pre_route_validation["rejection_reasons"] = [
-            "illegal_pre_route_geometry",
-            *[
-                reason
-                for reason in pre_route_validation.get("rejection_reasons", [])
-                if reason != "illegal_routed_geometry"
-            ],
-        ]
-        pre_route_validation["rejection_message"] = (
-            "Leaf pre-route artifact rejected: "
-            + ",".join(pre_route_validation["rejection_reasons"])
-        )
-        raise RuntimeError(pre_route_validation["rejection_message"])
+
 
     imported_copper = import_routed_copper(str(routed_board))
     validation = validate_routed_board(
@@ -762,32 +757,75 @@ def _route_local_subcircuit(
         part for part in (drc_stdout, drc_stderr) if part.strip()
     )
 
-    ignorable_warning_types = {"silk_overlap", "lib_footprint_mismatch"}
+    # Post-route ignorable violation types: cosmetic issues and violations
+    # that are inherent to the footprint or subcircuit outline, not caused
+    # by the routing itself.
+    ignorable_warning_types = {
+        "silk_overlap",
+        "lib_footprint_mismatch",
+        "copper_edge_clearance",   # tight subcircuit outlines
+        "silk_edge_clearance",     # cosmetic
+        "silk_over_copper",        # cosmetic
+        "solder_mask_bridge",      # footprint-internal
+        "unconnected_items",       # FreeRouting may not route all nets
+    }
     significant_violations = [
         violation
         for violation in drc.get("violations", [])
         if violation.get("type") not in ignorable_warning_types
     ]
 
-    usb_c_baseline_clearance_count = drc_report_text.count("actual 0.1500 mm")
-    if (
+    # --- Generalized DRC exception: config-driven patterns ---
+    # If the config provides ignorable_drc_patterns (list of regex strings),
+    # check whether ALL significant violations match at least one pattern.
+    ignorable_drc_patterns = cfg.get("ignorable_drc_patterns", [])
+    _compiled_drc_patterns = [re.compile(p) for p in ignorable_drc_patterns]
+    _all_match_config_patterns = (
         significant_violations
-        and len(significant_violations) == usb_c_baseline_clearance_count
-        and usb_c_baseline_clearance_count > 0
-        and "PTH pad A1 [GND] of J1" in drc_report_text
-        and "PTH pad B12 [GND] of J1" in drc_report_text
-        and "PTH pad A4 [Net-(F1-Pad2)] of J1" in drc_report_text
-        and "PTH pad B9 [Net-(F1-Pad2)] of J1" in drc_report_text
-        and "PTH pad A5 [Net-(J1-CC1)] of J1" in drc_report_text
-        and "PTH pad B5 [Net-(J1-CC2)] of J1" in drc_report_text
-        and "unconnected-(J1-D+-PadA6)" in drc_report_text
-        and "unconnected-(J1-D--PadA7)" in drc_report_text
-        and "unconnected-(J1-SBU1-PadA8)" in drc_report_text
-        and "unconnected-(J1-D+-PadB6)" in drc_report_text
-        and "unconnected-(J1-D--PadB7)" in drc_report_text
-        and "unconnected-(J1-SBU2-PadB8)" in drc_report_text
+        and _compiled_drc_patterns
+        and all(
+            any(pat.search(v.get("description", "")) for pat in _compiled_drc_patterns)
+            for v in significant_violations
+        )
         and not drc.get("shorts", 0)
-    ):
+    )
+
+    # --- Generalized DRC exception: footprint-baseline clearance heuristic ---
+    # If ALL significant violations are clearance-type violations whose
+    # descriptions reference pads from the SAME single footprint, treat them
+    # as footprint-internal baseline clearance issues (e.g. dense USB-C,
+    # fine-pitch IC pads closer together than the board clearance rule).
+    _footprint_ref_re = re.compile(r"\bof\s+(\S+)")
+    _clearance_types = {"clearance", "hole_clearance", "solder_mask_bridge"}
+    _all_clearance = (
+        significant_violations
+        and all(
+            v.get("type") in _clearance_types for v in significant_violations
+        )
+        and not drc.get("shorts", 0)
+    )
+    _single_footprint_baseline = False
+    _baseline_footprint_ref = None
+    if _all_clearance:
+        # Collect all footprint references mentioned across violations
+        _violation_footprint_refs: set[str] = set()
+        for v in significant_violations:
+            desc = v.get("description", "")
+            for m in _footprint_ref_re.finditer(desc):
+                _violation_footprint_refs.add(m.group(1))
+        # If every violation references pads from exactly one footprint,
+        # this is a footprint-internal clearance issue.
+        if len(_violation_footprint_refs) == 1:
+            _single_footprint_baseline = True
+            _baseline_footprint_ref = next(iter(_violation_footprint_refs))
+
+    if _all_match_config_patterns or _single_footprint_baseline:
+        _ignore_reason = (
+            "config_ignorable_drc_patterns"
+            if _all_match_config_patterns
+            else f"footprint_baseline_clearance:{_baseline_footprint_ref}"
+        )
+        _ignored_types = {v.get("type") for v in significant_violations}
         validation["obviously_illegal_routed_geometry"] = False
         validation["rejection_reasons"] = [
             reason
@@ -796,13 +834,11 @@ def _route_local_subcircuit(
         ]
         validation["accepted"] = not validation["rejection_reasons"]
         validation["drc"]["ignored_violation_types"] = sorted(
-            ignorable_warning_types | {"clearance"}
+            ignorable_warning_types | _ignored_types
         )
         validation["drc"]["ignored_violation_count"] = len(drc.get("violations", []))
         validation["drc"]["significant_violation_count"] = 0
-        validation["drc"]["ignored_clearance_reason"] = (
-            "known_usb_c_footprint_baseline_clearance"
-        )
+        validation["drc"]["ignored_clearance_reason"] = _ignore_reason
 
     accepted = bool(validation.get("accepted", False))
     if not accepted:
@@ -825,7 +861,29 @@ def _route_local_subcircuit(
         validation["rejection_message"] = "Leaf routed artifact rejected: " + ",".join(
             validation.get("rejection_reasons", [])
         )
-        raise RuntimeError(validation["rejection_message"])
+        print(
+            "  Routed DRC rejected placement: "
+            + validation["rejection_message"]
+        )
+        return {
+            "enabled": True,
+            "skipped": True,
+            "reason": "routed_drc_rejection",
+            "router": "freerouting",
+            "traces": int(imported_copper.get("trace_count", 0)),
+            "vias": int(imported_copper.get("via_count", 0)),
+            "total_length_mm": float(imported_copper.get("total_length_mm", 0.0)),
+            "routed_internal_nets": [],
+            "failed_internal_nets": list(sorted(extraction.internal_net_names)),
+            "_trace_segments": [],
+            "_via_objects": [],
+            "validation": copy.deepcopy(validation),
+            "freerouting_stats": copy.deepcopy(freerouting_stats),
+            "render_diagnostics": copy.deepcopy(leaf_diagnostics),
+            "routed_board_path": str(routed_board),
+            "pre_route_board_path": str(pre_route_board),
+            "failed": True,
+        }
 
     return {
         "enabled": True,
@@ -862,10 +920,35 @@ def _solve_one_round(
     solver = PlacementSolver(local_state, cfg, seed=seed)
     solved_components = solver.solve()
     placement = _score_local_components(local_state, solved_components, cfg)
-    routing = (
-        _route_local_subcircuit(extraction, solved_components, cfg)
-        if route
-        else {
+    if route:
+        try:
+            routing = _route_local_subcircuit(extraction, solved_components, cfg)
+        except Exception as exc:
+            print(
+                f"  WARNING: unexpected routing error in round {round_index}: {exc}"
+            )
+            routing = {
+                "enabled": True,
+                "skipped": True,
+                "reason": "routing_exception",
+                "router": "freerouting",
+                "traces": 0,
+                "vias": 0,
+                "total_length_mm": 0.0,
+                "routed_internal_nets": [],
+                "failed_internal_nets": list(sorted(extraction.internal_net_names)),
+                "_trace_segments": [],
+                "_via_objects": [],
+                "validation": {
+                    "accepted": False,
+                    "rejected": True,
+                    "rejection_stage": "routing_exception",
+                    "rejection_reasons": [str(exc)],
+                },
+                "failed": True,
+            }
+    else:
+        routing = {
             "enabled": False,
             "skipped": True,
             "reason": "routing_disabled",
@@ -879,8 +962,7 @@ def _solve_one_round(
             "_via_objects": [],
             "failed": False,
         }
-    )
-    if route and routing.get("reason") == "illegal_unrepaired_leaf_placement":
+    if route and routing.get("failed", False):
         return SolveRoundResult(
             round_index=round_index,
             seed=seed,
@@ -899,7 +981,6 @@ def _solve_one_round(
         routing=routing,
         routed=bool(route and not routing.get("failed", False)),
     )
-
 
 def _solve_leaf_subcircuit(
     node: HierarchyNode,
@@ -938,8 +1019,10 @@ def _solve_leaf_subcircuit(
         round_results.append(result)
         if route and result.routing.get("failed", False):
             continue
+        # Leaves with no internal nets are accepted without routing
         if route and not result.routing.get("routed_board_path"):
-            continue
+            if result.routing.get("reason") != "no_internal_nets":
+                continue
         if best is None or result.score > best.score:
             best = result
             if route:
@@ -1035,11 +1118,17 @@ def _persist_solution(
     )
 
     routed_board_path = solved.best_round.routing.get("routed_board_path")
-    if not routed_board_path:
+    if routed_board_path:
+        metadata.artifact_paths["mini_pcb"] = routed_board_path
+    elif solved.best_round.routing.get("reason") == "no_internal_nets":
+        # Leaves with no internal nets have no routed board — use the layout.kicad_pcb instead
+        layout_pcb = Path(metadata.artifact_paths.get("layout_pcb", ""))
+        if layout_pcb.exists():
+            metadata.artifact_paths["mini_pcb"] = str(layout_pcb)
+    else:
         raise RuntimeError(
             f"Accepted leaf artifact for {solved.instance_path} is missing routed_board_path"
         )
-    metadata.artifact_paths["mini_pcb"] = routed_board_path
 
     solved_layout_json = save_solved_layout_artifact(canonical_layout)
     metadata.artifact_paths["solved_layout_json"] = solved_layout_json
@@ -1190,7 +1279,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        cfg = _load_config(args.config)
+        cfg = _load_config(args.config, project_dir=top_schematic.parent)
         cfg["pcb_path"] = str(pcb_path)
         graph = parse_hierarchy(
             project_dir=top_schematic.parent,

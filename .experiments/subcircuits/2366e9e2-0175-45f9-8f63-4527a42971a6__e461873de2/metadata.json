@@ -5,7 +5,7 @@
     "base_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits",
     "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/debug.json",
     "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/metadata.json",
-    "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/layout.kicad_pcb",
+    "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/leaf_routed.kicad_pcb",
     "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/2366e9e2-0175-45f9-8f63-4527a42971a6__e461873de2/solved_layout.json"
   },
   "component_refs": [
@@ -17,7 +17,7 @@
     "J2",
     "J3"
   ],
-  "config_hash": "902f8bf99600fffd915e36fd9061db3a60ce3f8a42b7943fea2cdfbb3a134b23",
+  "config_hash": "9f66edf6bd981998148ad4072bf8c668a017c9c05431e253dde793241ef77ad2",
   "external_nets": [
     "/5V",
     "/CHG_N",
@@ -98,24 +98,26 @@
   "internal_via_count": 0,
   "local_board_outline": {
     "bottom_right_x": 49.949999999999996,
-    "bottom_right_y": 25.629999999999995,
-    "height_mm": 25.629999999999995,
+    "bottom_right_y": 20.865,
+    "height_mm": 20.865,
     "top_left_x": 0.0,
     "top_left_y": 0.0,
     "width_mm": 49.949999999999996
   },
   "local_translation": {
     "x": -56.025,
-    "y": 4.8149999999999995
+    "y": 0.04999999999999999
   },
   "notes": [
     "solved by solve_subcircuits.py",
     "best_round=0",
-    "best_seed=547268981",
-    "best_score=80.663",
+    "best_seed=230992070",
+    "best_score=75.923",
     "rounds=1",
     "solved_component_count=7",
     "canonical_layout_schema=subcircuits.layout.v1",
+    "router=freerouting",
+    "accepted=True",
     "leaf=LDO 3.3V",
     "instance_path=/2366e9e2-0175-45f9-8f63-4527a42971a6",
     "component_count=7",
@@ -130,7 +132,7 @@
   "schematic_path": "/home/jason/Documents/LLUPS/LDO_3_3V.kicad_sch",
   "sheet_file": "LDO_3_3V.kicad_sch",
   "sheet_name": "LDO 3.3V",
-  "solver_version": "subcircuits-m3-placement",
+  "solver_version": "subcircuits-m4-freerouting",
   "source_hash": "cead6fe47bd2f5a4cc9173f80b6964a8d496ecbc3e7c02552899a317f35b8f30",
   "subcircuit_id": {
     "instance_path": "/2366e9e2-0175-45f9-8f63-4527a42971a6",

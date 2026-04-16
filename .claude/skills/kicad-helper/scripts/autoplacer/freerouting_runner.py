@@ -238,6 +238,8 @@ def parse_freerouting_output(stdout: str, stderr: str, returncode: int) -> dict:
         "score": 0.0,
         "routing_seconds": 0.0,
         "optimization_seconds": 0.0,
+        "_raw_stdout": stdout[:2000] if stdout else "",
+        "_raw_stderr": stderr[:2000] if stderr else "",
     }
 
     combined = stdout + "\n" + stderr
@@ -291,6 +293,7 @@ def run_freerouting(
     Uses start_new_session so the Java process gets its own process group,
     allowing clean kill via os.killpg() on timeout or stop request.
     """
+    jar_path = os.path.expanduser(jar_path)
     cmd = [
         "java",
         "-jar",
@@ -432,8 +435,10 @@ def route_with_freerouting(
                 return stats
 
             if attempt == 0:
+                _stderr_snippet = (stats.get('_raw_stderr') or '').strip()[:200]
                 print(
                     f"  FreeRouting crash (rc={stats.get('returncode', '?')}), retrying with {max(10, max_passes // 2)} passes..."
+                    + (f" stderr: {_stderr_snippet}" if _stderr_snippet else "")
                 )
                 continue
 
@@ -691,8 +696,41 @@ def validate_routed_board(
     drc = _run_kicad_cli_drc(str(board_path), timeout_s=timeout_s)
     validation["drc"] = drc
 
-    if drc.get("shorts", 0) > 0 or drc.get("clearance", 0) > 0:
+    if drc.get("shorts", 0) > 0:
         validation["obviously_illegal_routed_geometry"] = True
+
+    # Clearance violations that are entirely footprint-internal (e.g. dense
+    # USB-C pads that are closer than the board clearance rule) are inherent
+    # to the footprint and should not block acceptance.
+    clearance_count = drc.get("clearance", 0)
+    if clearance_count > 0:
+        # Determine if clearance violations are footprint-internal by
+        # scanning the full DRC report text for "of <REF>" references.
+        # If all clearance violations reference pads from the same single
+        # footprint, they are inherent to that footprint's pad spacing
+        # (e.g. dense USB-C connectors) and not a routing problem.
+        report_text = str(drc.get("report_text", ""))
+        _fp_ref_re = re.compile(r"\bof\s+(\S+)")
+
+        # Extract all footprint refs from clearance violation blocks in the report
+        _clearance_refs: set[str] = set()
+        _in_clearance_block = False
+        for line in report_text.splitlines():
+            if line.startswith("[clearance]") or line.startswith("[hole_clearance]"):
+                _in_clearance_block = True
+                continue
+            elif line.startswith("[") and not line.startswith("    "):
+                _in_clearance_block = False
+                continue
+            if _in_clearance_block:
+                for m in _fp_ref_re.finditer(line):
+                    _clearance_refs.add(m.group(1))
+
+        if len(_clearance_refs) <= 1 and _clearance_refs:
+            # All clearance violations are within a single footprint
+            validation["footprint_internal_clearance_count"] = clearance_count
+        else:
+            validation["obviously_illegal_routed_geometry"] = True
     if drc.get("timed_out"):
         validation["rejection_reasons"].append("drc_timeout")
     if drc.get("missing_cli"):

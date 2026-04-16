@@ -4,39 +4,93 @@ This is the ONLY module that imports pcbnew. All other modules operate
 on pure-Python types from brain.types.
 """
 
+import json
 import math
 import os
+import site
+import subprocess
 import sys
+import tempfile
 
 import pcbnew
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from brain.types import BoardState, Component, Layer, Net, Pad, Point, TraceSegment, Via
 
-# Nets that get wider traces
+# Generic power net names used as fallback when config doesn't specify power_nets.
+# Project-specific power nets should be listed in the project's autoplacer config.
 POWER_NETS = {
-    "VBUS",
-    "VBAT",
-    "5V",
-    "3V3",
-    "3.3V",
-    "+5V",
-    "+3V3",
-    "GND",
-    "/VBUS",
-    "/VBAT",
-    "/5V",
-    "/3V3",
-    "/VSYS",
-    "/VSYS_BOOST",
-    "/CELL_NEG",
-    "/EN",
+    "VCC", "VDD", "GND", "VBUS", "5V", "3V3", "3.3V", "+5V", "+3V3", "+3.3V",
 }
 
 SIGNAL_WIDTH_MM = 0.127
 POWER_WIDTH_MM = 0.127
 VIA_DRILL_MM = 0.3
 VIA_SIZE_MM = 0.6
+
+
+def _pcbnew_subprocess_env() -> dict:
+    """Build subprocess env that can import KiCad's pcbnew module.
+
+    In virtualenvs, KiCad's site-packages path may not be visible to child
+    Python processes.  This adds common KiCad locations to PYTHONPATH.
+    """
+    env = os.environ.copy()
+
+    candidates = []
+    ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+    candidates.extend(
+        [
+            f"/usr/lib/python{ver}/site-packages",
+            f"/usr/lib64/python{ver}/site-packages",
+            "/usr/lib/python3/dist-packages",
+            "/usr/lib64/python3/dist-packages",
+        ]
+    )
+    try:
+        candidates.extend(site.getsitepackages())
+    except Exception:
+        pass
+    try:
+        candidates.append(site.getusersitepackages())
+    except Exception:
+        pass
+
+    existing = [p for p in env.get("PYTHONPATH", "").split(os.pathsep) if p]
+    merged = list(existing)
+    for p in candidates:
+        if not p:
+            continue
+        if (
+            os.path.exists(os.path.join(p, "pcbnew.py"))
+            or os.path.isdir(os.path.join(p, "pcbnew"))
+        ) and p not in merged:
+            merged.append(p)
+
+    if merged:
+        env["PYTHONPATH"] = os.pathsep.join(merged)
+
+    return env
+
+
+def _run_pcbnew_subprocess(script: str) -> str:
+    """Run a pcbnew script in a fresh subprocess to avoid SWIG memory corruption.
+
+    Returns the stdout of the subprocess on success.
+    Raises RuntimeError on failure.
+    """
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        env=_pcbnew_subprocess_env(),
+        timeout=120,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"pcbnew subprocess failed (rc={result.returncode}):\n{result.stderr}"
+        )
+    return result.stdout
 
 
 def _classify_component(ref: str, value: str) -> str:
@@ -141,6 +195,147 @@ def detect_opening_direction(fp) -> float | None:
     # Convert board-space → local with one addition (no trig)
     rotation = fp.GetOrientationDegrees() % 360
     return (opening_board + rotation) % 360
+
+
+# ---------------------------------------------------------------------------
+# Self-contained pcbnew script executed in a subprocess by
+# stamp_subcircuit_board_subprocess().  The JSON path is injected at runtime.
+# ---------------------------------------------------------------------------
+_STAMP_SUBPROCESS_SCRIPT = r"""
+import json, pcbnew
+
+with open("__JSON_PATH__") as _f:
+    _data = json.load(_f)
+
+_pcb_path = _data["pcb_path"]
+_out_path = _data["output_path"]
+_outline = _data["outline"]
+_components = _data["components"]
+_traces = _data["traces"]
+_vias = _data["vias"]
+_clear_tracks = _data["clear_existing_tracks"]
+_clear_zones = _data["clear_existing_zones"]
+_remove_unmapped = _data["remove_unmapped_footprints"]
+
+_LAYER_MAP = {0: pcbnew.F_Cu, 1: pcbnew.B_Cu}
+_LAYER_NAME_MAP = {"F.Cu": pcbnew.F_Cu, "B.Cu": pcbnew.B_Cu}
+
+board = pcbnew.LoadBoard(_pcb_path)
+
+# --- rewrite board outline ---
+_width_mm = max(1.0, _outline["br_x"] - _outline["tl_x"])
+_height_mm = max(1.0, _outline["br_y"] - _outline["tl_y"])
+_left = pcbnew.FromMM(_outline["tl_x"])
+_top = pcbnew.FromMM(_outline["tl_y"])
+_right = pcbnew.FromMM(_outline["tl_x"] + _width_mm)
+_bottom = pcbnew.FromMM(_outline["tl_y"] + _height_mm)
+
+_edge_remove = [d for d in board.GetDrawings() if d.GetLayer() == pcbnew.Edge_Cuts]
+for d in _edge_remove:
+    board.Remove(d)
+
+_corners = [(_left, _top), (_right, _top), (_right, _bottom), (_left, _bottom)]
+for _i in range(4):
+    _seg = pcbnew.PCB_SHAPE(board)
+    _seg.SetShape(pcbnew.SHAPE_T_SEGMENT)
+    _seg.SetLayer(pcbnew.Edge_Cuts)
+    _seg.SetWidth(pcbnew.FromMM(0.05))
+    _x1, _y1 = _corners[_i]
+    _x2, _y2 = _corners[(_i + 1) % 4]
+    _seg.SetStart(pcbnew.VECTOR2I(_x1, _y1))
+    _seg.SetEnd(pcbnew.VECTOR2I(_x2, _y2))
+    board.Add(_seg)
+
+# --- build component lookup ---
+_comp_map = {c["ref"]: c for c in _components}
+
+# --- move / remove footprints ---
+_footprints = list(board.Footprints())
+for _fp in _footprints:
+    _ref = _fp.GetReferenceAsString()
+    _comp = _comp_map.get(_ref)
+    if _comp is None:
+        if _remove_unmapped:
+            board.Remove(_fp)
+        continue
+    if _fp.IsLocked():
+        continue
+    _cur_layer = 1 if _fp.GetLayer() == pcbnew.B_Cu else 0
+    if _comp["layer"] != _cur_layer:
+        _fp.Flip(_fp.GetPosition(), False)
+    _fp.SetPosition(
+        pcbnew.VECTOR2I(pcbnew.FromMM(_comp["x"]), pcbnew.FromMM(_comp["y"]))
+    )
+    _fp.SetOrientationDegrees(_comp["rotation"])
+
+# --- strip non-outline drawings ---
+_draw_remove = []
+for _d in board.GetDrawings():
+    try:
+        if _d.GetLayer() == pcbnew.Edge_Cuts:
+            continue
+    except Exception:
+        pass
+    _draw_remove.append(_d)
+for _d in _draw_remove:
+    board.Remove(_d)
+
+# --- clear existing tracks ---
+if _clear_tracks:
+    _tr = list(board.GetTracks())
+    for _t in _tr:
+        board.Remove(_t)
+
+# --- clear existing zones ---
+if _clear_zones:
+    _zr = [z for z in board.Zones() if not z.GetIsRuleArea()]
+    for _z in _zr:
+        board.Remove(_z)
+
+# --- helper: resolve net code ---
+_netinfo = board.GetNetInfo()
+
+def _resolve_net(name):
+    if not name:
+        return 0
+    ni = _netinfo.GetNetItem(name)
+    if ni is None:
+        return 0
+    try:
+        return int(ni.GetNetCode())
+    except Exception:
+        return 0
+
+# --- recreate traces ---
+for _t in _traces:
+    _s = pcbnew.PCB_TRACK(board)
+    _s.SetStart(pcbnew.VECTOR2I(pcbnew.FromMM(_t["start_x"]), pcbnew.FromMM(_t["start_y"])))
+    _s.SetEnd(pcbnew.VECTOR2I(pcbnew.FromMM(_t["end_x"]), pcbnew.FromMM(_t["end_y"])))
+    _s.SetLayer(_LAYER_NAME_MAP.get(_t["layer"], pcbnew.F_Cu))
+    _s.SetWidth(pcbnew.FromMM(_t["width"]))
+    _nc = _resolve_net(_t["net_name"])
+    if _nc > 0:
+        _s.SetNetCode(_nc)
+    board.Add(_s)
+
+# --- recreate vias ---
+for _v in _vias:
+    _tv = pcbnew.PCB_VIA(board)
+    _tv.SetPosition(pcbnew.VECTOR2I(pcbnew.FromMM(_v["x"]), pcbnew.FromMM(_v["y"])))
+    _tv.SetDrill(pcbnew.FromMM(_v["drill"]))
+    try:
+        _tv.SetWidth(pcbnew.FromMM(_v["size"]))
+    except TypeError:
+        _tv.SetWidth(pcbnew.F_Cu, pcbnew.FromMM(_v["size"]))
+    _nc = _resolve_net(_v["net_name"])
+    if _nc > 0:
+        _tv.SetNetCode(_nc)
+    board.Add(_tv)
+
+board.BuildConnectivity()
+board.Save(_out_path)
+print("OK")
+"""
 
 
 class KiCadAdapter:
@@ -455,7 +650,7 @@ class KiCadAdapter:
         board.Save(out)
         print(f"Board state stamped to {out}")
 
-    def stamp_subcircuit_board(
+    def _stamp_subcircuit_board_inprocess(
         self,
         state: BoardState,
         output_path: str | None = None,
@@ -464,7 +659,10 @@ class KiCadAdapter:
         clear_existing_zones: bool = True,
         remove_unmapped_footprints: bool = True,
     ):
-        """Stamp a leaf/subcircuit board onto a real KiCad board.
+        """In-process stamping of a leaf/subcircuit board onto a real KiCad board.
+
+        NOTE: prefer stamp_subcircuit_board() which delegates to a subprocess
+        to avoid SWIG memory corruption on repeated calls.
 
         This helper is intended for routed leaf subcircuits where the exported
         board must be loadable by pcbnew/FreeRouting as a real KiCad board, not
@@ -597,6 +795,129 @@ class KiCadAdapter:
         out = output_path or self.pcb_path
         board.Save(out)
         print(f"Subcircuit board stamped to {out}")
+
+    # ------ subprocess-safe stamping (default) ------
+    use_subprocess = True  # class-level flag; set False to use in-process path
+
+    def stamp_subcircuit_board(
+        self,
+        state: BoardState,
+        output_path: str | None = None,
+        *,
+        clear_existing_tracks: bool = True,
+        clear_existing_zones: bool = True,
+        remove_unmapped_footprints: bool = True,
+    ):
+        """Stamp a leaf/subcircuit board — delegates to subprocess or in-process.
+
+        By default (use_subprocess=True) runs pcbnew operations in an isolated
+        subprocess so that accumulated SWIG C++ objects from repeated calls
+        cannot cause memory corruption or segfaults in the parent process.
+        """
+        if self.use_subprocess:
+            return self.stamp_subcircuit_board_subprocess(
+                state,
+                output_path,
+                clear_existing_tracks=clear_existing_tracks,
+                clear_existing_zones=clear_existing_zones,
+                remove_unmapped_footprints=remove_unmapped_footprints,
+            )
+        return self._stamp_subcircuit_board_inprocess(
+            state,
+            output_path,
+            clear_existing_tracks=clear_existing_tracks,
+            clear_existing_zones=clear_existing_zones,
+            remove_unmapped_footprints=remove_unmapped_footprints,
+        )
+
+    def stamp_subcircuit_board_subprocess(
+        self,
+        state: BoardState,
+        output_path: str | None = None,
+        *,
+        clear_existing_tracks: bool = True,
+        clear_existing_zones: bool = True,
+        remove_unmapped_footprints: bool = True,
+    ):
+        """Stamp a leaf/subcircuit board using an isolated subprocess.
+
+        Serialises the BoardState to a JSON temp file, writes a self-contained
+        pcbnew script, and runs it in a fresh Python process so that SWIG
+        objects are discarded when the child exits.
+        """
+        component_map = state.components or {}
+        outline_tl = state.board_outline[0]
+        outline_br = state.board_outline[1]
+
+        # -- serialise data to JSON --
+        components_json = []
+        for ref, comp in component_map.items():
+            components_json.append({
+                "ref": ref,
+                "x": comp.pos.x,
+                "y": comp.pos.y,
+                "rotation": comp.rotation,
+                "layer": 0 if comp.layer == Layer.FRONT else 1,
+                "width_mm": comp.width_mm,
+                "height_mm": comp.height_mm,
+            })
+
+        traces_json = []
+        for trace in (state.traces or []):
+            traces_json.append({
+                "start_x": trace.start.x,
+                "start_y": trace.start.y,
+                "end_x": trace.end.x,
+                "end_y": trace.end.y,
+                "width": trace.width_mm,
+                "layer": "F.Cu" if trace.layer == Layer.FRONT else "B.Cu",
+                "net_name": trace.net or "",
+            })
+
+        vias_json = []
+        for via in (state.vias or []):
+            vias_json.append({
+                "x": via.pos.x,
+                "y": via.pos.y,
+                "size": via.size_mm,
+                "drill": via.drill_mm,
+                "net_name": via.net or "",
+            })
+
+        payload = {
+            "pcb_path": self.pcb_path,
+            "output_path": output_path or self.pcb_path,
+            "outline": {
+                "tl_x": outline_tl.x,
+                "tl_y": outline_tl.y,
+                "br_x": outline_br.x,
+                "br_y": outline_br.y,
+            },
+            "components": components_json,
+            "traces": traces_json,
+            "vias": vias_json,
+            "clear_existing_tracks": clear_existing_tracks,
+            "clear_existing_zones": clear_existing_zones,
+            "remove_unmapped_footprints": remove_unmapped_footprints,
+        }
+
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix=".json", prefix="stamp_sub_")
+        try:
+            with os.fdopen(tmp_fd, "w") as f:
+                json.dump(payload, f)
+
+            script = _STAMP_SUBPROCESS_SCRIPT.replace("__JSON_PATH__", tmp_path)
+            _run_pcbnew_subprocess(script)
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+        # Force reload on next access since the file was written by child
+        self.board = None
+        out = output_path or self.pcb_path
+        print(f"Subcircuit board stamped to {out} (subprocess)")
 
     def _apply_board_outline(
         self,

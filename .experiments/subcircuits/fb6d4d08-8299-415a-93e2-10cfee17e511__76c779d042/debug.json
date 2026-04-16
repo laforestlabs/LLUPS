@@ -1,6 +1,109 @@
 {
   "extra": {
+    "all_rounds": [
+      {
+        "placement": {
+          "aspect_ratio": 68.38442730863268,
+          "board_containment": 100.0,
+          "compactness": 100,
+          "courtyard_overlap": 100.0,
+          "crossover_count": 0,
+          "crossover_score": 100,
+          "edge_compliance": 100.0,
+          "group_coherence": 100.0,
+          "net_distance": 76.39970681235012,
+          "rotation_score": 100.0,
+          "smt_opposite_tht": 100.0,
+          "total": 93.22715686414865
+        },
+        "round_index": 0,
+        "routed": true,
+        "routing": {
+          "enabled": true,
+          "failed": false,
+          "failed_internal_nets": [],
+          "reason": "no_internal_nets",
+          "routed_internal_nets": [],
+          "router": "none",
+          "skipped": true,
+          "total_length_mm": 0.0,
+          "traces": 0,
+          "validation": {
+            "accepted": true,
+            "reason": "no_internal_nets"
+          },
+          "vias": 0
+        },
+        "score": 93.22715686414865,
+        "seed": 980559716
+      }
+    ],
+    "best_round": {
+      "placement": {
+        "aspect_ratio": 68.38442730863268,
+        "board_containment": 100.0,
+        "compactness": 100,
+        "courtyard_overlap": 100.0,
+        "crossover_count": 0,
+        "crossover_score": 100,
+        "edge_compliance": 100.0,
+        "group_coherence": 100.0,
+        "net_distance": 76.39970681235012,
+        "rotation_score": 100.0,
+        "smt_opposite_tht": 100.0,
+        "total": 93.22715686414865
+      },
+      "round_index": 0,
+      "routed": true,
+      "routing": {
+        "enabled": true,
+        "failed": false,
+        "failed_internal_nets": [],
+        "reason": "no_internal_nets",
+        "routed_internal_nets": [],
+        "router": "none",
+        "skipped": true,
+        "total_length_mm": 0.0,
+        "traces": 0,
+        "validation": {
+          "accepted": true,
+          "reason": "no_internal_nets"
+        },
+        "vias": 0
+      },
+      "score": 93.22715686414865,
+      "seed": 980559716
+    },
+    "best_round_routing": {
+      "enabled": true,
+      "failed": false,
+      "failed_internal_nets": [],
+      "reason": "no_internal_nets",
+      "routed_internal_nets": [],
+      "router": "none",
+      "skipped": true,
+      "total_length_mm": 0.0,
+      "traces": 0,
+      "validation": {
+        "accepted": true,
+        "reason": "no_internal_nets"
+      },
+      "vias": 0
+    },
     "canonical_solved_layout": {
+      "anchor_validation": {
+        "all_required_ports_anchored": true,
+        "anchor_count": 1,
+        "anchored_optional_ports": [],
+        "anchored_required_ports": [
+          "VBAT"
+        ],
+        "extra_anchor_ports": [],
+        "missing_required_ports": [],
+        "optional_port_count": 0,
+        "port_count": 1,
+        "required_port_count": 1
+      },
       "artifact_paths": {
         "artifact_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits/fb6d4d08-8299-415a-93e2-10cfee17e511__76c779d042",
         "base_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits",
@@ -10,14 +113,14 @@
         "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/fb6d4d08-8299-415a-93e2-10cfee17e511__76c779d042/solved_layout.json"
       },
       "bounding_box": {
-        "height_mm": 46.903671875,
-        "width_mm": 76.79000000000002
+        "height_mm": 53.17000000000001,
+        "width_mm": 86.79000000000002
       },
       "components": {
         "BT1": {
           "body_center": {
-            "x": 44.0,
-            "y": 41.08500000000001
+            "x": 46.0,
+            "y": 39.0
           },
           "height_mm": 22.17,
           "is_through_hole": true,
@@ -31,8 +134,8 @@
               "net": "/VBAT",
               "pad_id": "1",
               "pos": {
-                "x": 79.0,
-                "y": 41.08500000000001
+                "x": 80.99999999999997,
+                "y": 39.0
               },
               "ref": "BT1"
             },
@@ -41,15 +144,15 @@
               "net": "/CELL_NEG",
               "pad_id": "2",
               "pos": {
-                "x": 8.999999999999993,
-                "y": 41.08500000000001
+                "x": 10.999999999999993,
+                "y": 39.0
               },
               "ref": "BT1"
             }
           ],
           "pos": {
-            "x": 44.0,
-            "y": 41.08500000000001
+            "x": 46.0,
+            "y": 39.0
           },
           "ref": "BT1",
           "rotation": 0.0,
@@ -58,8 +161,8 @@
         },
         "BT2": {
           "body_center": {
-            "x": 44.00000000000001,
-            "y": 16.351328125000006
+            "x": 45.0,
+            "y": 15.0
           },
           "height_mm": 22.17,
           "is_through_hole": true,
@@ -73,8 +176,8 @@
               "net": "/VBAT",
               "pad_id": "1",
               "pos": {
-                "x": 79.00000000000003,
-                "y": 16.351328125000006
+                "x": 80.00000000000006,
+                "y": 15.0
               },
               "ref": "BT2"
             },
@@ -83,15 +186,15 @@
               "net": "/CELL_NEG",
               "pad_id": "2",
               "pos": {
-                "x": 9.000000000000007,
-                "y": 16.351328125000006
+                "x": 9.999999999999993,
+                "y": 15.0
               },
               "ref": "BT2"
             }
           ],
           "pos": {
-            "x": 44.0,
-            "y": 16.351328125000006
+            "x": 45.0,
+            "y": 15.0
           },
           "ref": "BT2",
           "rotation": 0.0,
@@ -99,33 +202,53 @@
           "width_mm": 76.79
         }
       },
-      "config_hash": "fcf5866bd72e01fa3f5f0f593b7c1b74ab3fa365fe12cd491d7a0f76399990fb",
+      "config_hash": "{\"align_large_pairs\": true, \"board_height_mm\": 58.0, \"board_size_overhead_factor\": 2.0, \"board_width_mm\": 90.0, \"component_zones\": {\"BT1\": {\"zone\": \"bottom\"}, \"BT2\": {\"zone\": \"bottom\"}, \"H4\": {\"corner\": \"top-left\"}, \"H86\": {\"corner\": \"bottom-right\"}, \"J1\": {\"edge\": \"left\"}, \"J2\": {\"edge\": \"right\"}, \"J3\": {\"edge\": \"right\"}}, \"connector_edge_inset_mm\": 1.0, \"connector_gap_mm\": 2.0, \"cooling_factor\": 0.97, \"courtyard_padding_mm\": 0.5, \"edge_jitter_mm\": 5.0, \"edge_margin_mm\": 6.0, \"enable_board_size_search\": true, \"force_attract_k\": 0.02, \"force_repel_k\": 200.0, \"freerouting_ignore_nets\": [\"GND\"], \"freerouting_jar\": \"/home/jason/.local/lib/freerouting-1.9.0.jar\", \"freerouting_max_passes\": 40, \"freerouting_timeout_s\": 60, \"gnd_zone_layer\": \"B.Cu\", \"gnd_zone_margin_mm\": 0.5, \"gnd_zone_net\": \"GND\", \"group_labels\": {\"U1\": \"USB INPUT\", \"U2\": \"CHARGER\", \"U3\": \"BATT PROT\", \"U4\": \"BOOST 5V\", \"U5\": \"LDO 3.3V\"}, \"group_source\": \"auto\", \"hierarchical_placement\": true, \"ic_groups\": {\"BT1\": [\"BT2\"], \"U1\": [\"C1\", \"R1\", \"R2\", \"F1\", \"J1\"], \"U2\": [\"C2\", \"C3\", \"C4\", \"R3\", \"R4\", \"R5\", \"R6\", \"R7\", \"R8\", \"RT1\", \"D1\", \"D2\"], \"U3\": [\"Q1\", \"U6\"], \"U4\": [\"C5\", \"C6\", \"C7\", \"L1\", \"D3\"], \"U5\": [\"C8\", \"R9\", \"R10\", \"R11\", \"J2\", \"J3\"]}, \"ignorable_drc_patterns\": [], \"intra_cluster_iters\": 80, \"max_placement_iterations\": 300, \"min_placement_score\": 20.0, \"net_priority\": {}, \"orderedness\": 0.3, \"pad_inset_margin_mm\": 0.3, \"pcb_path\": \"/home/jason/Documents/LLUPS/LLUPS.kicad_pcb\", \"placement_clearance_mm\": 2.5, \"placement_convergence_threshold\": 0.5, \"placement_grid_mm\": 1.0, \"placement_score_every_n\": 1, \"power_nets\": \"{'/5V', '/VSYS_BOOST', '/EN', '5V', '3V3', '/VBAT', 'GND', 'VBUS', '+5V', '/3V3', '/VBUS', 'VBAT', '/CELL_NEG', '3.3V', '/VSYS', '+3V3'}\", \"power_width_mm\": 0.127, \"randomize_group_layout\": false, \"reheat_strength\": 0.1, \"scatter_mode\": \"cluster\", \"signal_flow_order\": [\"U1\", \"U2\", \"U3\", \"U4\", \"U5\"], \"signal_width_mm\": 0.127, \"skip_gnd_routing\": true, \"smt_opposite_tht\": true, \"subcircuit_margin_mm\": 5.0, \"thermal_radius_mm\": 3.0, \"thermal_refs\": [\"U2\", \"U4\"], \"tht_backside_min_area_mm2\": 50.0, \"unlock_all_footprints\": true, \"via_drill_mm\": 0.3, \"via_size_mm\": 0.6}",
       "frozen": true,
       "instance_path": "/fb6d4d08-8299-415a-93e2-10cfee17e511",
-      "interface_anchors": [],
+      "interface_anchors": [
+        {
+          "layer": "F.Cu",
+          "pad_ref": [
+            "BT1",
+            "1"
+          ],
+          "port_name": "VBAT",
+          "pos": {
+            "x": 80.99999999999997,
+            "y": 39.0
+          }
+        }
+      ],
       "notes": [
-        "leaf=BT1",
-        "instance_path=/fb6d4d08-8299-415a-93e2-10cfee17e511",
-        "seed=0",
-        "component_count=2",
-        "interface_anchor_count=0",
-        "score_total=88.213",
-        "bbox_width_mm=76.790",
-        "bbox_height_mm=46.904",
-        "routed_internal_nets=0",
-        "failed_internal_nets=0",
-        "route_trace_count=0",
-        "route_via_count=0",
-        "route_length_mm=0.000"
+        "round_index=0",
+        "seed=980559716",
+        "routing={\"enabled\": true, \"failed\": false, \"failed_internal_nets\": [], \"reason\": \"no_internal_nets\", \"routed_internal_nets\": [], \"router\": \"none\", \"skipped\": true, \"total_length_mm\": 0.0, \"traces\": 0, \"validation\": {\"accepted\": true, \"reason\": \"no_internal_nets\"}, \"vias\": 0}",
+        "interface_port_count=1",
+        "interface_anchor_count=1",
+        "all_required_ports_anchored=True"
       ],
       "parent_instance_path": "/",
+      "ports": [
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "VBAT",
+          "net_name": "VBAT",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        }
+      ],
       "project_dir": "/home/jason/Documents/LLUPS",
       "schema_version": "subcircuits.layout.v1",
-      "score": 88.2129437519307,
+      "score": 93.22715686414865,
       "sheet_file": "BT1.kicad_sch",
       "sheet_name": "BT1",
-      "solver_version": "subcircuits-m3-export",
-      "source_hash": "683539279cb9c4327b184cece756e8702738c9fad3319abb348a62123aea6eb9",
+      "solver_version": "subcircuits-m3-placement",
+      "source_hash": "/fb6d4d08-8299-415a-93e2-10cfee17e511",
       "subcircuit_id": {
         "instance_path": "/fb6d4d08-8299-415a-93e2-10cfee17e511",
         "parent_instance_path": "/",
@@ -133,79 +256,320 @@
         "sheet_name": "BT1"
       },
       "traces": [],
+      "validation": {
+        "accepted": true,
+        "reason": "no_internal_nets"
+      },
       "vias": []
     },
-    "export_command": "export_subcircuit_artifacts.py",
+    "canonical_solved_layout_path": "/home/jason/Documents/LLUPS/.experiments/subcircuits/fb6d4d08-8299-415a-93e2-10cfee17e511__76c779d042/solved_layout.json",
+    "interface_anchor_validation": {
+      "all_required_ports_anchored": true,
+      "anchor_count": 1,
+      "anchored_optional_ports": [],
+      "anchored_required_ports": [
+        "VBAT"
+      ],
+      "extra_anchor_ports": [],
+      "missing_required_ports": [],
+      "optional_port_count": 0,
+      "port_count": 1,
+      "required_port_count": 1
+    },
+    "leaf_acceptance": {
+      "accepted": true,
+      "reason": "no_internal_nets"
+    },
     "leaf_board_state": {
-      "board_height_mm": 53.17000000000001,
-      "board_width_mm": 86.79000000000002,
       "component_refs": [
         "BT1",
         "BT2"
       ],
-      "external_nets": [
-        "/CELL_NEG",
-        "/VBAT"
+      "interface_ports": [
+        {
+          "access_policy": "interface_only",
+          "bus_index": null,
+          "cardinality": 1,
+          "description": "normalized from schematic sheet pin",
+          "direction": "bidirectional",
+          "name": "VBAT",
+          "net_name": "VBAT",
+          "preferred_side": "right",
+          "required": true,
+          "role": "bidir"
+        }
       ],
-      "ignored_nets": [],
-      "internal_nets": [],
-      "translation": {
-        "x": -1.6049999999999969,
-        "y": -10.915
-      }
-    },
-    "net_partition": {
-      "board_height_mm": 53.17000000000001,
-      "board_width_mm": 86.79000000000002,
-      "component_count": 2,
-      "external_nets": [
-        "/CELL_NEG",
-        "/VBAT"
-      ],
-      "external_pad_count": 4,
-      "ignored_nets": [],
-      "internal_nets": [],
-      "internal_pad_count": 0,
-      "trace_count": 0,
-      "via_count": 0
-    },
-    "root_schematic_path": "/home/jason/Documents/LLUPS/LLUPS.kicad_sch",
-    "solve_result": {
-      "failed_internal_nets": [],
+      "local_board_outline": {
+        "bottom_right": {
+          "x": 86.79000000000002,
+          "y": 53.17000000000001
+        },
+        "height_mm": 53.17000000000001,
+        "top_left": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "width_mm": 86.79000000000002
+      },
+      "net_partition": {
+        "external": [
+          "/CELL_NEG",
+          "/VBAT"
+        ],
+        "ignored": [],
+        "internal": []
+      },
       "notes": [
         "leaf=BT1",
         "instance_path=/fb6d4d08-8299-415a-93e2-10cfee17e511",
-        "seed=0",
         "component_count=2",
-        "interface_anchor_count=0",
-        "score_total=88.213",
-        "bbox_width_mm=76.790",
-        "bbox_height_mm=46.904",
-        "routed_internal_nets=0",
-        "failed_internal_nets=0",
-        "route_trace_count=0",
-        "route_via_count=0",
-        "route_length_mm=0.000"
+        "internal_nets=0",
+        "external_nets=2",
+        "ignored_nets=0",
+        "margin_mm=5.000"
       ],
-      "route_length_mm": 0.0,
-      "route_trace_count": 0,
-      "route_via_count": 0,
-      "routed_internal_nets": [],
-      "score_breakdown": {
-        "aspect_ratio": 68.38442730863268,
-        "board_containment": 100.0,
-        "compactness": 100.0,
-        "courtyard_overlap": 100.0,
-        "crossover_count": 0.0,
-        "crossover_score": 100.0,
-        "edge_compliance": 100.0,
-        "group_coherence": 51.398678030947906,
-        "net_distance": 75.69933901547395,
-        "rotation_score": 100.0,
-        "smt_opposite_tht": 100.0,
-        "total": 88.2129437519307
+      "subcircuit": {
+        "instance_path": "/fb6d4d08-8299-415a-93e2-10cfee17e511",
+        "parent_instance_path": "/",
+        "sheet_file": "BT1.kicad_sch",
+        "sheet_name": "BT1"
       },
-      "score_total": 88.2129437519307
+      "trace_count": 0,
+      "translation": {
+        "x": -1.6049999999999969,
+        "y": -10.915
+      },
+      "via_count": 0
+    },
+    "leaf_render_diagnostics": {},
+    "solve_summary": {
+      "best_round": {
+        "placement": {
+          "aspect_ratio": 68.38442730863268,
+          "board_containment": 100.0,
+          "compactness": 100,
+          "courtyard_overlap": 100.0,
+          "crossover_count": 0,
+          "crossover_score": 100,
+          "edge_compliance": 100.0,
+          "group_coherence": 100.0,
+          "net_distance": 76.39970681235012,
+          "rotation_score": 100.0,
+          "smt_opposite_tht": 100.0,
+          "total": 93.22715686414865
+        },
+        "round_index": 0,
+        "routed": true,
+        "routing": {
+          "enabled": true,
+          "failed": false,
+          "failed_internal_nets": [],
+          "reason": "no_internal_nets",
+          "routed_internal_nets": [],
+          "router": "none",
+          "skipped": true,
+          "total_length_mm": 0.0,
+          "traces": 0,
+          "validation": {
+            "accepted": true,
+            "reason": "no_internal_nets"
+          },
+          "vias": 0
+        },
+        "score": 93.22715686414865,
+        "seed": 980559716
+      },
+      "extraction": {
+        "component_refs": [
+          "BT1",
+          "BT2"
+        ],
+        "interface_ports": [
+          {
+            "access_policy": "interface_only",
+            "bus_index": null,
+            "cardinality": 1,
+            "description": "normalized from schematic sheet pin",
+            "direction": "bidirectional",
+            "name": "VBAT",
+            "net_name": "VBAT",
+            "preferred_side": "right",
+            "required": true,
+            "role": "bidir"
+          }
+        ],
+        "local_board_outline": {
+          "bottom_right": {
+            "x": 86.79000000000002,
+            "y": 53.17000000000001
+          },
+          "height_mm": 53.17000000000001,
+          "top_left": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "width_mm": 86.79000000000002
+        },
+        "net_partition": {
+          "external": [
+            "/CELL_NEG",
+            "/VBAT"
+          ],
+          "ignored": [],
+          "internal": []
+        },
+        "notes": [
+          "leaf=BT1",
+          "instance_path=/fb6d4d08-8299-415a-93e2-10cfee17e511",
+          "component_count=2",
+          "internal_nets=0",
+          "external_nets=2",
+          "ignored_nets=0",
+          "margin_mm=5.000"
+        ],
+        "subcircuit": {
+          "instance_path": "/fb6d4d08-8299-415a-93e2-10cfee17e511",
+          "parent_instance_path": "/",
+          "sheet_file": "BT1.kicad_sch",
+          "sheet_name": "BT1"
+        },
+        "trace_count": 0,
+        "translation": {
+          "x": -1.6049999999999969,
+          "y": -10.915
+        },
+        "via_count": 0
+      },
+      "instance_path": "/fb6d4d08-8299-415a-93e2-10cfee17e511",
+      "rounds": [
+        {
+          "placement": {
+            "aspect_ratio": 68.38442730863268,
+            "board_containment": 100.0,
+            "compactness": 100,
+            "courtyard_overlap": 100.0,
+            "crossover_count": 0,
+            "crossover_score": 100,
+            "edge_compliance": 100.0,
+            "group_coherence": 100.0,
+            "net_distance": 76.39970681235012,
+            "rotation_score": 100.0,
+            "smt_opposite_tht": 100.0,
+            "total": 93.22715686414865
+          },
+          "round_index": 0,
+          "routed": true,
+          "routing": {
+            "enabled": true,
+            "failed": false,
+            "failed_internal_nets": [],
+            "reason": "no_internal_nets",
+            "routed_internal_nets": [],
+            "router": "none",
+            "skipped": true,
+            "total_length_mm": 0.0,
+            "traces": 0,
+            "validation": {
+              "accepted": true,
+              "reason": "no_internal_nets"
+            },
+            "vias": 0
+          },
+          "score": 93.22715686414865,
+          "seed": 980559716
+        }
+      ],
+      "sheet_name": "BT1",
+      "summary": "BT1 [/fb6d4d08-8299-415a-93e2-10cfee17e511] refs=2 internal_nets=0 external_nets=2 traces=0 vias=0 size=86.8x53.2mm"
+    },
+    "solved_local_placement": {
+      "component_count": 2,
+      "components": {
+        "BT1": {
+          "body_center": {
+            "x": 46.0,
+            "y": 39.0
+          },
+          "height_mm": 22.17,
+          "is_through_hole": true,
+          "kind": "battery",
+          "layer": "B.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/VBAT",
+              "pad_id": "1",
+              "pos": {
+                "x": 80.99999999999997,
+                "y": 39.0
+              },
+              "ref": "BT1"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/CELL_NEG",
+              "pad_id": "2",
+              "pos": {
+                "x": 10.999999999999993,
+                "y": 39.0
+              },
+              "ref": "BT1"
+            }
+          ],
+          "pos": {
+            "x": 46.0,
+            "y": 39.0
+          },
+          "ref": "BT1",
+          "rotation": 0.0,
+          "value": "18650",
+          "width_mm": 76.79
+        },
+        "BT2": {
+          "body_center": {
+            "x": 45.0,
+            "y": 15.0
+          },
+          "height_mm": 22.17,
+          "is_through_hole": true,
+          "kind": "battery",
+          "layer": "B.Cu",
+          "locked": false,
+          "opening_direction": null,
+          "pads": [
+            {
+              "layer": "F.Cu",
+              "net": "/VBAT",
+              "pad_id": "1",
+              "pos": {
+                "x": 80.00000000000006,
+                "y": 15.0
+              },
+              "ref": "BT2"
+            },
+            {
+              "layer": "F.Cu",
+              "net": "/CELL_NEG",
+              "pad_id": "2",
+              "pos": {
+                "x": 9.999999999999993,
+                "y": 15.0
+              },
+              "ref": "BT2"
+            }
+          ],
+          "pos": {
+            "x": 45.0,
+            "y": 15.0
+          },
+          "ref": "BT2",
+          "rotation": 0.0,
+          "value": "18650",
+          "width_mm": 76.79
+        }
+      }
     }
   },
   "leaf_extraction": {
@@ -248,38 +612,22 @@
       "y": -10.915
     },
     "notes": [
-      "exported by export_subcircuit_artifacts.py",
-      "root_schematic=/home/jason/Documents/LLUPS/LLUPS.kicad_sch",
-      "component_count=2",
-      "internal_pad_count=0",
-      "external_pad_count=4",
-      "trace_count=0",
-      "via_count=0",
-      "board_width_mm=86.790",
-      "board_height_mm=53.170",
-      "solve_score=88.213",
-      "routed_internal_nets=0",
-      "failed_internal_nets=0",
+      "solved by solve_subcircuits.py",
+      "best_round=0",
+      "best_seed=980559716",
+      "best_score=93.227",
+      "rounds=1",
+      "solved_component_count=2",
+      "canonical_layout_schema=subcircuits.layout.v1",
+      "router=none",
+      "accepted=True",
       "leaf=BT1",
       "instance_path=/fb6d4d08-8299-415a-93e2-10cfee17e511",
       "component_count=2",
       "internal_nets=0",
       "external_nets=2",
       "ignored_nets=0",
-      "margin_mm=5.000",
-      "leaf=BT1",
-      "instance_path=/fb6d4d08-8299-415a-93e2-10cfee17e511",
-      "seed=0",
-      "component_count=2",
-      "interface_anchor_count=0",
-      "score_total=88.213",
-      "bbox_width_mm=76.790",
-      "bbox_height_mm=46.904",
-      "routed_internal_nets=0",
-      "failed_internal_nets=0",
-      "route_trace_count=0",
-      "route_via_count=0",
-      "route_length_mm=0.000"
+      "margin_mm=5.000"
     ],
     "project_dir": "/home/jason/Documents/LLUPS",
     "schematic_path": "/home/jason/Documents/LLUPS/BT1.kicad_sch"
@@ -291,14 +639,14 @@
       "base_dir": "/home/jason/Documents/LLUPS/.experiments/subcircuits",
       "debug_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/fb6d4d08-8299-415a-93e2-10cfee17e511__76c779d042/debug.json",
       "metadata_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/fb6d4d08-8299-415a-93e2-10cfee17e511__76c779d042/metadata.json",
-      "mini_pcb": "/home/jason/Documents/LLUPS/.experiments/subcircuits/fb6d4d08-8299-415a-93e2-10cfee17e511__76c779d042/layout.kicad_pcb",
+      "mini_pcb": ".",
       "solved_layout_json": "/home/jason/Documents/LLUPS/.experiments/subcircuits/fb6d4d08-8299-415a-93e2-10cfee17e511__76c779d042/solved_layout.json"
     },
     "component_refs": [
       "BT1",
       "BT2"
     ],
-    "config_hash": "fcf5866bd72e01fa3f5f0f593b7c1b74ab3fa365fe12cd491d7a0f76399990fb",
+    "config_hash": "9f66edf6bd981998148ad4072bf8c668a017c9c05431e253dde793241ef77ad2",
     "external_nets": [
       "/CELL_NEG",
       "/VBAT"
@@ -334,38 +682,22 @@
       "y": -10.915
     },
     "notes": [
-      "exported by export_subcircuit_artifacts.py",
-      "root_schematic=/home/jason/Documents/LLUPS/LLUPS.kicad_sch",
-      "component_count=2",
-      "internal_pad_count=0",
-      "external_pad_count=4",
-      "trace_count=0",
-      "via_count=0",
-      "board_width_mm=86.790",
-      "board_height_mm=53.170",
-      "solve_score=88.213",
-      "routed_internal_nets=0",
-      "failed_internal_nets=0",
+      "solved by solve_subcircuits.py",
+      "best_round=0",
+      "best_seed=980559716",
+      "best_score=93.227",
+      "rounds=1",
+      "solved_component_count=2",
+      "canonical_layout_schema=subcircuits.layout.v1",
+      "router=none",
+      "accepted=True",
       "leaf=BT1",
       "instance_path=/fb6d4d08-8299-415a-93e2-10cfee17e511",
       "component_count=2",
       "internal_nets=0",
       "external_nets=2",
       "ignored_nets=0",
-      "margin_mm=5.000",
-      "leaf=BT1",
-      "instance_path=/fb6d4d08-8299-415a-93e2-10cfee17e511",
-      "seed=0",
-      "component_count=2",
-      "interface_anchor_count=0",
-      "score_total=88.213",
-      "bbox_width_mm=76.790",
-      "bbox_height_mm=46.904",
-      "routed_internal_nets=0",
-      "failed_internal_nets=0",
-      "route_trace_count=0",
-      "route_via_count=0",
-      "route_length_mm=0.000"
+      "margin_mm=5.000"
     ],
     "parent_instance_path": "/",
     "project_dir": "/home/jason/Documents/LLUPS",
@@ -373,7 +705,7 @@
     "schematic_path": "/home/jason/Documents/LLUPS/BT1.kicad_sch",
     "sheet_file": "BT1.kicad_sch",
     "sheet_name": "BT1",
-    "solver_version": "subcircuits-m3-export",
+    "solver_version": "subcircuits-m4-freerouting",
     "source_hash": "683539279cb9c4327b184cece756e8702738c9fad3319abb348a62123aea6eb9",
     "subcircuit_id": {
       "instance_path": "/fb6d4d08-8299-415a-93e2-10cfee17e511",
