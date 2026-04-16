@@ -730,12 +730,24 @@ def _stamp_parent_board(
             "net_name": via.net or "",
         })
 
+    # Compute the board outline from the composition
+    outline = board_state.board_outline
+    outline_data = None
+    if outline and len(outline) >= 2:
+        outline_data = {
+            "tl_x": outline[0].x,
+            "tl_y": outline[0].y,
+            "br_x": outline[1].x,
+            "br_y": outline[1].y,
+        }
+
     payload = {
         "pcb_path": str(output_pcb),
         "output_path": str(output_pcb),
         "components": components_json,
         "traces": traces_json,
         "vias": vias_json,
+        "outline": outline_data,
     }
 
     tmp_fd, tmp_path = tempfile.mkstemp(suffix=".json", prefix="stamp_parent_")
@@ -771,6 +783,32 @@ _LAYER_MAP = {0: pcbnew.F_Cu, 1: pcbnew.B_Cu}
 _LAYER_NAME_MAP = {"F.Cu": pcbnew.F_Cu, "B.Cu": pcbnew.B_Cu}
 
 board = pcbnew.LoadBoard(_pcb_path)
+
+# --- rewrite board outline if provided ---
+_outline = _data.get("outline")
+if _outline:
+    _width_mm = max(1.0, _outline["br_x"] - _outline["tl_x"])
+    _height_mm = max(1.0, _outline["br_y"] - _outline["tl_y"])
+    _left = pcbnew.FromMM(_outline["tl_x"])
+    _top = pcbnew.FromMM(_outline["tl_y"])
+    _right = pcbnew.FromMM(_outline["tl_x"] + _width_mm)
+    _bottom = pcbnew.FromMM(_outline["tl_y"] + _height_mm)
+
+    _edge_remove = [d for d in board.GetDrawings() if d.GetLayer() == pcbnew.Edge_Cuts]
+    for d in _edge_remove:
+        board.Remove(d)
+
+    _corners = [(_left, _top), (_right, _top), (_right, _bottom), (_left, _bottom)]
+    for _i in range(4):
+        _seg = pcbnew.PCB_SHAPE(board)
+        _seg.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        _seg.SetLayer(pcbnew.Edge_Cuts)
+        _seg.SetWidth(pcbnew.FromMM(0.05))
+        _x1, _y1 = _corners[_i]
+        _x2, _y2 = _corners[(_i + 1) % 4]
+        _seg.SetStart(pcbnew.VECTOR2I(_x1, _y1))
+        _seg.SetEnd(pcbnew.VECTOR2I(_x2, _y2))
+        board.Add(_seg)
 
 # --- build component lookup ---
 _comp_map = {c["ref"]: c for c in _components}
