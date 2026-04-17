@@ -1,4 +1,23 @@
-"""Shared application state for the hierarchical experiment manager."""
+"""Shared application state for the hierarchical experiment manager.
+
+The GUI should default to a clean, balanced experiment workflow:
+- enough visibility to understand what is running
+- enough controls to tune the hierarchical pipeline
+- minimal vestigial toggles from older GUI iterations
+
+Current baseline:
+- experiment rounds: 10
+- leaf solve rounds: 2
+- workers: 2
+- plateau threshold: 2
+- compose spacing: 6 mm
+
+The state in this module is intentionally conservative:
+- defaults should be stable and broadly useful
+- disabled controls should represent future work, not clutter
+- page-level cleanup flags live here so the GUI can progressively remove
+  old or redundant panels without scattering that logic across pages
+"""
 
 from __future__ import annotations
 
@@ -16,53 +35,42 @@ HIERARCHICAL_CONTROLS = [
     {
         "key": "leaf_rounds",
         "label": "Leaf Solve Rounds",
-        "default": 1,
+        "default": 2,
         "min": 1,
-        "max": 20,
+        "max": 6,
         "step": 1,
         "enabled": True,
         "group": "Leaf Solving",
-        "description": "How many local solve attempts to run per leaf in each experiment round.",
+        "description": "Balanced default: 2. Increase only when extra leaf quality clearly justifies the runtime.",
     },
     {
         "key": "top_level_rounds",
         "label": "Top-Level Assembly Rounds",
         "default": 1,
         "min": 1,
-        "max": 10,
+        "max": 3,
         "step": 1,
         "enabled": True,
         "group": "Top-Level Assembly",
-        "description": "How many visible parent/top-level assembly passes to run per experiment round.",
+        "description": "Keep this narrow until top-level routing fidelity is more trustworthy.",
     },
     {
         "key": "compose_spacing_mm",
         "label": "Parent Composition Spacing (mm)",
-        "default": 12.0,
+        "default": 6.0,
         "min": 4.0,
-        "max": 40.0,
+        "max": 20.0,
         "step": 1.0,
         "enabled": True,
         "group": "Top-Level Assembly",
-        "description": "Spacing used when composing routed child artifacts into a parent layout.",
-    },
-    {
-        "key": "max_leaf_candidates",
-        "label": "Max Leaf Candidates",
-        "default": 1,
-        "min": 1,
-        "max": 8,
-        "step": 1,
-        "enabled": False,
-        "group": "Search Strategy",
-        "description": "Reserved for future multi-candidate leaf exploration.",
+        "description": "Balanced spacing range for routine runs. Widen only for debugging or special cases.",
     },
 ]
 
 DEFAULT_STRATEGY = {
     "rounds": 10,
-    "workers": 1,
-    "plateau_threshold": 1,
+    "workers": 2,
+    "plateau_threshold": 2,
     "seed": 0,
     "pcb_file": "LLUPS.kicad_pcb",
     "schematic_file": "LLUPS.kicad_sch",
@@ -82,6 +90,13 @@ DEFAULT_TOGGLES = {
     "render_top_level_png": True,
     "preserve_existing_subcircuit_artifacts": True,
     "show_only_accepted_frames": False,
+    "show_status_json": True,
+    "show_leaf_artifacts": True,
+    "show_top_level_progress": True,
+    "track_composition_outputs": True,
+    "enable_progression_viewer": True,
+    "prefer_kept_frames": False,
+    "show_frame_metadata": True,
 }
 
 
@@ -93,12 +108,22 @@ def _project_root() -> Path:
     return Path.cwd()
 
 
+DEFAULT_GUI_CLEANUP = {
+    "show_analysis_tab": True,
+    "show_board_tab": False,
+    "show_legacy_imports": False,
+    "show_legacy_presets": False,
+    "show_raw_status_json": True,
+    "show_visuals_panel": False,
+}
+
+
 @dataclass
 class AppState:
     """Mutable singleton holding current GUI state."""
 
     project_root: Path = field(default_factory=_project_root)
-    db: Database = field(default=None)
+    db: Database | None = field(default=None)
 
     hierarchical_controls: list[dict[str, Any]] = field(
         default_factory=lambda: [{**d} for d in HIERARCHICAL_CONTROLS]
@@ -108,6 +133,7 @@ class AppState:
         default_factory=lambda: {**DEFAULT_SCORE_WEIGHTS}
     )
     toggles: dict[str, Any] = field(default_factory=lambda: {**DEFAULT_TOGGLES})
+    gui_cleanup: dict[str, Any] = field(default_factory=lambda: {**DEFAULT_GUI_CLEANUP})
 
     active_experiment_id: int | None = None
     runner_pid: int | None = None
@@ -156,6 +182,7 @@ class AppState:
 
         config["_strategy"] = {**self.strategy}
         config["_score_weights"] = {**self.score_weights}
+        config["_gui_cleanup"] = {**self.gui_cleanup}
         config.update(self.toggles)
         config["pipeline"] = "hierarchical_subcircuits"
         return config
@@ -179,6 +206,9 @@ class AppState:
 
         if "_score_weights" in config and isinstance(config["_score_weights"], dict):
             self.score_weights.update(config["_score_weights"])
+
+        if "_gui_cleanup" in config and isinstance(config["_gui_cleanup"], dict):
+            self.gui_cleanup.update(config["_gui_cleanup"])
 
         for key in DEFAULT_TOGGLES:
             if key in config:

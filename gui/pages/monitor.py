@@ -17,11 +17,15 @@ from ..state import get_state
 def monitor_page():
     state = get_state()
     runner = state.runner
+    db = state.db
+    if db is None:
+        raise RuntimeError("Database is not initialized")
 
-    ui.label("Experiment Monitor").classes("text-2xl font-bold mb-4")
+    ui.label("Experiment Manager Monitor").classes("text-2xl font-bold mb-4")
     ui.label(
-        "Live view of the bottom-up subcircuit pipeline: routed leaves, "
-        "parent composition, and top-level progression."
+        "Focused live visibility into what the experiment manager is doing now: "
+        "run state, worker activity, accepted artifacts, recent events, and "
+        "top-level progression."
     ).classes("text-sm text-gray-400 mb-4")
 
     # ── Controls ──
@@ -39,15 +43,15 @@ def monitor_page():
     # ── Top status cards ──
     with ui.row().classes("w-full gap-4 mb-4"):
         with ui.card().classes("p-3 flex-1"):
-            ui.label("Status").classes("text-xs text-gray-400")
+            ui.label("Run Status").classes("text-xs text-gray-400")
             status_badge = ui.badge("IDLE", color="gray").classes("text-lg")
 
         with ui.card().classes("p-3 flex-1"):
-            ui.label("Phase").classes("text-xs text-gray-400")
+            ui.label("Current Phase").classes("text-xs text-gray-400")
             phase_label = ui.label("—").classes("text-lg font-bold")
 
         with ui.card().classes("p-3 flex-1"):
-            ui.label("Progress").classes("text-xs text-gray-400")
+            ui.label("Round Progress").classes("text-xs text-gray-400")
             progress_label = ui.label("0 / 0")
             progress_bar = ui.linear_progress(value=0).classes("w-full")
 
@@ -58,7 +62,7 @@ def monitor_page():
     # ── Hierarchical pipeline cards ──
     with ui.row().classes("w-full gap-4 mb-4"):
         with ui.card().classes("p-3 flex-1"):
-            ui.label("Leaves").classes("text-xs text-gray-400")
+            ui.label("Leaf Progress").classes("text-xs text-gray-400")
             leaves_label = ui.label("—")
             leaves_bar = ui.linear_progress(value=0).classes("w-full mt-2")
 
@@ -67,11 +71,11 @@ def monitor_page():
             artifacts_label = ui.label("—").classes("text-lg font-bold text-green-400")
 
         with ui.card().classes("p-3 flex-1"):
-            ui.label("Current Node").classes("text-xs text-gray-400")
+            ui.label("Current Target").classes("text-xs text-gray-400")
             current_node_label = ui.label("—")
 
         with ui.card().classes("p-3 flex-1"):
-            ui.label("Top-Level").classes("text-xs text-gray-400")
+            ui.label("Top-Level / Parent").classes("text-xs text-gray-400")
             top_level_label = ui.label("—")
 
     with ui.row().classes("w-full gap-4 mb-4"):
@@ -86,12 +90,29 @@ def monitor_page():
             latest_label = ui.label("—")
 
         with ui.card().classes("p-3 flex-1"):
-            ui.label("Workers").classes("text-xs text-gray-400")
+            ui.label("Worker Activity").classes("text-xs text-gray-400")
             workers_label = ui.label("—")
 
         with ui.card().classes("p-3 flex-1"):
-            ui.label("Health").classes("text-xs text-gray-400")
+            ui.label("Run Health").classes("text-xs text-gray-400")
             health_label = ui.label("—")
+
+    with ui.row().classes("w-full gap-4 mb-4"):
+        with ui.card().classes("p-3 flex-1"):
+            ui.label("Experiment History").classes("text-xs text-gray-400")
+            history_summary_label = ui.label("—")
+
+        with ui.card().classes("p-3 flex-1"):
+            ui.label("Recent Best").classes("text-xs text-gray-400")
+            recent_best_label = ui.label("—")
+
+        with ui.card().classes("p-3 flex-1"):
+            ui.label("Completed Runs").classes("text-xs text-gray-400")
+            completed_runs_label = ui.label("—")
+
+        with ui.card().classes("p-3 flex-1"):
+            ui.label("Last Finished").classes("text-xs text-gray-400")
+            last_finished_label = ui.label("—")
 
     # ── Score chart ──
     chart_container = ui.column().classes("w-full")
@@ -112,10 +133,6 @@ def monitor_page():
         with ui.card().classes("p-3 flex-1"):
             ui.label("Top-Level / Parent Outputs").classes("text-lg font-bold mb-2")
             top_outputs_container = ui.column().classes("w-full gap-2")
-
-        with ui.card().classes("p-3 flex-1"):
-            ui.label("Live Status JSON").classes("text-lg font-bold mb-2")
-            status_json_container = ui.column().classes("w-full gap-2")
 
     # ── Board preview ──
     with ui.expansion(
@@ -171,9 +188,21 @@ def monitor_page():
             exp / "frames" / "frame_latest.png",
             exp / "frames" / f"frame_{last_round_seen['value']:04d}.png",
             exp / "best" / "best_preview.png",
+            exp / "hierarchical_pipeline" / "parent_stamped.png",
+            exp / "hierarchical_pipeline" / "parent_routed.png",
             exp / "hierarchical_pipeline" / "visible_parent" / "board.png",
             exp / "hierarchical_pipeline" / "visible_parent" / "board_routed.png",
             exp / "hierarchical_pipeline" / "visible_parent" / "snapshot.png",
+            exp
+            / "subcircuits"
+            / "subcircuit__8a5edab282"
+            / "renders"
+            / "parent_routed.png",
+            exp
+            / "subcircuits"
+            / "subcircuit__8a5edab282"
+            / "renders"
+            / "parent_stamped.png",
         ]
         return [p for p in candidates if p.exists()]
 
@@ -268,11 +297,16 @@ def monitor_page():
     def _render_top_outputs() -> None:
         top_outputs_container.clear()
         hp = state.experiments_dir / "hierarchical_pipeline"
+        parent_artifact = (
+            state.experiments_dir / "subcircuits" / "subcircuit__8a5edab282"
+        )
         candidates = [
             hp / "parent_composition.json",
-            hp / "visible_parent" / "board.kicad_pcb",
-            hp / "visible_parent" / "board_routed.kicad_pcb",
-            hp / "visible_parent" / "summary.json",
+            hp / "parent_pipeline.json",
+            parent_artifact / "parent_pre_freerouting.kicad_pcb",
+            parent_artifact / "parent_routed.kicad_pcb",
+            parent_artifact / "debug.json",
+            parent_artifact / "metadata.json",
             state.experiments_dir / "report.html",
         ]
         existing = [p for p in candidates if p.exists()]
@@ -292,41 +326,86 @@ def monitor_page():
                     )
 
     def _render_status_json(status: dict) -> None:
-        status_json_container.clear()
-        with status_json_container:
-            if not status:
-                ui.label("No status available").classes("text-gray-500 italic")
-                return
-            ui.code(json.dumps(status, indent=2)).classes("w-full text-xs")
+        return
 
     def _update_board_preview() -> None:
         board_container.clear()
-        previews = _find_preview_candidates()
-        if not previews:
-            with board_container:
-                ui.label("No preview artifacts found yet").classes(
-                    "text-gray-500 italic"
-                )
-            return
 
-        preview = previews[0]
+        exp = state.experiments_dir
+        parent_renders = exp / "subcircuits" / "subcircuit__8a5edab282" / "renders"
+
+        leaf_preview_candidates = [
+            exp / "best_preview.png",
+            exp / "frames" / "frame_latest.png",
+            exp / "frames" / f"frame_{last_round_seen['value']:04d}.png",
+        ]
+        parent_preview_candidates = [
+            parent_renders / "parent_stamped.png",
+            parent_renders / "parent_routed.png",
+            exp / "hierarchical_pipeline" / "parent_stamped.png",
+            exp / "hierarchical_pipeline" / "parent_routed.png",
+        ]
+
+        leaf_preview = next((p for p in leaf_preview_candidates if p.exists()), None)
+        parent_preview = next(
+            (p for p in parent_preview_candidates if p.exists()), None
+        )
+
+        if leaf_preview is None and parent_preview is None:
+            previews = _find_preview_candidates()
+            if not previews:
+                with board_container:
+                    ui.label("No preview artifacts found yet").classes(
+                        "text-gray-500 italic"
+                    )
+                return
+            leaf_preview = previews[0]
+
         with board_container:
-            ui.label(preview.name).classes("text-sm text-gray-400 mb-2")
-            if preview.suffix.lower() == ".gif":
-                ui.image(str(preview)).classes("max-w-5xl max-h-[700px] object-contain")
-            else:
-                ui.image(str(preview)).classes("max-w-5xl max-h-[700px] object-contain")
+            with ui.row().classes("w-full gap-4 items-start"):
+                if leaf_preview is not None:
+                    with ui.card().classes("flex-1 p-3 bg-slate-900/60"):
+                        ui.label("Live leaf / current best preview").classes(
+                            "text-sm font-bold text-gray-200 mb-2"
+                        )
+                        ui.label(leaf_preview.name).classes(
+                            "text-xs text-gray-400 mb-2 font-mono"
+                        )
+                        ui.image(str(leaf_preview)).classes(
+                            "w-full max-w-3xl max-h-[620px] object-contain rounded border border-slate-700 bg-slate-950"
+                        )
+
+                if parent_preview is not None:
+                    with ui.card().classes("flex-1 p-3 bg-slate-900/60"):
+                        ui.label("Live parent preview").classes(
+                            "text-sm font-bold text-gray-200 mb-2"
+                        )
+                        ui.label(parent_preview.name).classes(
+                            "text-xs text-gray-400 mb-2 font-mono"
+                        )
+                        ui.image(str(parent_preview)).classes(
+                            "w-full max-w-3xl max-h-[620px] object-contain rounded border border-slate-700 bg-slate-950"
+                        )
 
     def _extract_hierarchical_metrics(status: dict) -> tuple[int, int, int]:
         leaves = status.get("leaves", {}) if isinstance(status, dict) else {}
+        hierarchy = status.get("hierarchy", {}) if isinstance(status, dict) else {}
         solved = int(leaves.get("solved", 0) or 0)
         total = int(leaves.get("total", 0) or 0)
         accepted = int(leaves.get("accepted", 0) or 0)
 
         if total == 0:
+            total = int(hierarchy.get("leaf_total", 0) or 0)
+        if total == 0:
             total = int(status.get("total_leaves", 0) or 0)
+
+        if solved == 0:
+            solved = int(hierarchy.get("leaf_accepted", 0) or 0)
         if solved == 0:
             solved = int(status.get("solved_leaves", 0) or 0)
+
+        if accepted == 0:
+            accepted = int(hierarchy.get("leaf_accepted", 0) or 0)
         if accepted == 0:
             accepted = int(status.get("accepted_artifacts", 0) or 0)
 
@@ -336,6 +415,52 @@ def monitor_page():
         """Poll run_status.json and update UI."""
         status = runner.read_status()
         phase = status.get("phase", "idle")
+        hierarchy = status.get("hierarchy", {})
+        if not isinstance(hierarchy, dict):
+            hierarchy = {}
+
+        experiments = db.get_experiments()
+        total_runs = len(experiments)
+        completed_runs = sum(
+            1
+            for exp in experiments
+            if str(getattr(exp, "status", "") or "").lower() == "done"
+        )
+        running_runs = sum(
+            1
+            for exp in experiments
+            if str(getattr(exp, "status", "") or "").lower() in {"running", "stopping"}
+        )
+        best_completed = max(
+            (
+                float(getattr(exp, "best_score", 0) or 0)
+                for exp in experiments
+                if str(getattr(exp, "status", "") or "").lower() == "done"
+            ),
+            default=0.0,
+        )
+        latest_finished = next(
+            (
+                exp
+                for exp in experiments
+                if str(getattr(exp, "status", "") or "").lower() == "done"
+            ),
+            None,
+        )
+
+        history_summary_label.set_text(
+            f"{total_runs} total | {running_runs} active"
+            if total_runs
+            else "No runs recorded yet"
+        )
+        recent_best_label.set_text(f"{best_completed:.2f}" if best_completed else "—")
+        completed_runs_label.set_text(str(completed_runs))
+        if latest_finished and getattr(latest_finished, "created_at", None):
+            last_finished_label.set_text(
+                latest_finished.created_at.strftime("%Y-%m-%d %H:%M")
+            )
+        else:
+            last_finished_label.set_text("—")
 
         # Status badge
         badge_colors = {
@@ -378,13 +503,28 @@ def monitor_page():
         leaves_bar.set_value((solved_leaves / total_leaves) if total_leaves else 0)
         artifacts_label.set_text(str(accepted_artifacts))
 
+        current_stage = (
+            hierarchy.get("current_stage")
+            or status.get("stage")
+            or status.get("pipeline_phase")
+            or phase
+        )
+        current_leaf = (
+            status.get("current_leaf") or hierarchy.get("current_leaf") or "—"
+        )
+        current_parent = (
+            status.get("current_parent") or hierarchy.get("current_parent") or "—"
+        )
         current_node = (
             status.get("current_node")
+            or hierarchy.get("current_node")
             or status.get("current_leaf")
             or status.get("current_parent")
             or "—"
         )
-        current_node_label.set_text(str(current_node))
+        current_node_label.set_text(
+            f"stage={current_stage} | node={current_node} | leaf={current_leaf} | parent={current_parent}"
+        )
 
         top_level = (
             status.get("top_level_status")
@@ -393,9 +533,6 @@ def monitor_page():
             or "—"
         )
 
-        hierarchy = status.get("hierarchy", {})
-        if not isinstance(hierarchy, dict):
-            hierarchy = {}
         leaf_workers = hierarchy.get("leaf_workers", {})
         if not isinstance(leaf_workers, dict):
             leaf_workers = {}
@@ -412,10 +549,34 @@ def monitor_page():
         completed_leafs = int(
             leaf_workers.get("completed", solved_leaves) or solved_leaves
         )
+        idle_leaf_workers = int(
+            leaf_workers.get("idle", max(0, total_leaf_workers - active_leaf_workers))
+            or 0
+        )
+
+        copper = hierarchy.get("copper_accounting", {})
+        if not isinstance(copper, dict):
+            copper = {}
+
+        preserved_child_traces = int(copper.get("preserved_child_trace_count", 0) or 0)
+        expected_child_traces = int(
+            copper.get("expected_preserved_child_trace_count", 0) or 0
+        )
+        preserved_child_vias = int(copper.get("preserved_child_via_count", 0) or 0)
+        expected_child_vias = int(
+            copper.get("expected_preserved_child_via_count", 0) or 0
+        )
+        added_parent_traces = int(copper.get("added_parent_trace_count", 0) or 0)
+        added_parent_vias = int(copper.get("added_parent_via_count", 0) or 0)
 
         top_level_label.set_text(
-            f"{top_level} | leaf workers {active_leaf_workers}/{total_leaf_workers} "
-            f"| queued {queued_leafs} | completed {completed_leafs}"
+            f"status={top_level} | phase={phase} | stage={current_stage} "
+            f"| leaf workers {active_leaf_workers}/{total_leaf_workers} "
+            f"(idle {idle_leaf_workers}) | queued {queued_leafs} "
+            f"| completed {completed_leafs} | child Cu "
+            f"T {preserved_child_traces}/{expected_child_traces} "
+            f"V {preserved_child_vias}/{expected_child_vias} "
+            f"| parent Cu +T {added_parent_traces} +V {added_parent_vias}"
         )
 
         # Best score
@@ -426,9 +587,13 @@ def monitor_page():
         latest = status.get("latest_score")
         marker = status.get("latest_marker", "") or status.get("latest_event", "")
         if latest is not None:
-            latest_label.set_text(f"{float(latest):.2f} ({marker})")
+            latest_label.set_text(
+                f"{float(latest):.2f} ({marker}) | leaf={current_leaf} | parent={current_parent}"
+            )
         else:
-            latest_label.set_text(marker or "—")
+            latest_label.set_text(
+                f"{marker or '—'} | leaf={current_leaf} | parent={current_parent}"
+            )
 
         # Workers
         w = status.get("workers", {})
@@ -442,7 +607,9 @@ def monitor_page():
         workers_label.set_text(
             f"Run: total={w.get('total', 0)} active={w.get('in_flight', 0)} idle={w.get('idle', 0)}"
             f" | Leaf: total={leaf_workers.get('total', 0)} active={leaf_workers.get('active', 0)}"
-            f" idle={leaf_workers.get('idle', 0)}"
+            f" idle={leaf_workers.get('idle', 0)} queued={leaf_workers.get('queued', 0)}"
+            f" completed={leaf_workers.get('completed', 0)}"
+            f" | current_stage={current_stage}"
         )
 
         # Health
@@ -474,9 +641,9 @@ def monitor_page():
             last_round_seen["value"] = max(r.get("round_num", 0) for r in new_rounds)
             if state.active_experiment_id:
                 for nr in new_rounds:
-                    state.db.add_round(state.active_experiment_id, nr)
+                    db.add_round(state.active_experiment_id, nr)
                 best_so_far = max((r.get("score", 0) for r in live_rounds), default=0)
-                state.db.update_experiment(
+                db.update_experiment(
                     state.active_experiment_id,
                     completed_rounds=len(live_rounds),
                     best_score=best_so_far,
@@ -489,7 +656,7 @@ def monitor_page():
         if prev_phase["value"] in ("running", "stopping") and phase in ("done", "idle"):
             if state.active_experiment_id:
                 best_so_far = max((r.get("score", 0) for r in live_rounds), default=0)
-                state.db.update_experiment(
+                db.update_experiment(
                     state.active_experiment_id,
                     status="done",
                     completed_rounds=len(live_rounds),
@@ -503,7 +670,6 @@ def monitor_page():
         _render_events(events)
         _render_artifacts()
         _render_top_outputs()
-        _render_status_json(status)
         _update_board_preview()
 
     # Start timer for live updates
@@ -531,14 +697,14 @@ def monitor_page():
                     "save_round_details": state.toggles.get("save_round_details", True),
                 },
             )
-            exp = state.db.create_experiment(
+            exp = db.create_experiment(
                 name=f"Hierarchical Run {time.strftime('%Y-%m-%d %H:%M')}",
                 pcb_file=state.strategy["pcb_file"],
                 total_rounds=state.strategy["rounds"],
                 config=state.to_config_dict(),
             )
             state.active_experiment_id = exp.id
-            state.db.update_experiment(exp.id, status="running")
+            db.update_experiment(exp.id, status="running")
 
             ui.notify(f"Started hierarchical experiment (PID {pid})", type="positive")
             live_rounds.clear()
@@ -553,13 +719,13 @@ def monitor_page():
             type="info",
         )
         if state.active_experiment_id:
-            state.db.update_experiment(state.active_experiment_id, status="stopping")
+            db.update_experiment(state.active_experiment_id, status="stopping")
 
     def _force_kill():
         runner.kill()
         ui.notify("Force killed experiment and all child processes", type="warning")
         if state.active_experiment_id:
-            state.db.update_experiment(state.active_experiment_id, status="done")
+            db.update_experiment(state.active_experiment_id, status="done")
 
     start_btn.on_click(_start)
     stop_btn.on_click(_stop)

@@ -439,6 +439,120 @@ def _extract_parent_copper_accounting(project_dir: Path) -> dict[str, int]:
     return {}
 
 
+def _discover_latest_parent_artifact_dir(project_dir: Path) -> Path | None:
+    root = project_dir / ".experiments" / "subcircuits"
+    if not root.exists():
+        return None
+
+    candidates: list[tuple[float, Path]] = []
+    for child in root.iterdir():
+        if not child.is_dir():
+            continue
+        debug_path = child / "debug.json"
+        metadata_path = child / "metadata.json"
+        if not debug_path.exists() and not metadata_path.exists():
+            continue
+
+        payload = {}
+        try:
+            if debug_path.exists():
+                payload = _load_json(debug_path)
+            elif metadata_path.exists():
+                payload = _load_json(metadata_path)
+        except Exception:
+            payload = {}
+
+        if not isinstance(payload, dict):
+            payload = {}
+
+        if not (
+            payload.get("parent_composition") is True
+            or payload.get("schema_version") == "parent-compose-v1"
+        ):
+            continue
+
+        try:
+            mtime = max(
+                debug_path.stat().st_mtime if debug_path.exists() else 0.0,
+                metadata_path.stat().st_mtime if metadata_path.exists() else 0.0,
+            )
+        except OSError:
+            mtime = 0.0
+        candidates.append((mtime, child))
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
+
+
+def _discover_live_preview_paths(project_dir: Path) -> dict[str, str]:
+    previews: dict[str, str] = {}
+
+    latest_parent_dir = _discover_latest_parent_artifact_dir(project_dir)
+    if latest_parent_dir is not None:
+        renders_dir = latest_parent_dir / "renders"
+        stamped_candidates = [
+            renders_dir / "parent_stamped.png",
+            renders_dir / "front_all.png",
+            renders_dir / "board.png",
+        ]
+        routed_candidates = [
+            renders_dir / "parent_routed.png",
+            renders_dir / "routed.png",
+            renders_dir / "board_routed.png",
+        ]
+        for candidate in stamped_candidates:
+            if candidate.exists():
+                previews["parent_stamped_preview"] = str(candidate)
+                break
+        for candidate in routed_candidates:
+            if candidate.exists():
+                previews["parent_routed_preview"] = str(candidate)
+                break
+        previews["parent_artifact_dir"] = str(latest_parent_dir)
+
+    sub_root = project_dir / ".experiments" / "subcircuits"
+    latest_leaf: tuple[float, Path] | None = None
+    if sub_root.exists():
+        for child in sub_root.iterdir():
+            if not child.is_dir():
+                continue
+            solved_path = child / "solved_layout.json"
+            metadata_path = child / "metadata.json"
+            if not solved_path.exists():
+                continue
+            try:
+                payload = _load_json(metadata_path) if metadata_path.exists() else {}
+            except Exception:
+                payload = {}
+            if isinstance(payload, dict) and payload.get("parent_composition") is True:
+                continue
+            try:
+                mtime = solved_path.stat().st_mtime
+            except OSError:
+                continue
+            if latest_leaf is None or mtime > latest_leaf[0]:
+                latest_leaf = (mtime, child)
+
+    if latest_leaf is not None:
+        leaf_dir = latest_leaf[1]
+        renders_dir = leaf_dir / "renders"
+        leaf_candidates = [
+            renders_dir / "routed_front_all.png",
+            renders_dir / "pre_route_front_all.png",
+            renders_dir / "routed_copper_both.png",
+        ]
+        for candidate in leaf_candidates:
+            if candidate.exists():
+                previews["leaf_preview"] = str(candidate)
+                break
+        previews["leaf_artifact_dir"] = str(leaf_dir)
+
+    return previews
+
+
 def _write_live_status(
     status_json_path: Path,
     status_txt_path: Path,
@@ -465,6 +579,9 @@ def _write_live_status(
     top_level_status: str | None = None,
     composition_status: str | None = None,
     copper_accounting: dict[str, int] | None = None,
+    current_action: str | None = None,
+    current_command: str | None = None,
+    preview_paths: dict[str, str] | None = None,
 ) -> None:
     now = time.monotonic()
     elapsed_s = now - start_ts
@@ -505,6 +622,9 @@ def _write_live_status(
         "current_node": current_node,
         "current_leaf": current_leaf,
         "current_parent": current_parent,
+        "current_action": current_action,
+        "current_command": current_command,
+        "preview_paths": dict(preview_paths or {}),
         "top_level_status": hierarchy_top_level_status,
         "composition_status": hierarchy_composition_status,
         "workers": {
@@ -533,6 +653,9 @@ def _write_live_status(
             "current_node": current_node,
             "current_leaf": current_leaf,
             "current_parent": current_parent,
+            "current_action": current_action,
+            "current_command": current_command,
+            "preview_paths": dict(preview_paths or {}),
             "top_level_status": hierarchy_top_level_status,
             "composition_status": hierarchy_composition_status,
             "copper_accounting": copper,
@@ -552,9 +675,11 @@ def _write_live_status(
         f"kept_count: {kept_count}",
         f"elapsed: {_format_mmss(elapsed_s)}",
         f"current_stage: {current_stage}",
+        f"current_action: {current_action or 'n/a'}",
         f"current_node: {current_node or 'n/a'}",
         f"current_leaf: {current_leaf or 'n/a'}",
         f"current_parent: {current_parent or 'n/a'}",
+        f"current_command: {current_command or 'n/a'}",
         f"leafs: accepted={leaf_accepted} total={leaf_total}",
         (
             "leaf_workers: "
@@ -587,6 +712,10 @@ def _write_live_status(
                 (f"  added_parent_vias: {copper.get('added_parent_via_count', 0)}"),
             ]
         )
+    if preview_paths:
+        lines.append("preview_paths:")
+        for key, value in sorted(preview_paths.items()):
+            lines.append(f"  {key}: {value}")
     status_txt_path.parent.mkdir(parents=True, exist_ok=True)
     with open(status_txt_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
@@ -1046,6 +1175,19 @@ def main(argv: list[str] | None = None) -> int:
             top_level_status="pending",
             composition_status="solving_leafs",
             copper_accounting={},
+            current_action="starting leaf solve round",
+            current_command=" ".join(
+                _build_solve_cmd(
+                    schematic=schematic,
+                    pcb=pcb,
+                    rounds=args.leaf_rounds,
+                    seed=round_seed,
+                    config=args.config,
+                    only=args.only,
+                    workers=max(1, args.workers),
+                )
+            ),
+            preview_paths=_discover_live_preview_paths(project_dir),
         )
 
         t0 = time.monotonic()
@@ -1058,6 +1200,34 @@ def main(argv: list[str] | None = None) -> int:
             config=args.config,
             only=args.only,
             workers=max(1, args.workers),
+        )
+        _write_live_status(
+            status_json_path,
+            status_txt_path,
+            phase="running",
+            rounds_total=args.rounds,
+            round_num=round_num,
+            best_score=max(best_score, 0.0),
+            kept_count=kept_count,
+            latest_score=None,
+            latest_marker=f"round {round_num} leaf solve launched",
+            start_ts=start_ts,
+            current_stage="solve_leafs",
+            leaf_total=0,
+            leaf_accepted=0,
+            top_level_ready=False,
+            leaf_worker_count=max(1, args.workers),
+            leaf_workers_active=max(1, min(args.workers, 1)),
+            leaf_workers_queued=0,
+            leaf_workers_completed=0,
+            current_node=args.parent,
+            current_parent=args.parent,
+            top_level_status="pending",
+            composition_status="solving_leafs",
+            copper_accounting={},
+            current_action="running solve_subcircuits",
+            current_command=" ".join(solve_cmd),
+            preview_paths=_discover_live_preview_paths(project_dir),
         )
         solve_rc, solve_stdout, solve_stderr = _run_command(
             solve_cmd,
@@ -1092,9 +1262,22 @@ def main(argv: list[str] | None = None) -> int:
             leaf_workers_completed=len(accepted_leafs),
             current_node=args.parent,
             current_parent=args.parent,
+            current_leaf=", ".join(accepted_leaf_names[:3])
+            if accepted_leaf_names
+            else None,
             top_level_status="pending",
             composition_status="composing_parent",
             copper_accounting={},
+            current_action="leaf solve complete; composing parent snapshot",
+            current_command=" ".join(
+                _build_compose_cmd(
+                    project_dir=project_dir,
+                    parent=args.parent,
+                    output_json=composition_json,
+                    only=args.only,
+                )
+            ),
+            preview_paths=_discover_live_preview_paths(project_dir),
         )
 
         compose_cmd = _build_compose_cmd(
@@ -1102,6 +1285,37 @@ def main(argv: list[str] | None = None) -> int:
             parent=args.parent,
             output_json=composition_json,
             only=args.only,
+        )
+        _write_live_status(
+            status_json_path,
+            status_txt_path,
+            phase="running",
+            rounds_total=args.rounds,
+            round_num=round_num,
+            best_score=max(best_score, 0.0),
+            kept_count=kept_count,
+            latest_score=None,
+            latest_marker=f"round {round_num} parent composition launched",
+            start_ts=start_ts,
+            current_stage="compose_parent",
+            leaf_total=len(all_leafs),
+            leaf_accepted=len(accepted_leafs),
+            top_level_ready=False,
+            leaf_worker_count=max(1, args.workers),
+            leaf_workers_active=0,
+            leaf_workers_queued=0,
+            leaf_workers_completed=len(accepted_leafs),
+            current_node=args.parent,
+            current_parent=args.parent,
+            current_leaf=", ".join(accepted_leaf_names[:3])
+            if accepted_leaf_names
+            else None,
+            top_level_status="pending",
+            composition_status="composing_parent",
+            copper_accounting={},
+            current_action="running compose_subcircuits snapshot stage",
+            current_command=" ".join(compose_cmd),
+            preview_paths=_discover_live_preview_paths(project_dir),
         )
         compose_rc, compose_stdout, compose_stderr = _run_command(
             compose_cmd,
@@ -1137,9 +1351,14 @@ def main(argv: list[str] | None = None) -> int:
                 leaf_workers_completed=len(accepted_leafs),
                 current_node=args.parent,
                 current_parent=args.parent,
+                current_leaf=", ".join(accepted_leaf_names[:3])
+                if accepted_leaf_names
+                else None,
                 top_level_status="routing_top_level",
                 composition_status="routing_parent",
                 copper_accounting={},
+                current_action="parent snapshot complete; preparing routed parent run",
+                preview_paths=_discover_live_preview_paths(project_dir),
             )
 
             visible_cmd = [
@@ -1166,6 +1385,37 @@ def main(argv: list[str] | None = None) -> int:
             for selector in args.only:
                 visible_cmd.extend(["--only", selector])
 
+            _write_live_status(
+                status_json_path,
+                status_txt_path,
+                phase="running",
+                rounds_total=args.rounds,
+                round_num=round_num,
+                best_score=max(best_score, 0.0),
+                kept_count=kept_count,
+                latest_score=None,
+                latest_marker=f"round {round_num} parent routing launched",
+                start_ts=start_ts,
+                current_stage="route_parent",
+                leaf_total=len(all_leafs),
+                leaf_accepted=len(accepted_leafs),
+                top_level_ready=False,
+                leaf_worker_count=max(1, args.workers),
+                leaf_workers_active=0,
+                leaf_workers_queued=0,
+                leaf_workers_completed=len(accepted_leafs),
+                current_node=args.parent,
+                current_parent=args.parent,
+                current_leaf=", ".join(accepted_leaf_names[:3])
+                if accepted_leaf_names
+                else None,
+                top_level_status="routing_top_level",
+                composition_status="routing_parent",
+                copper_accounting={},
+                current_action="running unified parent stamping/routing pipeline",
+                current_command=" ".join(visible_cmd),
+                preview_paths=_discover_live_preview_paths(project_dir),
+            )
             visible_rc, visible_stdout, visible_stderr = _run_command(
                 visible_cmd,
                 cwd=project_dir,
@@ -1173,6 +1423,36 @@ def main(argv: list[str] | None = None) -> int:
             )
             visible_ok = visible_rc == 0
             parent_copper_accounting = _extract_parent_copper_accounting(project_dir)
+            _write_live_status(
+                status_json_path,
+                status_txt_path,
+                phase="running",
+                rounds_total=args.rounds,
+                round_num=round_num,
+                best_score=max(best_score, 0.0),
+                kept_count=kept_count,
+                latest_score=None,
+                latest_marker=f"round {round_num} parent routing complete",
+                start_ts=start_ts,
+                current_stage="score_round",
+                leaf_total=len(all_leafs),
+                leaf_accepted=len(accepted_leafs),
+                top_level_ready=visible_ok,
+                leaf_worker_count=max(1, args.workers),
+                leaf_workers_active=0,
+                leaf_workers_queued=0,
+                leaf_workers_completed=len(accepted_leafs),
+                current_node=args.parent,
+                current_parent=args.parent,
+                current_leaf=", ".join(accepted_leaf_names[:3])
+                if accepted_leaf_names
+                else None,
+                top_level_status="ready" if visible_ok else "not_ready",
+                composition_status="parent_routed" if visible_ok else "parent_failed",
+                copper_accounting=parent_copper_accounting,
+                current_action="parent routing complete; scoring round",
+                preview_paths=_discover_live_preview_paths(project_dir),
+            )
         else:
             visible_ok = compose_rc == 0
             parent_copper_accounting = _extract_parent_copper_accounting(project_dir)
@@ -1290,13 +1570,17 @@ def main(argv: list[str] | None = None) -> int:
                     composition_json, best_dir / "best_parent_composition.json"
                 )
 
-            preview = _select_preview_image(
-                project_dir
-                / ".experiments"
-                / "subcircuits"
-                / "subcircuit__8a5edab282"
-                / "renders"
-            )
+            live_previews = _discover_live_preview_paths(project_dir)
+            preview = None
+            parent_routed_preview = live_previews.get("parent_routed_preview")
+            parent_stamped_preview = live_previews.get("parent_stamped_preview")
+            leaf_preview = live_previews.get("leaf_preview")
+            if parent_routed_preview:
+                preview = Path(parent_routed_preview)
+            elif parent_stamped_preview:
+                preview = Path(parent_stamped_preview)
+            elif leaf_preview:
+                preview = Path(leaf_preview)
             if preview is not None:
                 _copy_if_exists(preview, work_dir / "best_preview.png")
                 _copy_if_exists(preview, frames_dir / f"frame_{round_num:04d}.png")
@@ -1355,9 +1639,14 @@ def main(argv: list[str] | None = None) -> int:
             leaf_workers_completed=len(accepted_leafs),
             current_node=args.parent,
             current_parent=args.parent,
+            current_leaf=", ".join(accepted_leaf_names[:3])
+            if accepted_leaf_names
+            else None,
             top_level_status="ready" if visible_ok else "not_ready",
             composition_status="done" if composition_ok else "failed",
             copper_accounting=parent_copper_accounting,
+            current_action="round complete",
+            preview_paths=_discover_live_preview_paths(project_dir),
         )
 
         print(
@@ -1411,11 +1700,16 @@ def main(argv: list[str] | None = None) -> int:
         leaf_workers_completed=best_round.leaf_accepted if best_round else 0,
         current_node=args.parent,
         current_parent=args.parent,
+        current_leaf=", ".join(best_round.accepted_leaf_names[:3])
+        if best_round
+        else None,
         top_level_status=(
             "ready" if best_round and best_round.top_level_ready else "not_ready"
         ),
         composition_status="complete",
         copper_accounting=final_parent_copper_accounting,
+        current_action="run complete",
+        preview_paths=_discover_live_preview_paths(project_dir),
     )
 
     if args.output:
