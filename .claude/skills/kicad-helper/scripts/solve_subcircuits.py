@@ -39,10 +39,12 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import multiprocessing as mp
 import random
 import re
 import site
 import sys
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -278,12 +280,15 @@ def _default_pcb_path(top_schematic: Path) -> Path:
     return top_schematic.with_suffix(".kicad_pcb")
 
 
-def _load_config(config_path: str | None, project_dir: Path | None = None) -> dict[str, Any]:
+def _load_config(
+    config_path: str | None, project_dir: Path | None = None
+) -> dict[str, Any]:
     cfg: dict[str, Any] = {**DEFAULT_CONFIG}
 
     # Auto-discover project-specific config if no explicit path given
     if not config_path and project_dir:
         from autoplacer.config import discover_project_config
+
         discovered = discover_project_config(project_dir)
         if discovered:
             config_path = str(discovered)
@@ -379,7 +384,9 @@ def _local_solver_config(
 
     # Adaptive clearance for leaf subcircuits: scale down based on component density
     n_components = len(extraction.local_state.components)
-    board_area = extraction.local_state.board_width * extraction.local_state.board_height
+    board_area = (
+        extraction.local_state.board_width * extraction.local_state.board_height
+    )
     total_component_area = sum(
         c.width_mm * c.height_mm for c in extraction.local_state.components.values()
     )
@@ -718,7 +725,9 @@ def _route_local_subcircuit(
     pre_route_drc = pre_route_validation.get("drc", {})
     if pre_route_drc.get("violations"):
         pre_route_violation_types = {v.get("type") for v in pre_route_drc["violations"]}
-        print(f"  Pre-route DRC info: {len(pre_route_drc['violations'])} violations ({', '.join(sorted(pre_route_violation_types))})")
+        print(
+            f"  Pre-route DRC info: {len(pre_route_drc['violations'])} violations ({', '.join(sorted(pre_route_violation_types))})"
+        )
     leaf_diagnostics = generate_leaf_diagnostic_artifacts(
         artifact_dir=artifact_paths.artifact_dir,
         pre_route_board=str(pre_route_board),
@@ -728,7 +737,6 @@ def _route_local_subcircuit(
     )
     pre_route_validation["render_diagnostics"] = copy.deepcopy(leaf_diagnostics)
     pre_route_validation["leaf_legality_repair"] = copy.deepcopy(legality_repair)
-
 
     imported_copper = import_routed_copper(str(routed_board))
     validation = validate_routed_board(
@@ -763,11 +771,11 @@ def _route_local_subcircuit(
     ignorable_warning_types = {
         "silk_overlap",
         "lib_footprint_mismatch",
-        "copper_edge_clearance",   # tight subcircuit outlines
-        "silk_edge_clearance",     # cosmetic
-        "silk_over_copper",        # cosmetic
-        "solder_mask_bridge",      # footprint-internal
-        "unconnected_items",       # FreeRouting may not route all nets
+        "copper_edge_clearance",  # tight subcircuit outlines
+        "silk_edge_clearance",  # cosmetic
+        "silk_over_copper",  # cosmetic
+        "solder_mask_bridge",  # footprint-internal
+        "unconnected_items",  # FreeRouting may not route all nets
     }
     significant_violations = [
         violation
@@ -799,9 +807,7 @@ def _route_local_subcircuit(
     _clearance_types = {"clearance", "hole_clearance", "solder_mask_bridge"}
     _all_clearance = (
         significant_violations
-        and all(
-            v.get("type") in _clearance_types for v in significant_violations
-        )
+        and all(v.get("type") in _clearance_types for v in significant_violations)
         and not drc.get("shorts", 0)
     )
     _single_footprint_baseline = False
@@ -861,10 +867,7 @@ def _route_local_subcircuit(
         validation["rejection_message"] = "Leaf routed artifact rejected: " + ",".join(
             validation.get("rejection_reasons", [])
         )
-        print(
-            "  Routed DRC rejected placement: "
-            + validation["rejection_message"]
-        )
+        print("  Routed DRC rejected placement: " + validation["rejection_message"])
         return {
             "enabled": True,
             "skipped": True,
@@ -924,9 +927,7 @@ def _solve_one_round(
         try:
             routing = _route_local_subcircuit(extraction, solved_components, cfg)
         except Exception as exc:
-            print(
-                f"  WARNING: unexpected routing error in round {round_index}: {exc}"
-            )
+            print(f"  WARNING: unexpected routing error in round {round_index}: {exc}")
             routing = {
                 "enabled": True,
                 "skipped": True,
@@ -981,6 +982,7 @@ def _solve_one_round(
         routing=routing,
         routed=bool(route and not routing.get("failed", False)),
     )
+
 
 def _solve_leaf_subcircuit(
     node: HierarchyNode,
@@ -1254,7 +1256,27 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Run optional local routing for internal leaf nets after placement",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Parallel workers for solving independent leaf subcircuits at the same hierarchy level (default: 1)",
+    )
     return parser.parse_args(argv)
+
+
+def _solve_leaf_worker(
+    args: tuple[HierarchyNode, BoardState, dict[str, Any], int, int, bool],
+) -> SolvedLeafSubcircuit:
+    node, full_state, cfg, rounds, base_seed, route = args
+    return _solve_leaf_subcircuit(
+        node=node,
+        full_state=full_state,
+        cfg=cfg,
+        rounds=rounds,
+        base_seed=base_seed,
+        route=route,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1294,16 +1316,53 @@ def main(argv: list[str] | None = None) -> int:
         solved_results: list[SolvedLeafSubcircuit] = []
         persisted: list[dict[str, Any]] = []
 
-        for index, node in enumerate(leaves):
-            solved = _solve_leaf_subcircuit(
-                node=node,
-                full_state=board_state,
-                cfg=cfg,
-                rounds=max(1, args.rounds),
-                base_seed=args.seed + index * 1009,
-                route=args.route,
-            )
-            solved_results.append(solved)
+        worker_count = max(1, int(args.workers or 1))
+        rounds = max(1, args.rounds)
+
+        if worker_count == 1 or len(leaves) <= 1:
+            for index, node in enumerate(leaves):
+                solved = _solve_leaf_subcircuit(
+                    node=node,
+                    full_state=board_state,
+                    cfg=cfg,
+                    rounds=rounds,
+                    base_seed=args.seed + index * 1009,
+                    route=args.route,
+                )
+                solved_results.append(solved)
+        else:
+            ctx = mp.get_context("spawn")
+            worker_args = [
+                (
+                    node,
+                    board_state,
+                    cfg,
+                    rounds,
+                    args.seed + index * 1009,
+                    args.route,
+                )
+                for index, node in enumerate(leaves)
+            ]
+            solved_by_path: dict[str, SolvedLeafSubcircuit] = {}
+            with ProcessPoolExecutor(
+                max_workers=min(worker_count, len(worker_args)),
+                mp_context=ctx,
+            ) as pool:
+                future_map = {
+                    pool.submit(_solve_leaf_worker, item): item[0].id.instance_path
+                    for item in worker_args
+                }
+                for future in as_completed(future_map):
+                    solved = future.result()
+                    solved_by_path[solved.instance_path] = solved
+
+            solved_results = [
+                solved_by_path[node.id.instance_path]
+                for node in leaves
+                if node.id.instance_path in solved_by_path
+            ]
+
+        for solved in solved_results:
             persisted.append(_persist_solution(solved, cfg))
 
     except Exception as exc:
