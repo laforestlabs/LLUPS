@@ -289,27 +289,28 @@ def create_progression_viewer(experiments_dir: Path):
             return
         state["index"] = max(0, min(state["index"], len(frames) - 1))
 
-    with ui.column().classes("w-full gap-3"):
-        with ui.row().classes("w-full items-center gap-4 mb-1"):
-            ui.label("View:").classes("text-sm font-bold")
-            group_options = {g["key"]: g["label"] for g in frame_groups}
-            group_select = ui.select(
-                options=group_options,
-                value=state["group_key"],
-                label="Frame Set",
-            ).classes("w-64")
+    with ui.column().classes("w-full gap-4"):
+        with ui.card().classes("w-full p-4"):
+            with ui.row().classes("w-full items-center gap-4 mb-1 flex-wrap"):
+                ui.label("View:").classes("text-sm font-bold")
+                group_options = {g["key"]: g["label"] for g in frame_groups}
+                group_select = ui.select(
+                    options=group_options,
+                    value=state["group_key"],
+                    label="Frame Set",
+                ).classes("w-64")
 
-            ui.separator().props("vertical")
+                ui.separator().props("vertical")
 
-            ui.label("Show:").classes("text-sm font-bold")
-            mode_toggle = ui.toggle(
-                {"all": "All Frames", "kept": "Accepted / Kept Only"},
-                value="all",
-            ).classes("text-sm")
+                ui.label("Show:").classes("text-sm font-bold")
+                mode_toggle = ui.toggle(
+                    {"all": "All Frames", "kept": "Accepted / Kept Only"},
+                    value="all",
+                ).classes("text-sm")
 
-            ui.separator().props("vertical")
+                ui.separator().props("vertical")
 
-            frame_count_label = ui.label("").classes("text-sm text-gray-400")
+                frame_count_label = ui.label("").classes("text-sm text-gray-400")
 
         with ui.row().classes("w-full gap-4"):
             with ui.card().classes("p-3 flex-1"):
@@ -328,53 +329,58 @@ def create_progression_viewer(experiments_dir: Path):
                 ui.label("Latest Event").classes("text-xs text-gray-400")
                 latest_event_label = ui.label("—")
 
-        image_container = ui.column().classes("w-full items-center justify-center")
-
-        with ui.row().classes(
-            "w-full items-center justify-center gap-4 mt-2 flex-wrap"
-        ):
-            round_label = ui.label("").classes("text-lg font-mono")
-            score_label = ui.label("").classes("text-lg")
-            stage_label = ui.badge("", color="gray").classes("text-sm")
-            mode_label = ui.badge("", color="gray").classes("text-sm")
-            kept_label = ui.badge("", color="gray").classes("text-sm")
-
-        with ui.row().classes("w-full items-center justify-center gap-4 flex-wrap"):
-            sheet_label = ui.label("").classes("text-sm text-gray-300")
-            instance_label = ui.label("").classes("text-sm text-gray-500")
-
-        with ui.row().classes("w-full items-center gap-3 mt-2"):
-            frame_slider = (
-                ui.slider(
-                    min=0,
-                    max=max(len(_current_group()["frames"]) - 1, 1),
-                    value=0,
-                    step=1,
-                )
-                .classes("flex-grow")
-                .props("label-always")
+        with ui.card().classes("w-full p-4"):
+            image_container = ui.column().classes(
+                "w-full items-center justify-center rounded-xl bg-slate-950/80 p-4"
             )
 
-        with ui.row().classes("w-full items-center justify-center gap-2 mt-2"):
-            first_btn = ui.button(icon="first_page").props("flat dense")
-            prev_btn = ui.button(icon="skip_previous").props("flat dense")
-            play_btn = ui.button(icon="play_arrow").props("flat dense")
-            next_btn = ui.button(icon="skip_next").props("flat dense")
-            last_btn = ui.button(icon="last_page").props("flat dense")
+            with ui.row().classes(
+                "w-full items-center justify-center gap-4 mt-4 flex-wrap"
+            ):
+                round_label = ui.label("").classes("text-lg font-mono")
+                score_label = ui.label("").classes("text-lg")
+                stage_label = ui.badge("", color="gray").classes("text-sm")
+                mode_label = ui.badge("", color="gray").classes("text-sm")
+                kept_label = ui.badge("", color="gray").classes("text-sm")
 
-            ui.separator().props("vertical")
+            with ui.row().classes(
+                "w-full items-center justify-center gap-4 mt-2 flex-wrap"
+            ):
+                sheet_label = ui.label("").classes("text-sm text-gray-200")
+                instance_label = ui.label("").classes("text-sm text-gray-400 font-mono")
 
-            ui.label("Speed:").classes("text-sm")
-            speed_slider = (
-                ui.slider(
-                    min=1,
-                    max=15,
-                    value=4,
-                    step=1,
+            with ui.row().classes("w-full items-center gap-3 mt-4"):
+                frame_slider = (
+                    ui.slider(
+                        min=0,
+                        max=max(len(_current_group()["frames"]) - 1, 1),
+                        value=0,
+                        step=1,
+                    )
+                    .classes("flex-grow")
+                    .props("label-always")
                 )
-                .classes("w-32")
-                .props('label-always label="FPS"')
-            )
+
+            with ui.row().classes("w-full items-center justify-center gap-2 mt-3"):
+                first_btn = ui.button(icon="first_page").props("flat dense")
+                prev_btn = ui.button(icon="skip_previous").props("flat dense")
+                play_btn = ui.button(icon="play_arrow").props("flat dense")
+                next_btn = ui.button(icon="skip_next").props("flat dense")
+                last_btn = ui.button(icon="last_page").props("flat dense")
+
+                ui.separator().props("vertical")
+
+                ui.label("Speed:").classes("text-sm")
+                speed_slider = (
+                    ui.slider(
+                        min=1,
+                        max=15,
+                        value=4,
+                        step=1,
+                    )
+                    .classes("w-32")
+                    .props('label-always label="FPS"')
+                )
 
     def _update_status_cards():
         phase = str(status_meta.get("phase", "idle"))
@@ -438,7 +444,7 @@ def create_progression_viewer(experiments_dir: Path):
         image_container.clear()
         with image_container:
             ui.image(frame["frame_path"]).classes(
-                "max-w-4xl max-h-[700px] object-contain"
+                "w-full max-w-[1400px] max-h-[82vh] rounded-lg border border-slate-700 bg-slate-900 object-contain shadow-2xl"
             )
 
         round_label.set_text(f"Round {frame['round_num']}")
@@ -470,6 +476,7 @@ def create_progression_viewer(experiments_dir: Path):
             "leaf": "blue",
             "top": "green",
             "compose": "orange",
+            "hierarchical": "blue",
         }
         mode_label.set_text(mode.upper())
         mode_label._props["color"] = mode_colors.get(mode.lower(), "gray")
@@ -489,7 +496,15 @@ def create_progression_viewer(experiments_dir: Path):
 
         sheet_name = str(frame.get("sheet_name", "")).strip()
         instance_path = str(frame.get("instance_path", "")).strip()
-        sheet_label.set_text(f"Sheet: {sheet_name}" if sheet_name else "")
+        artifact_dir = str(frame.get("artifact_dir", "")).strip()
+
+        if sheet_name:
+            sheet_label.set_text(f"Sheet: {sheet_name}")
+        elif artifact_dir:
+            sheet_label.set_text(f"Artifact: {artifact_dir}")
+        else:
+            sheet_label.set_text("")
+
         instance_label.set_text(f"Instance: {instance_path}" if instance_path else "")
 
         frame_slider._props["max"] = max(len(frames) - 1, 1)

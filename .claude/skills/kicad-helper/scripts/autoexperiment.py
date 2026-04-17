@@ -361,27 +361,56 @@ def _write_frame_metadata(
     payload = {
         "round_num": round_result.round_num,
         "kept": round_result.kept,
+        "accepted": round_result.kept,
         "score": round_result.score,
         "mode": round_result.mode,
+        "stage": round_result.latest_stage,
         "latest_stage": round_result.latest_stage,
         "leaf_total": round_result.leaf_total,
         "leaf_accepted": round_result.leaf_accepted,
         "top_level_ready": round_result.top_level_ready,
+        "parent_composed": round_result.parent_composed,
+        "accepted_trace_count": round_result.accepted_trace_count,
+        "accepted_via_count": round_result.accepted_via_count,
+        "sheet_name": ", ".join(round_result.accepted_leaf_names[:3])
+        if round_result.accepted_leaf_names
+        else "",
+        "instance_path": round_result.visible_output_dir
+        or round_result.composition_json,
+        "artifact_root": round_result.artifact_root,
+        "composition_json": round_result.composition_json,
+        "visible_output_dir": round_result.visible_output_dir,
+        "details": round_result.details,
     }
     _write_json(frames_dir / f"frame_{round_result.round_num:04d}.json", payload)
 
 
 def _select_preview_image(visible_output_dir: Path) -> Path | None:
     candidates = [
+        visible_output_dir / "routed_png.png",
         visible_output_dir / "parent_routed.png",
+        visible_output_dir / "routed.png",
+        visible_output_dir / "preloaded_png.png",
         visible_output_dir / "parent_stamped.png",
+        visible_output_dir / "board_routed.png",
         visible_output_dir / "board.png",
         visible_output_dir / "snapshot.png",
     ]
     for candidate in candidates:
         if candidate.exists():
             return candidate
-    pngs = sorted(visible_output_dir.glob("*.png"))
+
+    pngs = sorted(
+        visible_output_dir.glob("*.png"),
+        key=lambda path: (
+            0
+            if "routed" in path.name.lower()
+            else 1
+            if "preloaded" in path.name.lower() or "stamped" in path.name.lower()
+            else 2,
+            path.name.lower(),
+        ),
+    )
     return pngs[0] if pngs else None
 
 
@@ -821,6 +850,7 @@ def main(argv: list[str] | None = None) -> int:
             if preview is not None:
                 _copy_if_exists(preview, work_dir / "best_preview.png")
                 _copy_if_exists(preview, frames_dir / f"frame_{round_num:04d}.png")
+                _copy_if_exists(preview, frames_dir / "frame_latest.png")
 
         _append_jsonl(log_path, asdict(round_result))
         _write_round_detail(
