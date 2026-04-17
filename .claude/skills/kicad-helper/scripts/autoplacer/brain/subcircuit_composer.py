@@ -269,20 +269,21 @@ def build_parent_composition(
         combined_interconnect_nets,
     )
 
-    parent_routing = _route_parent_interconnect_nets(
-        combined_interconnect_nets,
-        merged_components,
-        child_anchor_maps,
-    )
-    merged_traces.extend(copy.deepcopy(trace) for trace in parent_routing.traces)
-    merged_vias.extend(copy.deepcopy(via) for via in parent_routing.vias)
-
     outline = board_outline or _derive_board_outline(
         merged_components,
         merged_traces,
         merged_vias,
         child_anchor_maps,
     )
+
+    parent_routing = _route_parent_interconnect_nets(
+        combined_interconnect_nets,
+        merged_components,
+        child_anchor_maps,
+        outline,
+    )
+    merged_traces.extend(copy.deepcopy(trace) for trace in parent_routing.traces)
+    merged_vias.extend(copy.deepcopy(via) for via in parent_routing.vias)
 
     hierarchy_state = HierarchyLevelState(
         subcircuit=parent_subcircuit,
@@ -686,14 +687,27 @@ def _route_anchor_net_manhattan(
     net_name: str,
     anchor_points: list[tuple[Point, Layer]],
     width_mm: float,
+    board_outline: tuple[Point, Point],
 ) -> tuple[list[TraceSegment], list[Via]]:
     """Route one parent net between transformed anchor points."""
     traces: list[TraceSegment] = []
     vias: list[Via] = []
 
-    root_pos, root_layer = anchor_points[0]
-    for target_pos, target_layer in anchor_points[1:]:
-        mid = Point(target_pos.x, root_pos.y)
+    tl, br = board_outline
+    inset = max(width_mm * 0.5, 0.25)
+
+    def _clamp_point(point: Point) -> Point:
+        return Point(
+            min(max(point.x, tl.x + inset), br.x - inset),
+            min(max(point.y, tl.y + inset), br.y - inset),
+        )
+
+    root_pos_raw, root_layer = anchor_points[0]
+    root_pos = _clamp_point(root_pos_raw)
+
+    for target_pos_raw, target_layer in anchor_points[1:]:
+        target_pos = _clamp_point(target_pos_raw)
+        mid = _clamp_point(Point(target_pos.x, root_pos.y))
 
         if root_layer == target_layer:
             if root_pos.dist(mid) > 0:
@@ -718,7 +732,7 @@ def _route_anchor_net_manhattan(
                 )
             continue
 
-        via_pos = Point(mid.x, mid.y)
+        via_pos = mid
         if root_pos.dist(via_pos) > 0:
             traces.append(
                 TraceSegment(
@@ -753,6 +767,7 @@ def _route_parent_interconnect_nets(
     interconnect_nets: dict[str, Net],
     merged_components: dict[str, Component],
     child_anchor_maps: dict[str, dict[str, InterfaceAnchor]],
+    board_outline: tuple[Point, Point],
 ):
     """Route parent-level interconnect nets from transformed anchor positions.
 
@@ -768,9 +783,12 @@ def _route_parent_interconnect_nets(
             if anchor.pad_ref is None:
                 continue
             pad = _find_pad_by_ref(merged_components, anchor.pad_ref)
-            if pad is None or not pad.net:
+            if pad is None:
                 continue
-            normalized_name = _normalize_net_name(pad.net)
+            pad_net = getattr(pad, "net", None)
+            if not isinstance(pad_net, str) or not pad_net:
+                continue
+            normalized_name = _normalize_net_name(pad_net)
             anchor_points_by_net.setdefault(normalized_name, []).append(
                 (Point(anchor.pos.x, anchor.pos.y), anchor.layer)
             )
@@ -793,6 +811,7 @@ def _route_parent_interconnect_nets(
                 net.name,
                 anchor_points,
                 width_mm,
+                board_outline,
             )
         except Exception:
             failed_net_names.append(net.name)

@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import os
 import re
 import shutil
@@ -118,6 +117,65 @@ from compose_subcircuits import (
     _filter_loaded_artifacts,
     _select_parent_definition,
 )
+
+
+def _validate_parent_board_geometry(pcb_path: Path) -> None:
+    """Clamp stamped parent copper to the board outline before DSN export.
+
+    FreeRouting's DSN reader is stricter than KiCad about copper geometry that
+    lands outside the Edge.Cuts rectangle. The parent composition currently
+    stamps preloaded child copper plus inferred parent interconnect traces, so
+    we do a final cleanup pass here to ensure every segment endpoint and via
+    center is inside the board bounds before exporting DSN.
+    """
+    script = (
+        "import pcbnew\n"
+        f"board = pcbnew.LoadBoard({str(pcb_path)!r})\n"
+        "if board is None:\n"
+        f"    raise RuntimeError('Failed to load board: {str(pcb_path)}')\n"
+        "rect = board.GetBoardEdgesBoundingBox()\n"
+        "if rect.GetWidth() <= 0 or rect.GetHeight() <= 0:\n"
+        "    raise RuntimeError('Board outline is empty before DSN export')\n"
+        "min_x = rect.GetX()\n"
+        "min_y = rect.GetY()\n"
+        "max_x = rect.GetX() + rect.GetWidth()\n"
+        "max_y = rect.GetY() + rect.GetHeight()\n"
+        "margin = pcbnew.FromMM(0.05)\n"
+        "min_x += margin\n"
+        "min_y += margin\n"
+        "max_x -= margin\n"
+        "max_y -= margin\n"
+        "removed = 0\n"
+        "clamped = 0\n"
+        "tracks = list(board.GetTracks())\n"
+        "for item in tracks:\n"
+        "    if isinstance(item, pcbnew.PCB_VIA):\n"
+        "        pos = item.GetPosition()\n"
+        "        x = min(max(pos.x, min_x), max_x)\n"
+        "        y = min(max(pos.y, min_y), max_y)\n"
+        "        if x != pos.x or y != pos.y:\n"
+        "            item.SetPosition(pcbnew.VECTOR2I(x, y))\n"
+        "            clamped += 1\n"
+        "        continue\n"
+        "    start = item.GetStart()\n"
+        "    end = item.GetEnd()\n"
+        "    sx = min(max(start.x, min_x), max_x)\n"
+        "    sy = min(max(start.y, min_y), max_y)\n"
+        "    ex = min(max(end.x, min_x), max_x)\n"
+        "    ey = min(max(end.y, min_y), max_y)\n"
+        "    if sx == ex and sy == ey:\n"
+        "        board.Remove(item)\n"
+        "        removed += 1\n"
+        "        continue\n"
+        "    if sx != start.x or sy != start.y or ex != end.x or ey != end.y:\n"
+        "        item.SetStart(pcbnew.VECTOR2I(sx, sy))\n"
+        "        item.SetEnd(pcbnew.VECTOR2I(ex, ey))\n"
+        "        clamped += 1\n"
+        "board.BuildConnectivity()\n"
+        f"board.Save({str(pcb_path)!r})\n"
+        "print(f'validated_parent_geometry clamped={clamped} removed={removed}')\n"
+    )
+    _run_pcbnew_script(script)
 
 
 def _load_config(config_path: str | None) -> dict[str, Any]:
@@ -686,6 +744,8 @@ def main(argv: list[str] | None = None) -> int:
             clear_existing_tracks=True,
             clear_existing_zones=True,
         )
+
+        _validate_parent_board_geometry(preloaded_pcb)
 
         preloaded_counts = _count_tracks(preloaded_pcb)
 
