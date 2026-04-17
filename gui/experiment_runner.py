@@ -75,14 +75,17 @@ class ExperimentRunner:
 
         autoexp = self.scripts_dir / "autoexperiment.py"
         pcb_path = self.project_root / pcb_file
-        schematic_path = self.project_root / "LLUPS.kicad_sch"
+        schematic_file = "LLUPS.kicad_sch"
+        if extra_config and extra_config.get("schematic_file"):
+            schematic_file = str(extra_config["schematic_file"])
+        schematic_path = self.project_root / schematic_file
 
         cmd = [
             sys.executable,
             str(autoexp),
-            str(schematic_path),
-            "--pcb",
             str(pcb_path),
+            "--schematic",
+            str(schematic_path),
             "--rounds",
             str(rounds),
             "--workers",
@@ -96,6 +99,22 @@ class ExperimentRunner:
         ]
         if seed is not None:
             cmd += ["--seed", str(seed)]
+        if extra_config:
+            parent = extra_config.get("parent")
+            if parent:
+                cmd += ["--parent", str(parent)]
+
+            only = extra_config.get("only", [])
+            if isinstance(only, list):
+                for selector in only:
+                    cmd += ["--only", str(selector)]
+
+            leaf_rounds = extra_config.get("leaf_rounds")
+            if leaf_rounds is not None:
+                cmd += ["--leaf-rounds", str(leaf_rounds)]
+
+            if extra_config.get("skip_visible"):
+                cmd += ["--skip-visible"]
 
         program_path = self.scripts_dir / "program.md"
         program_data: dict[str, Any] = {
