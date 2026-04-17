@@ -485,8 +485,19 @@ def monitor_page():
                 workers=state.strategy["workers"],
                 plateau=state.strategy["plateau_threshold"],
                 seed=state.strategy.get("seed"),
-                param_ranges=state.get_param_ranges(),
+                param_ranges=state.get_control_ranges(),
                 score_weights=state.score_weights,
+                extra_config={
+                    "schematic_file": state.strategy.get(
+                        "schematic_file", "LLUPS.kicad_sch"
+                    ),
+                    "parent": state.strategy.get("parent", "/"),
+                    "only": state.strategy.get("only", []),
+                    "leaf_rounds": state.strategy.get("leaf_rounds", 1),
+                    "skip_visible": state.toggles.get("skip_visible", False),
+                    "render_png": state.toggles.get("render_png", True),
+                    "save_round_details": state.toggles.get("save_round_details", True),
+                },
             )
             exp = state.db.create_experiment(
                 name=f"Hierarchical Run {time.strftime('%Y-%m-%d %H:%M')}",
