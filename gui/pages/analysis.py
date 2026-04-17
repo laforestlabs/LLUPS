@@ -39,7 +39,7 @@ def analysis_page() -> None:
             _experiment_data_panel(state)
 
         with ui.tab_panel(prog_tab):
-            create_progression_viewer(state.experiments_dir)
+            _progression_panel(state)
 
 
 def _experiment_data_panel(state) -> None:
@@ -205,6 +205,252 @@ def _experiment_data_panel(state) -> None:
 
     if selected_exp["id"]:
         _load_experiment(selected_exp["id"])
+
+
+def _progression_panel(state) -> None:
+    ui.label("Hierarchical Progression").classes("text-xl font-bold mb-2")
+    ui.label(
+        "Browse accepted leaf artifacts and parent/top-level previews separately. "
+        "This view is intended to make the bottom-up flow visually inspectable."
+    ).classes("text-sm text-gray-400 mb-4")
+
+    with ui.tabs().classes("w-full") as prog_tabs:
+        viewer_tab = ui.tab("Timeline Viewer", icon="slideshow")
+        leaf_tab = ui.tab("Accepted Leaf Gallery", icon="view_module")
+        parent_tab = ui.tab("Parent / Top-Level Previews", icon="dashboard")
+
+    with ui.tab_panels(prog_tabs, value=viewer_tab).classes("w-full"):
+        with ui.tab_panel(viewer_tab):
+            create_progression_viewer(state.experiments_dir)
+
+        with ui.tab_panel(leaf_tab):
+            _leaf_gallery_panel(state)
+
+        with ui.tab_panel(parent_tab):
+            _parent_preview_panel(state)
+
+
+def _leaf_gallery_panel(state) -> None:
+    sub_root = state.experiments_dir / "subcircuits"
+    if not sub_root.exists():
+        ui.label("No subcircuit artifacts found yet.").classes("text-gray-500 italic")
+        return
+
+    accepted: list[dict[str, Any]] = []
+    for artifact_dir in sorted(sub_root.iterdir()):
+        if not artifact_dir.is_dir():
+            continue
+
+        solved_path = artifact_dir / "solved_layout.json"
+        metadata_path = artifact_dir / "metadata.json"
+        if not solved_path.exists():
+            continue
+
+        try:
+            with open(solved_path, encoding="utf-8") as f:
+                solved = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+
+        if not isinstance(solved, dict):
+            continue
+
+        validation = solved.get("validation", {})
+        if not isinstance(validation, dict) or validation.get("accepted") is not True:
+            continue
+
+        metadata: dict[str, Any] = {}
+        if metadata_path.exists():
+            try:
+                with open(metadata_path, encoding="utf-8") as f:
+                    loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    metadata = loaded
+            except (OSError, json.JSONDecodeError):
+                metadata = {}
+
+        renders_dir = artifact_dir / "renders"
+        preview_candidates = [
+            renders_dir / "routed_front_all.png",
+            renders_dir / "routed_copper_both.png",
+            renders_dir / "pre_route_front_all.png",
+            renders_dir / "pre_route_copper_both.png",
+        ]
+        preview = next((p for p in preview_candidates if p.exists()), None)
+
+        accepted.append(
+            {
+                "sheet_name": solved.get("sheet_name")
+                or metadata.get("sheet_name")
+                or artifact_dir.name,
+                "instance_path": solved.get("instance_path")
+                or metadata.get("instance_path")
+                or "",
+                "trace_count": len(solved.get("traces", [])),
+                "via_count": len(solved.get("vias", [])),
+                "artifact_dir": artifact_dir.name,
+                "preview": preview,
+            }
+        )
+
+    if not accepted:
+        ui.label("No accepted routed leaf artifacts yet.").classes(
+            "text-gray-500 italic"
+        )
+        return
+
+    ui.label(f"{len(accepted)} accepted routed leaf artifacts").classes(
+        "text-sm text-gray-400 mb-3"
+    )
+
+    with ui.grid(columns=2).classes("w-full gap-4"):
+        for item in accepted:
+            with ui.card().classes("w-full p-3"):
+                with ui.row().classes("w-full items-center gap-2"):
+                    ui.badge("LEAF", color="green")
+                    ui.label(str(item["sheet_name"])).classes("font-bold")
+                    ui.space()
+                    ui.label(f"T{item['trace_count']}").classes("text-cyan-300 text-sm")
+                    ui.label(f"V{item['via_count']}").classes("text-amber-300 text-sm")
+
+                if item["instance_path"]:
+                    ui.label(str(item["instance_path"])).classes(
+                        "text-xs text-gray-400 font-mono"
+                    )
+
+                ui.label(str(item["artifact_dir"])).classes(
+                    "text-xs text-gray-500 font-mono"
+                )
+
+                if item["preview"] is not None:
+                    ui.image(str(item["preview"])).classes(
+                        "w-full max-h-[360px] object-contain rounded-lg border border-slate-700 bg-slate-950 mt-3"
+                    )
+                else:
+                    ui.label("No preview image found for this artifact").classes(
+                        "text-gray-500 italic mt-3"
+                    )
+
+
+def _parent_preview_panel(state) -> None:
+    preview_sets: list[dict[str, Any]] = []
+
+    def _add_preview_set(base_dir, label: str) -> None:
+        if not base_dir.exists():
+            return
+
+        preloaded = None
+        routed = None
+        metadata = None
+
+        for candidate in [
+            base_dir / "parent_preloaded.png",
+            base_dir / "preloaded.png",
+            base_dir / "board.png",
+        ]:
+            if candidate.exists():
+                preloaded = candidate
+                break
+
+        for candidate in [
+            base_dir / "parent_freerouted.png",
+            base_dir / "parent_routed.png",
+            base_dir / "routed.png",
+        ]:
+            if candidate.exists():
+                routed = candidate
+                break
+
+        for candidate in [
+            base_dir / "demo_metadata.json",
+            base_dir / "parent_composition.json",
+        ]:
+            if candidate.exists():
+                metadata = candidate
+                break
+
+        if preloaded is None and routed is None and metadata is None:
+            return
+
+        preview_sets.append(
+            {
+                "label": label,
+                "base_dir": base_dir,
+                "preloaded": preloaded,
+                "routed": routed,
+                "metadata": metadata,
+            }
+        )
+
+    _add_preview_set(
+        state.experiments_dir / "hierarchical_freerouting_demo",
+        "Hierarchical FreeRouting Demo",
+    )
+    _add_preview_set(
+        state.experiments_dir / "hierarchical_parent_smoke",
+        "Parent Smoke Test",
+    )
+
+    auto_root = state.experiments_dir / "hierarchical_autoexperiment"
+    if auto_root.exists():
+        for round_dir in sorted(auto_root.glob("round_*")):
+            visible_dir = round_dir / "visible_parent"
+            if visible_dir.exists():
+                _add_preview_set(visible_dir, f"Autoexperiment {round_dir.name}")
+
+    if not preview_sets:
+        ui.label("No parent/top-level preview artifacts found yet.").classes(
+            "text-gray-500 italic"
+        )
+        return
+
+    with ui.column().classes("w-full gap-6"):
+        for item in preview_sets:
+            with ui.card().classes("w-full p-4"):
+                ui.label(str(item["label"])).classes("text-lg font-bold mb-2")
+                ui.label(str(item["base_dir"])).classes(
+                    "text-xs text-gray-500 font-mono mb-3"
+                )
+
+                with ui.row().classes("w-full gap-4 items-start"):
+                    with ui.column().classes("flex-1"):
+                        ui.label("Preloaded / stamped parent").classes(
+                            "text-sm font-bold text-gray-300 mb-2"
+                        )
+                        if item["preloaded"] is not None:
+                            ui.image(str(item["preloaded"])).classes(
+                                "w-full max-h-[420px] object-contain rounded-lg border border-slate-700 bg-slate-950"
+                            )
+                        else:
+                            ui.label("No preloaded preview found").classes(
+                                "text-gray-500 italic"
+                            )
+
+                    with ui.column().classes("flex-1"):
+                        ui.label("Routed / final parent").classes(
+                            "text-sm font-bold text-gray-300 mb-2"
+                        )
+                        if item["routed"] is not None:
+                            ui.image(str(item["routed"])).classes(
+                                "w-full max-h-[420px] object-contain rounded-lg border border-slate-700 bg-slate-950"
+                            )
+                        else:
+                            ui.label("No routed preview found").classes(
+                                "text-gray-500 italic"
+                            )
+
+                if item["metadata"] is not None:
+                    with ui.expansion("Metadata", value=False).classes("w-full mt-4"):
+                        try:
+                            with open(item["metadata"], encoding="utf-8") as f:
+                                payload = json.load(f)
+                            ui.code(json.dumps(payload, indent=2)).classes(
+                                "w-full text-xs"
+                            )
+                        except (OSError, json.JSONDecodeError):
+                            ui.label("Could not load metadata").classes(
+                                "text-red-400 text-sm"
+                            )
 
 
 def _summary_cards(rounds: list[dict[str, Any]]) -> None:

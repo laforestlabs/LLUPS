@@ -1,4 +1,4 @@
-"""Hierarchical progression viewer for subcircuit and top-level experiment frames."""
+"""Hierarchical progression viewer for subcircuit and top-level experiment artifacts."""
 
 from __future__ import annotations
 
@@ -34,15 +34,7 @@ def _coerce_float(value: Any, default: float = 0.0) -> float:
 
 
 def _discover_frame_sets(experiments_dir: Path) -> list[dict[str, Any]]:
-    """Discover available frame collections.
-
-    Supported layouts:
-    - legacy: .experiments/frames/frame_*.png
-    - hierarchical:
-      - .experiments/frames/leaves/frame_*.png
-      - .experiments/frames/top/frame_*.png
-      - .experiments/frames/<stage>/frame_*.png
-    """
+    """Discover available frame collections."""
     frames_root = experiments_dir.resolve() / "frames"
     if not frames_root.is_dir():
         return []
@@ -94,11 +86,12 @@ def _load_round_lookup(experiments_dir: Path) -> dict[int, dict[str, Any]]:
                 "kept": bool(data.get("kept", False)),
                 "score": _coerce_float(data.get("score", 0.0)),
                 "mode": str(data.get("mode", "")),
-                "stage": str(data.get("stage", "")),
+                "stage": str(data.get("stage", data.get("latest_stage", ""))),
                 "sheet_name": str(data.get("sheet_name", "")),
                 "instance_path": str(data.get("instance_path", "")),
                 "accepted": data.get("accepted"),
                 "artifact_dir": str(data.get("artifact_dir", "")),
+                "details": str(data.get("details", "")),
             }
 
     if round_meta:
@@ -125,11 +118,12 @@ def _load_round_lookup(experiments_dir: Path) -> dict[int, dict[str, Any]]:
                     "kept": bool(data.get("kept", False)),
                     "score": _coerce_float(data.get("score", 0.0)),
                     "mode": str(data.get("mode", "")),
-                    "stage": str(data.get("stage", "")),
+                    "stage": str(data.get("stage", data.get("latest_stage", ""))),
                     "sheet_name": str(data.get("sheet_name", "")),
                     "instance_path": str(data.get("instance_path", "")),
                     "accepted": data.get("accepted"),
                     "artifact_dir": str(data.get("artifact_dir", "")),
+                    "details": str(data.get("details", "")),
                 }
     except OSError:
         pass
@@ -138,7 +132,6 @@ def _load_round_lookup(experiments_dir: Path) -> dict[int, dict[str, Any]]:
 
 
 def _load_status_metadata(experiments_dir: Path) -> dict[str, Any]:
-    """Load hierarchical status metadata if present."""
     candidates = [
         experiments_dir / "run_status.json",
         experiments_dir / "hierarchical_status.json",
@@ -151,11 +144,6 @@ def _load_status_metadata(experiments_dir: Path) -> dict[str, Any]:
 
 
 def _frame_sidecar_metadata(frame_path: Path) -> dict[str, Any]:
-    """Load optional per-frame sidecar metadata.
-
-    Supports:
-    - frame_0001.json next to frame_0001.png
-    """
     sidecar = frame_path.with_suffix(".json")
     return _safe_load_json(sidecar) or {}
 
@@ -185,17 +173,15 @@ def _build_frame_record(
         or round_meta.get("mode")
         or ("baseline" if round_num == 0 else "")
     )
-    score = _coerce_float(
-        sidecar.get("score", round_meta.get("score", 0.0)),
-        0.0,
-    )
+    score = _coerce_float(sidecar.get("score", round_meta.get("score", 0.0)), 0.0)
 
     accepted_value = sidecar.get("accepted", round_meta.get("accepted"))
     kept = bool(
         sidecar.get(
             "kept",
             round_meta.get(
-                "kept", accepted_value if accepted_value is not None else round_num == 0
+                "kept",
+                accepted_value if accepted_value is not None else round_num == 0,
             ),
         )
     )
@@ -216,12 +202,12 @@ def _build_frame_record(
         "artifact_dir": str(
             sidecar.get("artifact_dir") or round_meta.get("artifact_dir") or ""
         ),
+        "details": str(sidecar.get("details") or round_meta.get("details") or ""),
         "frame_path": str(frame_path),
     }
 
 
 def _load_hierarchical_frames(experiments_dir: Path) -> list[dict[str, Any]]:
-    """Load all available frame groups with metadata."""
     round_lookup = _load_round_lookup(experiments_dir)
     frame_sets = _discover_frame_sets(experiments_dir)
 
@@ -248,24 +234,259 @@ def _load_hierarchical_frames(experiments_dir: Path) -> list[dict[str, Any]]:
     return result
 
 
+def _discover_leaf_gallery(experiments_dir: Path) -> list[dict[str, Any]]:
+    """Discover accepted leaf artifact previews."""
+    sub_root = experiments_dir / "subcircuits"
+    if not sub_root.is_dir():
+        return []
+
+    items: list[dict[str, Any]] = []
+    for artifact_dir in sorted(sub_root.iterdir()):
+        if not artifact_dir.is_dir():
+            continue
+
+        solved = _safe_load_json(artifact_dir / "solved_layout.json") or {}
+        metadata = _safe_load_json(artifact_dir / "metadata.json") or {}
+        validation = solved.get("validation", {})
+        if not isinstance(validation, dict) or validation.get("accepted") is not True:
+            continue
+
+        renders_dir = artifact_dir / "renders"
+        preview_candidates = [
+            renders_dir / "routed_front_all.png",
+            renders_dir / "routed_copper_both.png",
+            renders_dir / "pre_route_front_all.png",
+            renders_dir / "pre_route_copper_both.png",
+        ]
+        preview = next((p for p in preview_candidates if p.exists()), None)
+        if preview is None:
+            pngs = sorted(renders_dir.glob("*.png")) if renders_dir.is_dir() else []
+            preview = pngs[0] if pngs else None
+
+        if preview is None:
+            continue
+
+        sheet_name = str(
+            solved.get("sheet_name") or metadata.get("sheet_name") or artifact_dir.name
+        )
+        instance_path = str(
+            solved.get("instance_path") or metadata.get("instance_path") or ""
+        )
+        traces = (
+            len(solved.get("traces", []))
+            if isinstance(solved.get("traces"), list)
+            else 0
+        )
+        vias = (
+            len(solved.get("vias", [])) if isinstance(solved.get("vias"), list) else 0
+        )
+
+        items.append(
+            {
+                "sheet_name": sheet_name,
+                "instance_path": instance_path,
+                "artifact_dir": artifact_dir.name,
+                "preview_path": str(preview),
+                "trace_count": traces,
+                "via_count": vias,
+            }
+        )
+
+    return items
+
+
+def _discover_parent_preview_sets(experiments_dir: Path) -> list[dict[str, Any]]:
+    """Discover side-by-side parent preview pairs from known output locations."""
+    candidate_dirs = [
+        experiments_dir / "hierarchical_freerouting_demo",
+        experiments_dir / "hierarchical_parent_smoke",
+    ]
+
+    autoexp_root = experiments_dir / "hierarchical_autoexperiment"
+    if autoexp_root.is_dir():
+        for round_dir in sorted(autoexp_root.glob("round_*")):
+            candidate_dirs.append(round_dir / "visible_parent")
+            candidate_dirs.append(round_dir / "visible_parent" / "visible_parent")
+
+    preview_sets: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for directory in candidate_dirs:
+        if not directory.is_dir():
+            continue
+
+        preloaded_candidates = [
+            directory / "parent_preloaded.png",
+            directory / "preloaded.png",
+            directory / "board_preloaded.png",
+        ]
+        routed_candidates = [
+            directory / "parent_freerouted.png",
+            directory / "parent_routed.png",
+            directory / "routed.png",
+            directory / "board_routed.png",
+        ]
+
+        preloaded = next((p for p in preloaded_candidates if p.exists()), None)
+        routed = next((p for p in routed_candidates if p.exists()), None)
+
+        if preloaded is None and routed is None:
+            continue
+
+        key = str(directory.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+
+        metadata = _safe_load_json(directory / "demo_metadata.json") or {}
+        parent = (
+            metadata.get("parent", {})
+            if isinstance(metadata.get("parent"), dict)
+            else {}
+        )
+        composition = (
+            metadata.get("composition", {})
+            if isinstance(metadata.get("composition"), dict)
+            else {}
+        )
+
+        label = directory.name.replace("_", " ").title()
+        if parent:
+            label = str(parent.get("sheet_name") or label)
+
+        preview_sets.append(
+            {
+                "label": label,
+                "directory": str(directory),
+                "preloaded_path": str(preloaded) if preloaded else "",
+                "routed_path": str(routed) if routed else "",
+                "parent_instance_path": str(parent.get("instance_path", "")),
+                "component_count": _coerce_int(composition.get("component_count", 0)),
+                "trace_count": _coerce_int(composition.get("trace_count", 0)),
+                "via_count": _coerce_int(composition.get("via_count", 0)),
+                "routed_interconnect_net_count": _coerce_int(
+                    composition.get("routed_interconnect_net_count", 0)
+                ),
+                "failed_interconnect_net_count": _coerce_int(
+                    composition.get("failed_interconnect_net_count", 0)
+                ),
+            }
+        )
+
+    return preview_sets
+
+
 def create_progression_viewer(experiments_dir: Path):
     """Build the hierarchical PCB progression viewer with playback controls."""
     frame_groups = _load_hierarchical_frames(experiments_dir)
     status_meta = _load_status_metadata(experiments_dir)
+    leaf_gallery = _discover_leaf_gallery(experiments_dir)
+    parent_preview_sets = _discover_parent_preview_sets(experiments_dir)
+
+    with ui.column().classes("w-full gap-4"):
+        with ui.row().classes("w-full gap-4 items-start"):
+            with ui.card().classes("p-4 flex-1"):
+                ui.label("Accepted Leaf Gallery").classes("text-lg font-bold mb-2")
+                if not leaf_gallery:
+                    ui.label("No accepted leaf previews found yet.").classes(
+                        "text-gray-500 italic"
+                    )
+                else:
+                    with ui.grid(columns=3).classes("w-full gap-4"):
+                        for item in leaf_gallery[:12]:
+                            with ui.card().classes("p-2 bg-slate-900/70"):
+                                ui.image(item["preview_path"]).classes(
+                                    "w-full h-48 object-contain rounded border border-slate-700 bg-slate-950"
+                                )
+                                ui.label(item["sheet_name"]).classes(
+                                    "text-sm font-bold mt-2"
+                                )
+                                if item["instance_path"]:
+                                    ui.label(item["instance_path"]).classes(
+                                        "text-xs text-gray-400 font-mono"
+                                    )
+                                with ui.row().classes("gap-3 mt-1"):
+                                    ui.badge(
+                                        f"T{item['trace_count']}", color="cyan"
+                                    ).classes("text-xs")
+                                    ui.badge(
+                                        f"V{item['via_count']}", color="amber"
+                                    ).classes("text-xs")
+
+            with ui.card().classes("p-4 flex-1"):
+                ui.label("Parent Preview Pairs").classes("text-lg font-bold mb-2")
+                if not parent_preview_sets:
+                    ui.label("No parent preview pairs found yet.").classes(
+                        "text-gray-500 italic"
+                    )
+                else:
+                    for preview_set in parent_preview_sets[:4]:
+                        with ui.card().classes("w-full p-3 mb-3 bg-slate-900/60"):
+                            ui.label(preview_set["label"]).classes("font-bold")
+                            if preview_set["parent_instance_path"]:
+                                ui.label(preview_set["parent_instance_path"]).classes(
+                                    "text-xs text-gray-400 font-mono"
+                                )
+                            with ui.row().classes("w-full gap-3 mt-3 items-start"):
+                                with ui.column().classes("flex-1"):
+                                    ui.label("Preloaded").classes(
+                                        "text-xs text-gray-400"
+                                    )
+                                    if preview_set["preloaded_path"]:
+                                        ui.image(preview_set["preloaded_path"]).classes(
+                                            "w-full h-56 object-contain rounded border border-slate-700 bg-slate-950"
+                                        )
+                                    else:
+                                        ui.label("No preloaded preview").classes(
+                                            "text-gray-500 italic"
+                                        )
+                                with ui.column().classes("flex-1"):
+                                    ui.label("Routed").classes("text-xs text-gray-400")
+                                    if preview_set["routed_path"]:
+                                        ui.image(preview_set["routed_path"]).classes(
+                                            "w-full h-56 object-contain rounded border border-slate-700 bg-slate-950"
+                                        )
+                                    else:
+                                        ui.label("No routed preview").classes(
+                                            "text-gray-500 italic"
+                                        )
+                            with ui.row().classes("gap-3 mt-3 flex-wrap"):
+                                ui.badge(
+                                    f"components {preview_set['component_count']}",
+                                    color="blue",
+                                )
+                                ui.badge(
+                                    f"traces {preview_set['trace_count']}",
+                                    color="cyan",
+                                )
+                                ui.badge(
+                                    f"vias {preview_set['via_count']}",
+                                    color="amber",
+                                )
+                                ui.badge(
+                                    f"routed interconnects {preview_set['routed_interconnect_net_count']}",
+                                    color="green",
+                                )
+                                if preview_set["failed_interconnect_net_count"] > 0:
+                                    ui.badge(
+                                        f"failed {preview_set['failed_interconnect_net_count']}",
+                                        color="red",
+                                    )
 
     if not frame_groups:
-        ui.label("No frame images found in .experiments/frames/").classes(
-            "text-gray-500 italic"
-        )
-        ui.label(
-            "Run a hierarchical experiment first — leaf and top-level frames "
-            "will appear automatically as the pipeline progresses."
-        ).classes("text-gray-500 text-sm")
+        with ui.card().classes("w-full p-4"):
+            ui.label("No frame images found in .experiments/frames/").classes(
+                "text-gray-500 italic"
+            )
+            ui.label(
+                "Run a hierarchical experiment first — leaf and top-level frames "
+                "will appear automatically as the pipeline progresses."
+            ).classes("text-gray-500 text-sm")
         return
 
     state = {
         "group_key": frame_groups[0]["key"],
-        "mode": "all",  # all | kept
+        "mode": "all",
         "index": 0,
         "playing": False,
         "speed_fps": 4,
@@ -386,26 +607,19 @@ def create_progression_viewer(experiments_dir: Path):
         phase = str(status_meta.get("phase", "idle"))
         pipeline_label.set_text(phase.replace("_", " ").upper())
 
-        leaf = (
-            status_meta.get("leaf_progress", {})
-            if isinstance(status_meta, dict)
+        hierarchy = (
+            status_meta.get("hierarchy", {})
+            if isinstance(status_meta.get("hierarchy"), dict)
             else {}
         )
-        leaf_done = _coerce_int(leaf.get("completed", leaf.get("done", 0)))
-        leaf_total = _coerce_int(leaf.get("total", 0))
+        leaf_total = _coerce_int(hierarchy.get("leaf_total", 0))
+        leaf_accepted = _coerce_int(hierarchy.get("leaf_accepted", 0))
         leaf_progress_label.set_text(
-            f"{leaf_done} / {leaf_total}" if leaf_total else "—"
+            f"{leaf_accepted} / {leaf_total}" if leaf_total else "—"
         )
 
-        top = (
-            status_meta.get("top_progress", {}) if isinstance(status_meta, dict) else {}
-        )
-        top_done = _coerce_int(top.get("completed", top.get("done", 0)))
-        top_total = _coerce_int(top.get("total", 0))
-        if top_total:
-            top_progress_label.set_text(f"{top_done} / {top_total}")
-        else:
-            top_progress_label.set_text(str(status_meta.get("top_level_status", "—")))
+        top_ready = hierarchy.get("top_level_ready")
+        top_progress_label.set_text("READY" if top_ready else "—")
 
         latest_event_label.set_text(str(status_meta.get("latest_marker", "—")))
 
@@ -461,6 +675,8 @@ def create_progression_viewer(experiments_dir: Path):
             "top_level": "green",
             "parent": "amber",
             "composition": "orange",
+            "visible_top_level": "green",
+            "done": "green",
         }
         stage_label.set_text(stage.upper())
         stage_label._props["color"] = stage_colors.get(stage.lower(), "gray")
