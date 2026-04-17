@@ -383,6 +383,13 @@ def create_progression_viewer(experiments_dir: Path):
     leaf_gallery = _discover_leaf_gallery(experiments_dir)
     parent_preview_sets = _discover_parent_preview_sets(experiments_dir)
 
+    parent_copper_caveat = (
+        "Parent FreeRouting previews may not visually preserve all preloaded child copper "
+        "inside the FreeRouting UI, even when the stamped KiCad parent board does contain it. "
+        "Treat the stamped/preloaded parent board and its track counts as the source of truth "
+        "for child copper preservation."
+    )
+
     with ui.column().classes("w-full gap-4"):
         with ui.row().classes("w-full gap-4 items-start"):
             with ui.card().classes("p-4 flex-1"):
@@ -415,6 +422,7 @@ def create_progression_viewer(experiments_dir: Path):
 
             with ui.card().classes("p-4 flex-1"):
                 ui.label("Parent Preview Pairs").classes("text-lg font-bold mb-2")
+                ui.label(parent_copper_caveat).classes("text-xs text-amber-300 mb-3")
                 if not parent_preview_sets:
                     ui.label("No parent preview pairs found yet.").classes(
                         "text-gray-500 italic"
@@ -472,6 +480,10 @@ def create_progression_viewer(experiments_dir: Path):
                                         f"failed {preview_set['failed_interconnect_net_count']}",
                                         color="red",
                                     )
+                            ui.label(
+                                "If FreeRouting appears to show only ratsnest or partial child copper, "
+                                "compare against the stamped/preloaded parent image and track counts above."
+                            ).classes("text-xs text-gray-400 mt-3")
 
     if not frame_groups:
         with ui.card().classes("w-full p-4"):

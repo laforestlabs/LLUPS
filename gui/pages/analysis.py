@@ -333,6 +333,14 @@ def _leaf_gallery_panel(state) -> None:
 
 
 def _parent_preview_panel(state) -> None:
+    ui.label(
+        "Important caveat: the stamped parent KiCad board preserves routed child copper, "
+        "but the FreeRouting DSN view may not faithfully display all preloaded child routes "
+        "as already-routed geometry. Use the preloaded/stamped parent preview as the source "
+        "of truth for preserved child copper, and treat the FreeRouting window primarily as "
+        "the parent interconnect routing stage."
+    ).classes("text-sm text-amber-300 mb-4")
+
     preview_sets: list[dict[str, Any]] = []
 
     def _add_preview_set(base_dir, label: str) -> None:

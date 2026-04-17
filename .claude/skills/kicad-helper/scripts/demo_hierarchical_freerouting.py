@@ -8,9 +8,16 @@ This script creates a real, viewable demo of the hierarchical routing flow:
 3. Preserve already-routed child copper in the parent composition
 4. Stamp that composed state into a real KiCad `.kicad_pcb`
 5. Export a DSN from that stamped board without clearing existing traces
-6. Run FreeRouting so the parent session starts with child routing already loaded
+6. Run FreeRouting on that DSN for parent-level interconnect routing
 7. Import the resulting SES back into a routed parent `.kicad_pcb`
 8. Optionally render PNG snapshots and open the results on screen
+
+Important visibility note:
+- The stamped parent KiCad board preserves routed child copper before DSN export.
+- FreeRouting's DSN view is useful for parent interconnect routing, but it should
+  not be treated as a faithful visual viewer for all preloaded child copper.
+- For visual confirmation that routed child copper survived composition, prefer
+  the stamped/preloaded KiCad board counts and rendered PNG snapshots.
 
 This is intended as a demo/inspection tool, not a production pipeline.
 
@@ -751,6 +758,12 @@ def main(argv: list[str] | None = None) -> int:
 
         export_dsn(str(preloaded_pcb), str(dsn_path))
 
+        freerouting_visibility_note = (
+            "The stamped parent KiCad board preserves routed child copper before DSN export. "
+            "FreeRouting's DSN board view is used here for parent interconnect routing and may "
+            "not visually display all preloaded child copper as a faithful viewer."
+        )
+
         freerouting_stats: dict[str, Any] | None = None
         if not args.skip_freerouting:
             freerouting_stats = run_freerouting(
@@ -834,6 +847,11 @@ def main(argv: list[str] | None = None) -> int:
                 "preloaded": preloaded_counts,
                 "final": final_counts,
             },
+            "visibility": {
+                "preloaded_child_copper_preserved_in_stamped_board": True,
+                "freerouting_dsn_view_is_not_faithful_child_copper_viewer": True,
+                "note": freerouting_visibility_note,
+            },
             "freerouting": freerouting_stats,
         }
         _write_demo_metadata(metadata_path, metadata)
@@ -857,6 +875,9 @@ def main(argv: list[str] | None = None) -> int:
     print("preloaded board counts:")
     print(f"  traces               : {preloaded_counts.get('traces', 0)}")
     print(f"  vias                 : {preloaded_counts.get('vias', 0)}")
+    print(
+        "  note                 : stamped KiCad board preserves child copper before DSN export"
+    )
     print()
     print("composition routing:")
     print(
@@ -886,6 +907,12 @@ def main(argv: list[str] | None = None) -> int:
             "FreeRouting session completed."
             if routed_pcb.exists()
             else "FreeRouting session did not produce a routed board."
+        )
+        print(
+            "Visibility note: FreeRouting's DSN board view is being used as a parent "
+            "interconnect router and may not visually show all preloaded child copper. "
+            "Use the stamped/preloaded KiCad board counts and PNG snapshots to verify "
+            "that routed child copper survived composition."
         )
 
     if args.open:
