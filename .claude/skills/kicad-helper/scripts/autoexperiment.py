@@ -237,6 +237,7 @@ def _write_live_status(
     leaf_total: int,
     leaf_accepted: int,
     top_level_ready: bool,
+    leaf_worker_count: int = 1,
 ) -> None:
     now = time.monotonic()
     elapsed_s = now - start_ts
@@ -258,7 +259,7 @@ def _write_live_status(
             "total": 1,
             "in_flight": 0 if phase != "running" else 1,
             "idle": 0 if phase == "running" else 1,
-            "leaf_workers": max(1, getattr(args, "workers", 1)),
+            "leaf_workers": max(1, leaf_worker_count),
         },
         "maybe_stuck": False,
         "hierarchy": {
@@ -266,8 +267,8 @@ def _write_live_status(
             "leaf_total": leaf_total,
             "leaf_accepted": leaf_accepted,
             "top_level_ready": top_level_ready,
-            "leaf_parallelism_enabled": max(1, getattr(args, "workers", 1)) > 1,
-            "leaf_worker_count": max(1, getattr(args, "workers", 1)),
+            "leaf_parallelism_enabled": max(1, leaf_worker_count) > 1,
+            "leaf_worker_count": max(1, leaf_worker_count),
         },
         "timestamp_epoch_s": time.time(),
     }
@@ -285,7 +286,7 @@ def _write_live_status(
         f"elapsed: {_format_mmss(elapsed_s)}",
         f"current_stage: {current_stage}",
         f"leafs: accepted={leaf_accepted} total={leaf_total}",
-        f"leaf_workers: {max(1, getattr(args, 'workers', 1))}",
+        f"leaf_workers: {max(1, leaf_worker_count)}",
         f"top_level_ready: {top_level_ready}",
     ]
     status_txt_path.parent.mkdir(parents=True, exist_ok=True)
@@ -673,6 +674,7 @@ def main(argv: list[str] | None = None) -> int:
         leaf_total=0,
         leaf_accepted=0,
         top_level_ready=False,
+        leaf_worker_count=max(1, args.workers),
     )
 
     for round_num in range(1, args.rounds + 1):
@@ -700,6 +702,7 @@ def main(argv: list[str] | None = None) -> int:
             leaf_total=0,
             leaf_accepted=0,
             top_level_ready=False,
+            leaf_worker_count=max(1, args.workers),
         )
 
         t0 = time.monotonic()
@@ -740,6 +743,7 @@ def main(argv: list[str] | None = None) -> int:
             leaf_total=len(all_leafs),
             leaf_accepted=len(accepted_leafs),
             top_level_ready=False,
+            leaf_worker_count=max(1, args.workers),
         )
 
         compose_cmd = _build_compose_cmd(
@@ -775,6 +779,7 @@ def main(argv: list[str] | None = None) -> int:
                 leaf_total=len(all_leafs),
                 leaf_accepted=len(accepted_leafs),
                 top_level_ready=False,
+                leaf_worker_count=max(1, args.workers),
             )
 
             visible_cmd = _build_visible_cmd(
@@ -894,6 +899,7 @@ def main(argv: list[str] | None = None) -> int:
             leaf_total=len(all_leafs),
             leaf_accepted=len(accepted_leafs),
             top_level_ready=visible_ok,
+            leaf_worker_count=max(1, args.workers),
         )
 
         print(
@@ -936,6 +942,7 @@ def main(argv: list[str] | None = None) -> int:
         leaf_total=best_round.leaf_total if best_round else 0,
         leaf_accepted=best_round.leaf_accepted if best_round else 0,
         top_level_ready=best_round.top_level_ready if best_round else False,
+        leaf_worker_count=max(1, args.workers),
     )
 
     if args.output:
