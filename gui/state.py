@@ -1,7 +1,7 @@
-"""Shared application state — singleton holding config, DB, and runtime info."""
+"""Shared application state for the hierarchical experiment manager."""
+
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -12,142 +12,81 @@ if TYPE_CHECKING:
     from .experiment_runner import ExperimentRunner
 
 
-# Default search dimension definitions
-# Each: (display_name, key, default_value, min, max, step, sigma_frac, enabled)
-SEARCH_DIMENSIONS = [
+HIERARCHICAL_CONTROLS = [
     {
-        "key": "force_attract_k",
-        "label": "Attract Force (k)",
-        "default": 0.02,
-        "min": 0.005,
-        "max": 0.15,
-        "step": 0.005,
+        "key": "leaf_rounds",
+        "label": "Leaf Solve Rounds",
+        "default": 1,
+        "min": 1,
+        "max": 20,
+        "step": 1,
         "enabled": True,
-        "group": "Placement Physics",
+        "group": "Leaf Solving",
+        "description": "How many local solve attempts to run per leaf in each experiment round.",
     },
     {
-        "key": "force_repel_k",
-        "label": "Repel Force (k)",
-        "default": 200.0,
-        "min": 100.0,
-        "max": 500.0,
-        "step": 10.0,
+        "key": "top_level_rounds",
+        "label": "Top-Level Assembly Rounds",
+        "default": 1,
+        "min": 1,
+        "max": 10,
+        "step": 1,
         "enabled": True,
-        "group": "Placement Physics",
+        "group": "Top-Level Assembly",
+        "description": "How many visible parent/top-level assembly passes to run per experiment round.",
     },
     {
-        "key": "cooling_factor",
-        "label": "Cooling Factor",
-        "default": 0.97,
-        "min": 0.90,
-        "max": 0.995,
-        "step": 0.005,
-        "enabled": True,
-        "group": "Placement Physics",
-    },
-    {
-        "key": "max_placement_iterations",
-        "label": "Max Placement Iterations",
-        "default": 300,
-        "min": 100,
-        "max": 500,
-        "step": 10,
-        "enabled": True,
-        "group": "Placement Physics",
-    },
-    {
-        "key": "edge_margin_mm",
-        "label": "Edge Margin (mm)",
-        "default": 6.0,
+        "key": "compose_spacing_mm",
+        "label": "Parent Composition Spacing (mm)",
+        "default": 12.0,
         "min": 4.0,
-        "max": 10.0,
-        "step": 0.5,
+        "max": 40.0,
+        "step": 1.0,
         "enabled": True,
-        "group": "Board Layout",
+        "group": "Top-Level Assembly",
+        "description": "Spacing used when composing routed child artifacts into a parent layout.",
     },
     {
-        "key": "placement_clearance_mm",
-        "label": "Placement Clearance (mm)",
-        "default": 2.5,
-        "min": 1.0,
-        "max": 5.0,
-        "step": 0.1,
-        "enabled": True,
-        "group": "Board Layout",
-    },
-    {
-        "key": "orderedness",
-        "label": "Orderedness (passive alignment)",
-        "default": 0.0,
-        "min": 0.0,
-        "max": 1.0,
-        "step": 0.05,
-        "enabled": True,
-        "group": "Board Layout",
-    },
-    {
-        "key": "connector_edge_inset_mm",
-        "label": "Connector Edge Inset (mm)",
-        "default": 1.0,
-        "min": 0.0,
-        "max": 3.0,
-        "step": 0.5,
-        "enabled": True,
-        "group": "Board Layout",
-    },
-    {
-        "key": "board_width_mm",
-        "label": "Board Width (mm)",
-        "default": 90.0,
-        "min": 50.0,
-        "max": 120.0,
-        "step": 5.0,
+        "key": "max_leaf_candidates",
+        "label": "Max Leaf Candidates",
+        "default": 1,
+        "min": 1,
+        "max": 8,
+        "step": 1,
         "enabled": False,
-        "group": "Board Dimensions",
-    },
-    {
-        "key": "board_height_mm",
-        "label": "Board Height (mm)",
-        "default": 58.0,
-        "min": 35.0,
-        "max": 80.0,
-        "step": 5.0,
-        "enabled": False,
-        "group": "Board Dimensions",
+        "group": "Search Strategy",
+        "description": "Reserved for future multi-candidate leaf exploration.",
     },
 ]
 
 DEFAULT_STRATEGY = {
-    "rounds": 50,
-    "workers": 0,  # 0 = auto
-    "plateau_threshold": 3,
+    "rounds": 10,
+    "workers": 1,
+    "plateau_threshold": 1,
     "seed": 0,
     "pcb_file": "LLUPS.kicad_pcb",
+    "schematic_file": "LLUPS.kicad_sch",
+    "parent_selector": "/",
+    "only_selectors": [],
 }
 
 DEFAULT_SCORE_WEIGHTS = {
-    "placement": 0.15,
-    "route_completion": 0.50,
-    "via_penalty": 0.10,
-    "containment": 0.05,
-    "drc": 0.20,
-    "area": 0.15,
+    "leaf_acceptance": 0.55,
+    "leaf_routing_quality": 0.20,
+    "parent_composition": 0.10,
+    "top_level_ready": 0.15,
 }
 
 DEFAULT_TOGGLES = {
-    "unlock_all_footprints": False,
-    "enable_board_size_search": False,
-    "smt_opposite_tht": True,
-    "align_large_pairs": True,
-    "skip_gnd_routing": True,
-    "randomize_group_layout": False,
-    "scatter_mode": "cluster",
-    "reheat_strength": 0.1,
+    "skip_visible_top_level": False,
+    "render_top_level_png": True,
+    "preserve_existing_subcircuit_artifacts": True,
+    "show_only_accepted_frames": False,
 }
 
 
 def _project_root() -> Path:
-    """Find the LLUPS project root (has LLUPS.kicad_pcb)."""
+    """Find the LLUPS project root."""
     p = Path(__file__).resolve().parent.parent
     if (p / "LLUPS.kicad_pcb").exists():
         return p
@@ -157,33 +96,38 @@ def _project_root() -> Path:
 @dataclass
 class AppState:
     """Mutable singleton holding current GUI state."""
+
     project_root: Path = field(default_factory=_project_root)
     db: Database = field(default=None)
 
-    # Current experiment config being edited in Setup page
-    search_dimensions: list[dict] = field(default_factory=lambda: [
-        {**d} for d in SEARCH_DIMENSIONS
-    ])
-    strategy: dict = field(default_factory=lambda: {**DEFAULT_STRATEGY})
-    score_weights: dict = field(default_factory=lambda: {**DEFAULT_SCORE_WEIGHTS})
-    toggles: dict = field(default_factory=lambda: {**DEFAULT_TOGGLES})
+    hierarchical_controls: list[dict[str, Any]] = field(
+        default_factory=lambda: [{**d} for d in HIERARCHICAL_CONTROLS]
+    )
+    strategy: dict[str, Any] = field(default_factory=lambda: {**DEFAULT_STRATEGY})
+    score_weights: dict[str, float] = field(
+        default_factory=lambda: {**DEFAULT_SCORE_WEIGHTS}
+    )
+    toggles: dict[str, Any] = field(default_factory=lambda: {**DEFAULT_TOGGLES})
 
-    # Runtime
     active_experiment_id: int | None = None
     runner_pid: int | None = None
     _runner: ExperimentRunner | None = field(default=None, repr=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.db is None:
             self.db = Database()
 
     @property
     def runner(self) -> ExperimentRunner:
-        """Lazy-init singleton ExperimentRunner."""
+        """Lazy-init singleton experiment runner."""
         if self._runner is None:
             from .experiment_runner import ExperimentRunner
+
             self._runner = ExperimentRunner(
-                self.project_root, self.scripts_dir, self.experiments_dir)
+                self.project_root,
+                self.scripts_dir,
+                self.experiments_dir,
+            )
         return self._runner
 
     @property
@@ -192,70 +136,79 @@ class AppState:
 
     @property
     def scripts_dir(self) -> Path:
-        return (self.project_root / ".claude" / "skills" /
-                "kicad-helper" / "scripts")
+        return self.project_root / ".claude" / "skills" / "kicad-helper" / "scripts"
 
-    def to_config_dict(self) -> dict:
-        """Build the full config dict for autoexperiment.py."""
-        config = {}
-        # Search dimensions
-        for dim in self.search_dimensions:
-            if dim["enabled"]:
-                config[f"_search_{dim['key']}"] = {
-                    "min": dim["min"],
-                    "max": dim["max"],
-                    "step": dim["step"],
+    def to_config_dict(self) -> dict[str, Any]:
+        """Build the full hierarchical config dict for the GUI and persistence."""
+        config: dict[str, Any] = {}
+
+        for control in self.hierarchical_controls:
+            key = control["key"]
+            config[key] = control["default"]
+            if control.get("enabled", False):
+                config[f"_control_{key}"] = {
+                    "min": control["min"],
+                    "max": control["max"],
+                    "step": control["step"],
+                    "group": control.get("group", "General"),
+                    "description": control.get("description", ""),
                 }
-            config[dim["key"]] = dim["default"]
-        # Strategy
+
         config["_strategy"] = {**self.strategy}
-        # Score weights
         config["_score_weights"] = {**self.score_weights}
-        # Toggles
         config.update(self.toggles)
+        config["pipeline"] = "hierarchical_subcircuits"
         return config
 
-    def load_from_config(self, config: dict) -> None:
+    def load_from_config(self, config: dict[str, Any]) -> None:
         """Restore state from a saved config dict."""
-        for dim in self.search_dimensions:
-            key = dim["key"]
+        for control in self.hierarchical_controls:
+            key = control["key"]
             if key in config:
-                dim["default"] = config[key]
-            search_key = f"_search_{key}"
-            if search_key in config:
-                s = config[search_key]
-                dim["min"] = s.get("min", dim["min"])
-                dim["max"] = s.get("max", dim["max"])
-                dim["step"] = s.get("step", dim["step"])
-                dim["enabled"] = True
-            elif f"_search_{key}" not in config and key not in (
-                "board_width_mm", "board_height_mm"
-            ):
-                dim["enabled"] = True
-        if "_strategy" in config:
-            self.strategy.update(config["_strategy"])
-        if "_score_weights" in config:
-            self.score_weights.update(config["_score_weights"])
-        for k in DEFAULT_TOGGLES:
-            if k in config:
-                self.toggles[k] = config[k]
+                control["default"] = config[key]
+            control_key = f"_control_{key}"
+            if control_key in config and isinstance(config[control_key], dict):
+                meta = config[control_key]
+                control["min"] = meta.get("min", control["min"])
+                control["max"] = meta.get("max", control["max"])
+                control["step"] = meta.get("step", control["step"])
+                control["enabled"] = True
 
-    def get_param_ranges(self) -> dict:
-        """Build param_ranges dict for autoexperiment mutation functions."""
-        ranges = {}
-        for dim in self.search_dimensions:
-            if dim["enabled"]:
-                ranges[dim["key"]] = [dim["min"], dim["max"]]
+        if "_strategy" in config and isinstance(config["_strategy"], dict):
+            self.strategy.update(config["_strategy"])
+
+        if "_score_weights" in config and isinstance(config["_score_weights"], dict):
+            self.score_weights.update(config["_score_weights"])
+
+        for key in DEFAULT_TOGGLES:
+            if key in config:
+                self.toggles[key] = config[key]
+
+    def get_control_ranges(self) -> dict[str, list[float | int]]:
+        """Return enabled hierarchical control ranges."""
+        ranges: dict[str, list[float | int]] = {}
+        for control in self.hierarchical_controls:
+            if control.get("enabled", False):
+                ranges[control["key"]] = [control["min"], control["max"]]
         return ranges
 
-    def get_enabled_dimensions(self) -> list[dict]:
-        return [d for d in self.search_dimensions if d["enabled"]]
+    def get_enabled_controls(self) -> list[dict[str, Any]]:
+        return [c for c in self.hierarchical_controls if c.get("enabled", False)]
 
-    def get_disabled_dimensions(self) -> list[dict]:
-        return [d for d in self.search_dimensions if not d["enabled"]]
+    def get_disabled_controls(self) -> list[dict[str, Any]]:
+        return [c for c in self.hierarchical_controls if not c.get("enabled", False)]
+
+    def get_only_selectors_text(self) -> str:
+        selectors = self.strategy.get("only_selectors", [])
+        if not selectors:
+            return ""
+        return "\n".join(str(s) for s in selectors)
+
+    def set_only_selectors_from_text(self, text: str) -> None:
+        selectors = [line.strip() for line in text.splitlines() if line.strip()]
+        self.strategy["only_selectors"] = selectors
 
 
-# Module-level singleton
 _state: AppState | None = None
 
 

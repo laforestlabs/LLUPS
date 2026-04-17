@@ -1,13 +1,16 @@
-"""Monitor page — live experiment dashboard."""
+"""Monitor page — live hierarchical experiment dashboard."""
+
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
+from typing import Any, cast
 
 from nicegui import ui
 
+from ..components.score_chart import create_score_chart
 from ..state import get_state
-from ..components.score_chart import create_score_chart, build_score_figure
 
 
 def monitor_page():
@@ -15,26 +18,32 @@ def monitor_page():
     runner = state.runner
 
     ui.label("Experiment Monitor").classes("text-2xl font-bold mb-4")
+    ui.label(
+        "Live view of the bottom-up subcircuit pipeline: routed leaves, "
+        "parent composition, and top-level progression."
+    ).classes("text-sm text-gray-400 mb-4")
 
     # ── Controls ──
     with ui.row().classes("w-full items-center gap-4 mb-4"):
-        start_btn = ui.button("Start Experiment", icon="play_arrow",
-                              color="green")
+        start_btn = ui.button("Start Experiment", icon="play_arrow", color="green")
         stop_btn = ui.button("Stop", icon="stop", color="red")
         stop_btn.set_visibility(False)
-        force_kill_btn = ui.button("Force Kill", icon="dangerous",
-                                   color="deep-orange")
+        force_kill_btn = ui.button("Force Kill", icon="dangerous", color="deep-orange")
         force_kill_btn.set_visibility(False)
         stopping_spinner = ui.spinner(size="sm")
         stopping_spinner.set_visibility(False)
         stopping_label = ui.label("Stopping…")
         stopping_label.set_visibility(False)
 
-    # ── Status cards ──
+    # ── Top status cards ──
     with ui.row().classes("w-full gap-4 mb-4"):
         with ui.card().classes("p-3 flex-1"):
             ui.label("Status").classes("text-xs text-gray-400")
             status_badge = ui.badge("IDLE", color="gray").classes("text-lg")
+
+        with ui.card().classes("p-3 flex-1"):
+            ui.label("Phase").classes("text-xs text-gray-400")
+            phase_label = ui.label("—").classes("text-lg font-bold")
 
         with ui.card().classes("p-3 flex-1"):
             ui.label("Progress").classes("text-xs text-gray-400")
@@ -42,25 +51,42 @@ def monitor_page():
             progress_bar = ui.linear_progress(value=0).classes("w-full")
 
         with ui.card().classes("p-3 flex-1"):
-            ui.label("Best Score").classes("text-xs text-gray-400")
-            best_score_label = ui.label("—").classes("text-2xl font-bold text-green-400")
-
-        with ui.card().classes("p-3 flex-1"):
             ui.label("Timing").classes("text-xs text-gray-400")
             timing_label = ui.label("Elapsed: — | ETA: —")
 
+    # ── Hierarchical pipeline cards ──
     with ui.row().classes("w-full gap-4 mb-4"):
         with ui.card().classes("p-3 flex-1"):
-            ui.label("Workers").classes("text-xs text-gray-400")
-            workers_label = ui.label("—")
+            ui.label("Leaves").classes("text-xs text-gray-400")
+            leaves_label = ui.label("—")
+            leaves_bar = ui.linear_progress(value=0).classes("w-full mt-2")
 
         with ui.card().classes("p-3 flex-1"):
-            ui.label("Latest").classes("text-xs text-gray-400")
+            ui.label("Accepted Artifacts").classes("text-xs text-gray-400")
+            artifacts_label = ui.label("—").classes("text-lg font-bold text-green-400")
+
+        with ui.card().classes("p-3 flex-1"):
+            ui.label("Current Node").classes("text-xs text-gray-400")
+            current_node_label = ui.label("—")
+
+        with ui.card().classes("p-3 flex-1"):
+            ui.label("Top-Level").classes("text-xs text-gray-400")
+            top_level_label = ui.label("—")
+
+    with ui.row().classes("w-full gap-4 mb-4"):
+        with ui.card().classes("p-3 flex-1"):
+            ui.label("Best Score").classes("text-xs text-gray-400")
+            best_score_label = ui.label("—").classes(
+                "text-2xl font-bold text-green-400"
+            )
+
+        with ui.card().classes("p-3 flex-1"):
+            ui.label("Latest Event").classes("text-xs text-gray-400")
             latest_label = ui.label("—")
 
         with ui.card().classes("p-3 flex-1"):
-            ui.label("Kept Count").classes("text-xs text-gray-400")
-            kept_label = ui.label("—")
+            ui.label("Workers").classes("text-xs text-gray-400")
+            workers_label = ui.label("—")
 
         with ui.card().classes("p-3 flex-1"):
             ui.label("Health").classes("text-xs text-gray-400")
@@ -69,20 +95,36 @@ def monitor_page():
     # ── Score chart ──
     chart_container = ui.column().classes("w-full")
     with chart_container:
-        chart = create_score_chart([], "Live Score")
+        create_score_chart([], "Hierarchical Score")
 
-    # ── Recent rounds table ──
-    with ui.expansion("Recent Rounds", icon="table_chart", value=False
-                      ).classes("w-full"):
-        rounds_container = ui.column().classes("w-full")
+    # ── Pipeline detail panels ──
+    with ui.row().classes("w-full gap-4 items-start"):
+        with ui.card().classes("p-3 flex-1"):
+            ui.label("Recent Pipeline Events").classes("text-lg font-bold mb-2")
+            events_container = ui.column().classes("w-full gap-2")
+
+        with ui.card().classes("p-3 flex-1"):
+            ui.label("Accepted Leaf Artifacts").classes("text-lg font-bold mb-2")
+            artifacts_container = ui.column().classes("w-full gap-2")
+
+    with ui.row().classes("w-full gap-4 items-start mt-4"):
+        with ui.card().classes("p-3 flex-1"):
+            ui.label("Top-Level / Parent Outputs").classes("text-lg font-bold mb-2")
+            top_outputs_container = ui.column().classes("w-full gap-2")
+
+        with ui.card().classes("p-3 flex-1"):
+            ui.label("Live Status JSON").classes("text-lg font-bold mb-2")
+            status_json_container = ui.column().classes("w-full gap-2")
 
     # ── Board preview ──
-    with ui.expansion("Best Board Preview", icon="image", value=False
-                      ).classes("w-full"):
+    with ui.expansion(
+        "Visual Progression / Latest Preview", icon="image", value=True
+    ).classes("w-full mt-4"):
         board_container = ui.column().classes("w-full items-center")
         with board_container:
-            ui.label("Start an experiment to see board previews").classes(
-                "text-gray-500 italic")
+            ui.label("Start an experiment to see hierarchical previews").classes(
+                "text-gray-500 italic"
+            )
 
     # ── State tracking ──
     live_rounds: list[dict] = []
@@ -90,8 +132,204 @@ def monitor_page():
     prev_phase = {"value": "idle"}
 
     def _format_time(seconds: float) -> str:
-        s = max(0, int(seconds))
+        s = max(0, int(seconds or 0))
         return f"{s // 60}m{s % 60:02d}s"
+
+    def _safe_read_json(path: Path) -> dict[str, Any] | list[Any] | None:
+        try:
+            if not path.exists():
+                return None
+            with open(path) as f:
+                return cast(dict[str, Any] | list[Any], json.load(f))
+        except (json.JSONDecodeError, OSError):
+            return None
+
+    def _read_jsonl_tail(path: Path, limit: int = 12) -> list[dict]:
+        if not path.exists():
+            return []
+        rows: list[dict] = []
+        try:
+            with open(path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rows.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+        except OSError:
+            return []
+        return rows[-limit:]
+
+    def _find_preview_candidates() -> list[Path]:
+        exp = state.experiments_dir
+        candidates = [
+            exp / "best_preview.png",
+            exp / "progress.gif",
+            exp / "frames" / "frame_latest.png",
+            exp / "frames" / f"frame_{last_round_seen['value']:04d}.png",
+            exp / "best" / "best_preview.png",
+            exp / "hierarchical_pipeline" / "visible_parent" / "board.png",
+            exp / "hierarchical_pipeline" / "visible_parent" / "board_routed.png",
+            exp / "hierarchical_pipeline" / "visible_parent" / "snapshot.png",
+        ]
+        return [p for p in candidates if p.exists()]
+
+    def _render_events(events: list[dict]) -> None:
+        events_container.clear()
+        if not events:
+            with events_container:
+                ui.label("No pipeline events yet").classes("text-gray-500 italic")
+            return
+
+        with events_container:
+            for event in reversed(events[-10:]):
+                phase = (
+                    event.get("phase") or event.get("mode") or event.get("event", "—")
+                )
+                title = event.get("title") or event.get("latest_marker") or phase
+                detail = event.get("detail") or event.get("message") or ""
+                score = event.get("score")
+                kept = event.get("kept")
+                with ui.card().classes("w-full p-2 bg-slate-800/40"):
+                    with ui.row().classes("w-full items-center gap-2"):
+                        ui.badge(str(phase).upper(), color="blue")
+                        ui.label(str(title)).classes("font-medium")
+                        ui.space()
+                        if score is not None:
+                            ui.label(f"{float(score):.2f}").classes(
+                                "text-green-400 font-mono"
+                            )
+                        if kept is True:
+                            ui.badge("KEPT", color="green")
+                        elif kept is False and "kept" in event:
+                            ui.badge("DISCARDED", color="red")
+                    if detail:
+                        ui.label(str(detail)).classes("text-xs text-gray-400")
+
+    def _render_artifacts() -> None:
+        artifacts_container.clear()
+        sub_root = state.experiments_dir / "subcircuits"
+        if not sub_root.exists():
+            with artifacts_container:
+                ui.label("No subcircuit artifacts found yet").classes(
+                    "text-gray-500 italic"
+                )
+            return
+
+        accepted: list[dict] = []
+        for artifact_dir in sorted(sub_root.iterdir()):
+            if not artifact_dir.is_dir():
+                continue
+            solved = _safe_read_json(artifact_dir / "solved_layout.json")
+            meta = _safe_read_json(artifact_dir / "metadata.json")
+            if not isinstance(solved, dict):
+                continue
+            validation = solved.get("validation", {})
+            meta_dict = meta if isinstance(meta, dict) else {}
+            if isinstance(validation, dict) and validation.get("accepted") is True:
+                accepted.append(
+                    {
+                        "dir": artifact_dir.name,
+                        "sheet_name": solved.get("sheet_name")
+                        or meta_dict.get("sheet_name")
+                        or artifact_dir.name,
+                        "instance_path": solved.get("instance_path")
+                        or meta_dict.get("instance_path")
+                        or "",
+                        "traces": len(solved.get("traces", [])),
+                        "vias": len(solved.get("vias", [])),
+                    }
+                )
+
+        if not accepted:
+            with artifacts_container:
+                ui.label("No accepted routed leaf artifacts yet").classes(
+                    "text-gray-500 italic"
+                )
+            return
+
+        with artifacts_container:
+            for item in accepted[:12]:
+                with ui.card().classes("w-full p-2 bg-slate-800/40"):
+                    with ui.row().classes("w-full items-center gap-2"):
+                        ui.badge("LEAF", color="green")
+                        ui.label(item["sheet_name"]).classes("font-medium")
+                        ui.space()
+                        ui.label(f"T{item['traces']}").classes("text-xs text-cyan-300")
+                        ui.label(f"V{item['vias']}").classes("text-xs text-amber-300")
+                    if item["instance_path"]:
+                        ui.label(item["instance_path"]).classes(
+                            "text-xs text-gray-400 font-mono"
+                        )
+
+    def _render_top_outputs() -> None:
+        top_outputs_container.clear()
+        hp = state.experiments_dir / "hierarchical_pipeline"
+        candidates = [
+            hp / "parent_composition.json",
+            hp / "visible_parent" / "board.kicad_pcb",
+            hp / "visible_parent" / "board_routed.kicad_pcb",
+            hp / "visible_parent" / "summary.json",
+            state.experiments_dir / "report.html",
+        ]
+        existing = [p for p in candidates if p.exists()]
+        if not existing:
+            with top_outputs_container:
+                ui.label("No parent/top-level outputs yet").classes(
+                    "text-gray-500 italic"
+                )
+            return
+
+        with top_outputs_container:
+            for path in existing:
+                with ui.card().classes("w-full p-2 bg-slate-800/40"):
+                    ui.label(path.name).classes("font-medium")
+                    ui.label(str(path.relative_to(state.project_root))).classes(
+                        "text-xs text-gray-400 font-mono"
+                    )
+
+    def _render_status_json(status: dict) -> None:
+        status_json_container.clear()
+        with status_json_container:
+            if not status:
+                ui.label("No status available").classes("text-gray-500 italic")
+                return
+            ui.code(json.dumps(status, indent=2)).classes("w-full text-xs")
+
+    def _update_board_preview() -> None:
+        board_container.clear()
+        previews = _find_preview_candidates()
+        if not previews:
+            with board_container:
+                ui.label("No preview artifacts found yet").classes(
+                    "text-gray-500 italic"
+                )
+            return
+
+        preview = previews[0]
+        with board_container:
+            ui.label(preview.name).classes("text-sm text-gray-400 mb-2")
+            if preview.suffix.lower() == ".gif":
+                ui.image(str(preview)).classes("max-w-5xl max-h-[700px] object-contain")
+            else:
+                ui.image(str(preview)).classes("max-w-5xl max-h-[700px] object-contain")
+
+    def _extract_hierarchical_metrics(status: dict) -> tuple[int, int, int]:
+        leaves = status.get("leaves", {}) if isinstance(status, dict) else {}
+        solved = int(leaves.get("solved", 0) or 0)
+        total = int(leaves.get("total", 0) or 0)
+        accepted = int(leaves.get("accepted", 0) or 0)
+
+        if total == 0:
+            total = int(status.get("total_leaves", 0) or 0)
+        if solved == 0:
+            solved = int(status.get("solved_leaves", 0) or 0)
+        if accepted == 0:
+            accepted = int(status.get("accepted_artifacts", 0) or 0)
+
+        return solved, total, accepted
 
     def _update_status():
         """Poll run_status.json and update UI."""
@@ -100,23 +338,27 @@ def monitor_page():
 
         # Status badge
         badge_colors = {
-            "idle": "gray", "running": "blue",
-            "stopping": "orange", "done": "green", "error": "red",
+            "idle": "gray",
+            "running": "blue",
+            "stopping": "orange",
+            "done": "green",
+            "error": "red",
         }
         status_badge.set_text(phase.upper())
         status_badge._props["color"] = badge_colors.get(phase, "gray")
         status_badge.update()
+
+        # Phase
+        phase_label.set_text(
+            str(status.get("stage") or status.get("pipeline_phase") or phase)
+        )
 
         # Progress
         rnd = status.get("round", 0)
         total = status.get("total_rounds", 0)
         pct = status.get("progress_percent", 0)
         progress_label.set_text(f"{rnd} / {total}")
-        progress_bar.set_value(pct / 100 if pct else 0)
-
-        # Best score
-        best = status.get("best_score", 0)
-        best_score_label.set_text(f"{best:.2f}" if best else "—")
+        progress_bar.set_value((pct or 0) / 100)
 
         # Timing
         elapsed = status.get("elapsed_s", 0)
@@ -125,6 +367,44 @@ def monitor_page():
             f"Elapsed: {_format_time(elapsed)} | ETA: {_format_time(eta)}"
         )
 
+        # Hierarchical metrics
+        solved_leaves, total_leaves, accepted_artifacts = _extract_hierarchical_metrics(
+            status
+        )
+        leaves_label.set_text(
+            f"{solved_leaves} / {total_leaves}" if total_leaves else f"{solved_leaves}"
+        )
+        leaves_bar.set_value((solved_leaves / total_leaves) if total_leaves else 0)
+        artifacts_label.set_text(str(accepted_artifacts))
+
+        current_node = (
+            status.get("current_node")
+            or status.get("current_leaf")
+            or status.get("current_parent")
+            or "—"
+        )
+        current_node_label.set_text(str(current_node))
+
+        top_level = (
+            status.get("top_level_status")
+            or status.get("parent_status")
+            or status.get("composition_status")
+            or "—"
+        )
+        top_level_label.set_text(str(top_level))
+
+        # Best score
+        best = status.get("best_score", 0)
+        best_score_label.set_text(f"{best:.2f}" if best else "—")
+
+        # Latest
+        latest = status.get("latest_score")
+        marker = status.get("latest_marker", "") or status.get("latest_event", "")
+        if latest is not None:
+            latest_label.set_text(f"{float(latest):.2f} ({marker})")
+        else:
+            latest_label.set_text(marker or "—")
+
         # Workers
         w = status.get("workers", {})
         workers_label.set_text(
@@ -132,16 +412,6 @@ def monitor_page():
             f"Active: {w.get('in_flight', 0)} | "
             f"Idle: {w.get('idle', 0)}"
         )
-
-        # Latest
-        latest = status.get("latest_score")
-        marker = status.get("latest_marker", "")
-        latest_label.set_text(
-            f"{latest:.2f} ({marker})" if latest else "—"
-        )
-
-        # Kept
-        kept_label.set_text(str(status.get("kept_count", 0)))
 
         # Health
         stuck = status.get("maybe_stuck", False)
@@ -155,7 +425,7 @@ def monitor_page():
             health_label.set_text("—")
             health_label.classes(replace="")
 
-        # Button visibility — state machine
+        # Button visibility
         is_running = phase == "running" or runner.is_running
         is_stopping = phase == "stopping"
 
@@ -165,54 +435,47 @@ def monitor_page():
         stopping_spinner.set_visibility(is_stopping)
         stopping_label.set_visibility(is_stopping)
 
-        # New rounds
+        # New rounds / score records
         new_rounds = runner.read_latest_rounds(last_round_seen["value"])
         if new_rounds:
             live_rounds.extend(new_rounds)
-            last_round_seen["value"] = max(
-                r.get("round_num", 0) for r in new_rounds
-            )
-            # Persist to DB
+            last_round_seen["value"] = max(r.get("round_num", 0) for r in new_rounds)
             if state.active_experiment_id:
                 for nr in new_rounds:
                     state.db.add_round(state.active_experiment_id, nr)
-                best_so_far = max(
-                    (r.get("score", 0) for r in live_rounds), default=0
-                )
+                best_so_far = max((r.get("score", 0) for r in live_rounds), default=0)
                 state.db.update_experiment(
                     state.active_experiment_id,
                     completed_rounds=len(live_rounds),
                     best_score=best_so_far,
                 )
-            # Update chart
             chart_container.clear()
             with chart_container:
-                create_score_chart(live_rounds, "Live Score")
+                create_score_chart(live_rounds, "Hierarchical Score")
 
         # Detect experiment completion
         if prev_phase["value"] in ("running", "stopping") and phase in ("done", "idle"):
             if state.active_experiment_id:
-                best_so_far = max(
-                    (r.get("score", 0) for r in live_rounds), default=0
-                )
+                best_so_far = max((r.get("score", 0) for r in live_rounds), default=0)
                 state.db.update_experiment(
                     state.active_experiment_id,
                     status="done",
                     completed_rounds=len(live_rounds),
                     best_score=best_so_far,
                 )
-                ui.notify("Experiment finished!", type="positive")
+                ui.notify("Hierarchical experiment finished!", type="positive")
         prev_phase["value"] = phase
 
-        # Board preview
-        best_png = state.experiments_dir / "best_preview.png"
-        if best_png.exists():
-            board_container.clear()
-            with board_container:
-                ui.image(str(best_png)).classes("max-w-lg")
+        # Render supporting panels
+        events = _read_jsonl_tail(state.experiments_dir / "experiments.jsonl", limit=20)
+        _render_events(events)
+        _render_artifacts()
+        _render_top_outputs()
+        _render_status_json(status)
+        _update_board_preview()
 
     # Start timer for live updates
-    timer = ui.timer(2.0, _update_status)
+    ui.timer(2.0, _update_status)
 
     async def _start():
         try:
@@ -225,9 +488,8 @@ def monitor_page():
                 param_ranges=state.get_param_ranges(),
                 score_weights=state.score_weights,
             )
-            # Create experiment record
             exp = state.db.create_experiment(
-                name=f"Run {time.strftime('%Y-%m-%d %H:%M')}",
+                name=f"Hierarchical Run {time.strftime('%Y-%m-%d %H:%M')}",
                 pcb_file=state.strategy["pcb_file"],
                 total_rounds=state.strategy["rounds"],
                 config=state.to_config_dict(),
@@ -235,7 +497,7 @@ def monitor_page():
             state.active_experiment_id = exp.id
             state.db.update_experiment(exp.id, status="running")
 
-            ui.notify(f"Started experiment (PID {pid})", type="positive")
+            ui.notify(f"Started hierarchical experiment (PID {pid})", type="positive")
             live_rounds.clear()
             last_round_seen["value"] = 0
         except Exception as e:
@@ -243,19 +505,18 @@ def monitor_page():
 
     def _stop():
         runner.stop()
-        ui.notify("Stop requested — experiment will finish current round",
-                  type="info")
+        ui.notify(
+            "Stop requested — pipeline will stop after the current safe checkpoint",
+            type="info",
+        )
         if state.active_experiment_id:
-            state.db.update_experiment(state.active_experiment_id,
-                                       status="stopping")
+            state.db.update_experiment(state.active_experiment_id, status="stopping")
 
     def _force_kill():
         runner.kill()
-        ui.notify("Force killed experiment and all child processes",
-                  type="warning")
+        ui.notify("Force killed experiment and all child processes", type="warning")
         if state.active_experiment_id:
-            state.db.update_experiment(state.active_experiment_id,
-                                       status="done")
+            state.db.update_experiment(state.active_experiment_id, status="done")
 
     start_btn.on_click(_start)
     stop_btn.on_click(_stop)

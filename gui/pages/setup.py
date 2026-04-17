@@ -1,4 +1,5 @@
-"""Setup page — configure search dimensions, strategy, score weights, presets."""
+"""Setup page — hierarchical experiment configuration UI."""
+
 from __future__ import annotations
 
 import json
@@ -6,237 +7,320 @@ import json
 from nicegui import ui
 
 from ..state import get_state
-from ..components.dimension_control import DimensionControl
 
 
 def setup_page():
     state = get_state()
 
-    ui.label("Experiment Setup").classes("text-2xl font-bold mb-4")
+    ui.label("Hierarchical Experiment Setup").classes("text-2xl font-bold mb-2")
+    ui.label(
+        "Configure the bottom-up subcircuit experiment flow: routed leaf solving, "
+        "parent composition, and visible top-level progression."
+    ).classes("text-sm text-gray-400 mb-4")
 
     with ui.tabs().classes("w-full") as tabs:
-        dim_tab = ui.tab("Search Dimensions")
-        strategy_tab = ui.tab("Strategy")
-        weights_tab = ui.tab("Score Weights")
-        toggles_tab = ui.tab("Feature Toggles")
-        presets_tab = ui.tab("Presets")
+        strategy_tab = ui.tab("Run Strategy", icon="play_circle")
+        hierarchy_tab = ui.tab("Hierarchy Scope", icon="account_tree")
+        visuals_tab = ui.tab("Visual Feedback", icon="image")
+        presets_tab = ui.tab("Presets", icon="bookmark")
 
-    with ui.tab_panels(tabs, value=dim_tab).classes("w-full"):
-        # ── Search Dimensions ──
-        with ui.tab_panel(dim_tab):
-            ui.label("Enable/disable which parameters the optimizer varies. "
-                     "Disabled parameters use their fixed value."
-                     ).classes("text-sm text-gray-400 mb-3")
-
-            # Group by category
-            groups: dict[str, list] = {}
-            for dim in state.search_dimensions:
-                g = dim.get("group", "Other")
-                groups.setdefault(g, []).append(dim)
-
-            for group_name, dims in groups.items():
-                with ui.expansion(group_name, value=True).classes("w-full"):
-                    for dim in dims:
-                        DimensionControl(dim)
-
-        # ── Strategy ──
+    with ui.tab_panels(tabs, value=strategy_tab).classes("w-full"):
         with ui.tab_panel(strategy_tab):
-            ui.label("Experiment run strategy").classes(
-                "text-sm text-gray-400 mb-3")
-            with ui.grid(columns=2).classes("w-full gap-4"):
-                ui.number("Rounds", value=state.strategy["rounds"],
-                          min=1, max=10000, step=1,
-                          on_change=lambda e: state.strategy.update(
-                              {"rounds": int(e.value)}
-                          ))
-                ui.number("Workers (0=auto)", value=state.strategy["workers"],
-                          min=0, max=64, step=1,
-                          on_change=lambda e: state.strategy.update(
-                              {"workers": int(e.value)}
-                          ))
-                ui.number("Plateau threshold",
-                          value=state.strategy["plateau_threshold"],
-                          min=1, max=20, step=1,
-                          on_change=lambda e: state.strategy.update(
-                              {"plateau_threshold": int(e.value)}
-                          ))
-                ui.number("Base seed", value=state.strategy["seed"],
-                          min=0, step=1,
-                          on_change=lambda e: state.strategy.update(
-                              {"seed": int(e.value)}
-                          ))
-            ui.separator()
-            ui.label("PCB File").classes("text-sm text-gray-400 mt-2")
-            ui.input("PCB file", value=state.strategy["pcb_file"],
-                     on_change=lambda e: state.strategy.update(
-                         {"pcb_file": e.value}
-                     )).classes("w-full")
+            _strategy_panel(state)
 
-        # ── Score Weights ──
-        with ui.tab_panel(weights_tab):
-            _score_weights_panel(state)
+        with ui.tab_panel(hierarchy_tab):
+            _hierarchy_panel(state)
 
-        # ── Feature Toggles ──
-        with ui.tab_panel(toggles_tab):
-            ui.label("Feature toggles for search space expansion"
-                     ).classes("text-sm text-gray-400 mb-3")
+        with ui.tab_panel(visuals_tab):
+            _visuals_panel(state)
 
-            ui.switch("Unlock all footprints",
-                      value=state.toggles["unlock_all_footprints"],
-                      on_change=lambda e: state.toggles.update(
-                          {"unlock_all_footprints": e.value}
-                      )).tooltip(
-                "When enabled, batteries and connectors are not hard-locked. "
-                "They prefer edges via scoring but can be moved freely."
-            )
-
-            ui.switch("Enable board size search",
-                      value=state.toggles["enable_board_size_search"],
-                      on_change=lambda e: _toggle_board_size(state, e.value),
-                      ).tooltip(
-                "Add board width and height as search dimensions. "
-                "Uses discrete 5mm steps with dynamic minimum bounds "
-                "computed from total component area."
-            )
-
-            ui.separator().classes("my-2")
-            ui.label("Placement Features").classes(
-                "text-sm font-bold text-gray-300 mb-1")
-
-            ui.switch("SMT opposite THT attraction",
-                      value=state.toggles["smt_opposite_tht"],
-                      on_change=lambda e: state.toggles.update(
-                          {"smt_opposite_tht": e.value}
-                      )).tooltip(
-                "Attract front-side SMT components toward the XY shadow of "
-                "back-side THT footprints to maximize board space utilization."
-            )
-
-            ui.switch("Align large paired components",
-                      value=state.toggles["align_large_pairs"],
-                      on_change=lambda e: state.toggles.update(
-                          {"align_large_pairs": e.value}
-                      )).tooltip(
-                "Detect pairs of large, similarly-sized components (e.g. "
-                "battery holders) and force them side-by-side."
-            )
-
-            ui.switch("Randomize group layout",
-                      value=state.toggles["randomize_group_layout"],
-                      on_change=lambda e: state.toggles.update(
-                          {"randomize_group_layout": e.value}
-                      )).tooltip(
-                "Widen cluster radius variation (0.3-1.8x vs 0.8-1.2x) "
-                "for more diverse placement exploration."
-            )
-
-            ui.separator().classes("my-2")
-            ui.label("Routing Features").classes(
-                "text-sm font-bold text-gray-300 mb-1")
-
-            ui.switch("Skip GND routing (use ground plane)",
-                      value=state.toggles["skip_gnd_routing"],
-                      on_change=lambda e: state.toggles.update(
-                          {"skip_gnd_routing": e.value}
-                      )).tooltip(
-                "Exclude GND net from FreeRouting. GND connects via "
-                "copper zone pour instead of discrete traces."
-            )
-
-            ui.separator().classes("my-2")
-            ui.label("Mutation Strategy").classes(
-                "text-sm font-bold text-gray-300 mb-1")
-
-            ui.select(
-                label="Scatter Mode",
-                options=["cluster", "random"],
-                value=state.toggles["scatter_mode"],
-                on_change=lambda e: state.toggles.update(
-                    {"scatter_mode": e.value}
-                ),
-            ).tooltip(
-                "'cluster' groups components by connectivity (exploit). "
-                "'random' scatters uniformly (explore)."
-            ).classes("w-48")
-
-            ui.number(
-                "Reheat Strength",
-                value=state.toggles["reheat_strength"],
-                min=0.0, max=0.5, step=0.05,
-                on_change=lambda e: state.toggles.update(
-                    {"reheat_strength": e.value}
-                ),
-            ).tooltip(
-                "Temperature reheat factor applied at 50% of force sim. "
-                "0 = no reheat, 0.1 = mild perturbation kick."
-            ).classes("w-48")
-
-        # ── Presets ──
         with ui.tab_panel(presets_tab):
             _presets_panel(state)
 
 
-def _toggle_board_size(state, enabled: bool):
-    state.toggles["enable_board_size_search"] = enabled
-    for dim in state.search_dimensions:
-        if dim["key"] in ("board_width_mm", "board_height_mm"):
-            dim["enabled"] = enabled
+def _strategy_panel(state):
+    ui.label("Run Strategy").classes("text-lg font-bold mb-2")
+    ui.label(
+        "These settings control the outer experiment loop. Each round runs the "
+        "hierarchical pipeline from routed leaves upward."
+    ).classes("text-sm text-gray-400 mb-4")
 
+    with ui.grid(columns=2).classes("w-full gap-4"):
+        ui.number(
+            "Experiment rounds",
+            value=state.strategy.get("rounds", 10),
+            min=1,
+            max=1000,
+            step=1,
+            on_change=lambda e: state.strategy.update({"rounds": int(e.value)}),
+        ).tooltip("How many full hierarchical attempts to run.")
 
-def _score_weights_panel(state):
-    ui.label("Relative importance of each score component. "
-             "Values are auto-normalized to sum to 1.0."
-             ).classes("text-sm text-gray-400 mb-3")
+        ui.number(
+            "Leaf solve rounds per experiment round",
+            value=state.strategy.get("leaf_rounds", 1),
+            min=1,
+            max=20,
+            step=1,
+            on_change=lambda e: state.strategy.update({"leaf_rounds": int(e.value)}),
+        ).tooltip(
+            "How many local solve attempts each leaf subcircuit gets inside one "
+            "experiment round."
+        )
 
-    weight_labels = {
-        "placement": "Placement Quality",
-        "route_completion": "Route Completion",
-        "via_penalty": "Via Penalty",
-        "containment": "Board Containment",
-        "drc": "DRC Score",
-        "area": "Board Area (smaller = better)",
-    }
+        ui.number(
+            "Workers (reserved)",
+            value=state.strategy.get("workers", 1),
+            min=1,
+            max=64,
+            step=1,
+            on_change=lambda e: state.strategy.update({"workers": int(e.value)}),
+        ).tooltip(
+            "Currently reserved for compatibility. The hierarchical runner is "
+            "executed in a single coordinated flow."
+        )
 
-    norm_label = ui.label("").classes("text-sm text-green-400 mt-2")
-    sliders: dict[str, ui.slider] = {}
+        ui.number(
+            "Base seed",
+            value=state.strategy.get("seed", 0),
+            min=0,
+            step=1,
+            on_change=lambda e: state.strategy.update({"seed": int(e.value)}),
+        ).tooltip("Master seed for reproducible hierarchical runs.")
 
-    def _update_norm():
-        total = sum(state.score_weights.values())
-        if total > 0:
-            parts = ", ".join(
-                f"{k}={v / total:.0%}" for k, v in state.score_weights.items()
-            )
-            norm_label.set_text(f"Normalized: {parts}")
-        else:
-            norm_label.set_text("Warning: all weights are zero")
+    ui.separator().classes("my-4")
 
-    for key, label in weight_labels.items():
-        with ui.row().classes("w-full items-center gap-2"):
-            ui.label(label).classes("w-40 text-sm")
-            sl = ui.slider(
-                min=0, max=1, step=0.05,
-                value=state.score_weights[key],
-                on_change=lambda e, k=key: (
-                    state.score_weights.update({k: e.value}),
-                    _update_norm()
+    with ui.grid(columns=2).classes("w-full gap-4"):
+        ui.input(
+            "PCB file",
+            value=state.strategy.get("pcb_file", "LLUPS.kicad_pcb"),
+            on_change=lambda e: state.strategy.update({"pcb_file": e.value.strip()}),
+        ).classes("w-full").tooltip("Top-level PCB used as the project anchor.")
+
+        ui.input(
+            "Schematic file",
+            value=state.strategy.get("schematic_file", "LLUPS.kicad_sch"),
+            on_change=lambda e: state.strategy.update(
+                {"schematic_file": e.value.strip()}
+            ),
+        ).classes("w-full").tooltip("Top-level schematic for hierarchy parsing.")
+
+        ui.input(
+            "Parent selector",
+            value=state.strategy.get("parent", "/"),
+            on_change=lambda e: state.strategy.update(
+                {"parent": e.value.strip() or "/"}
+            ),
+        ).classes("w-full").tooltip(
+            "Parent node to compose and visualize. Use '/' for the top-level parent."
+        )
+
+        ui.input(
+            "Only selectors (comma-separated)",
+            value=", ".join(state.strategy.get("only", [])),
+            on_change=lambda e: state.strategy.update({"only": _split_csv(e.value)}),
+        ).classes("w-full").tooltip(
+            "Optional leaf filters. Leave empty to solve the full leaf set."
+        )
+
+    ui.separator().classes("my-4")
+
+    with ui.row().classes("w-full items-start gap-8"):
+        with ui.column().classes("gap-2"):
+            ui.switch(
+                "Run visible top-level stage",
+                value=not state.toggles.get("skip_visible", False),
+                on_change=lambda e: state.toggles.update(
+                    {"skip_visible": not bool(e.value)}
                 ),
-            ).classes("flex-grow")
-            ui.label().bind_text_from(sl, "value",
-                                      backward=lambda v: f"{v:.2f}")
-            sliders[key] = sl
+            ).tooltip(
+                "When enabled, the experiment also runs the visible parent/top-level "
+                "stage after leaf solving and composition."
+            )
 
-    _update_norm()
+            ui.switch(
+                "Render PNG previews",
+                value=state.toggles.get("render_png", True),
+                on_change=lambda e: state.toggles.update({"render_png": bool(e.value)}),
+            ).tooltip(
+                "Keep visual artifacts up to date so the monitor and analysis pages "
+                "can show progression."
+            )
+
+        with ui.column().classes("gap-2"):
+            ui.switch(
+                "Keep per-round detail artifacts",
+                value=state.toggles.get("save_round_details", True),
+                on_change=lambda e: state.toggles.update(
+                    {"save_round_details": bool(e.value)}
+                ),
+            ).tooltip("Preserve round JSON and related metadata for later inspection.")
+
+            ui.switch(
+                "Auto-import best hierarchical result as preset",
+                value=state.toggles.get("import_best_as_preset", True),
+                on_change=lambda e: state.toggles.update(
+                    {"import_best_as_preset": bool(e.value)}
+                ),
+            ).tooltip(
+                "Lets the GUI treat the best hierarchical run summary as a reusable preset."
+            )
+
+
+def _hierarchy_panel(state):
+    ui.label("Hierarchy Scope").classes("text-lg font-bold mb-2")
+    ui.label(
+        "Define what part of the hierarchy the experiment should focus on and how "
+        "the GUI should present progression."
+    ).classes("text-sm text-gray-400 mb-4")
+
+    with ui.card().classes("w-full p-4"):
+        ui.label("Current hierarchical target").classes("text-md font-bold mb-2")
+        with ui.grid(columns=2).classes("w-full gap-4"):
+            ui.input(
+                "Top-level parent selector",
+                value=state.strategy.get("parent", "/"),
+                on_change=lambda e: state.strategy.update(
+                    {"parent": e.value.strip() or "/"}
+                ),
+            ).tooltip("The parent node that composition and visible assembly target.")
+
+            ui.input(
+                "Leaf filter selectors",
+                value=", ".join(state.strategy.get("only", [])),
+                on_change=lambda e: state.strategy.update(
+                    {"only": _split_csv(e.value)}
+                ),
+            ).tooltip(
+                "Optional list of leaf names, files, or instance paths to restrict solving."
+            )
+
+    ui.separator().classes("my-4")
+
+    with ui.card().classes("w-full p-4"):
+        ui.label("Hierarchy behavior").classes("text-md font-bold mb-2")
+        with ui.column().classes("gap-3"):
+            ui.switch(
+                "Prefer full top-level progression in monitor",
+                value=state.toggles.get("show_top_level_progress", True),
+                on_change=lambda e: state.toggles.update(
+                    {"show_top_level_progress": bool(e.value)}
+                ),
+            ).tooltip(
+                "Bias the monitor toward showing parent/top-level readiness alongside leaf progress."
+            )
+
+            ui.switch(
+                "Show accepted leaf artifacts prominently",
+                value=state.toggles.get("show_leaf_artifacts", True),
+                on_change=lambda e: state.toggles.update(
+                    {"show_leaf_artifacts": bool(e.value)}
+                ),
+            ).tooltip(
+                "Keep accepted routed leaf artifacts front-and-center in the GUI."
+            )
+
+            ui.switch(
+                "Track composition outputs",
+                value=state.toggles.get("track_composition_outputs", True),
+                on_change=lambda e: state.toggles.update(
+                    {"track_composition_outputs": bool(e.value)}
+                ),
+            ).tooltip(
+                "Expose parent composition JSON and visible output artifacts in the GUI."
+            )
+
+    ui.separator().classes("my-4")
+
+    with ui.card().classes("w-full p-4"):
+        ui.label("Summary").classes("text-md font-bold mb-2")
+        ui.markdown(
+            f"""
+- **Schematic:** `{state.strategy.get("schematic_file", "LLUPS.kicad_sch")}`
+- **PCB:** `{state.strategy.get("pcb_file", "LLUPS.kicad_pcb")}`
+- **Parent:** `{state.strategy.get("parent", "/")}`
+- **Leaf filters:** `{", ".join(state.strategy.get("only", [])) or "all leaves"}`
+- **Visible stage:** `{"enabled" if not state.toggles.get("skip_visible", False) else "disabled"}`
+"""
+        )
+
+
+def _visuals_panel(state):
+    ui.label("Visual Feedback").classes("text-lg font-bold mb-2")
+    ui.label(
+        "Tune how much visual feedback the experiment manager should expect and display."
+    ).classes("text-sm text-gray-400 mb-4")
+
+    with ui.row().classes("w-full gap-4 items-start"):
+        with ui.card().classes("p-4 flex-1"):
+            ui.label("Monitor emphasis").classes("text-md font-bold mb-2")
+            ui.switch(
+                "Highlight leaf progression",
+                value=state.toggles.get("highlight_leaf_progress", True),
+                on_change=lambda e: state.toggles.update(
+                    {"highlight_leaf_progress": bool(e.value)}
+                ),
+            )
+            ui.switch(
+                "Highlight top-level progression",
+                value=state.toggles.get("highlight_top_progress", True),
+                on_change=lambda e: state.toggles.update(
+                    {"highlight_top_progress": bool(e.value)}
+                ),
+            )
+            ui.switch(
+                "Show live status JSON",
+                value=state.toggles.get("show_status_json", True),
+                on_change=lambda e: state.toggles.update(
+                    {"show_status_json": bool(e.value)}
+                ),
+            )
+
+        with ui.card().classes("p-4 flex-1"):
+            ui.label("Analysis emphasis").classes("text-md font-bold mb-2")
+            ui.switch(
+                "Enable progression viewer",
+                value=state.toggles.get("enable_progression_viewer", True),
+                on_change=lambda e: state.toggles.update(
+                    {"enable_progression_viewer": bool(e.value)}
+                ),
+            )
+            ui.switch(
+                "Prefer accepted/kept frames",
+                value=state.toggles.get("prefer_kept_frames", False),
+                on_change=lambda e: state.toggles.update(
+                    {"prefer_kept_frames": bool(e.value)}
+                ),
+            )
+            ui.switch(
+                "Show artifact metadata in viewer",
+                value=state.toggles.get("show_frame_metadata", True),
+                on_change=lambda e: state.toggles.update(
+                    {"show_frame_metadata": bool(e.value)}
+                ),
+            )
+
+    ui.separator().classes("my-4")
+
+    with ui.card().classes("w-full p-4"):
+        ui.label("Notes").classes("text-md font-bold mb-2")
+        ui.label(
+            "The hierarchical runner writes live status, per-round JSON, accepted "
+            "leaf artifacts, and preview images. These toggles mainly control how "
+            "the GUI presents that information."
+        ).classes("text-sm text-gray-400")
 
 
 def _presets_panel(state):
-    ui.label("Save and load experiment configurations"
-             ).classes("text-sm text-gray-400 mb-3")
+    ui.label("Presets").classes("text-lg font-bold mb-2")
+    ui.label("Save and restore hierarchical experiment configurations.").classes(
+        "text-sm text-gray-400 mb-4"
+    )
 
     preset_name = ui.input("Preset name", value="").classes("w-64")
-    preset_notes = ui.textarea("Notes", value="").classes("w-full").props(
-        "rows=2")
+    preset_notes = ui.textarea("Notes", value="").classes("w-full").props("rows=2")
 
-    with ui.row().classes("gap-2"):
+    with ui.row().classes("gap-2 mb-4"):
+
         async def _save():
             name = preset_name.value.strip()
             if not name:
@@ -250,8 +334,8 @@ def _presets_panel(state):
         ui.button("Save Current Config", on_click=_save, icon="save")
 
     ui.separator()
-    ui.label("Saved Presets").classes("text-lg font-bold mt-3")
 
+    ui.label("Saved Presets").classes("text-lg font-bold mt-3")
     presets_container = ui.column().classes("w-full gap-2")
 
     def _refresh_presets():
@@ -259,29 +343,41 @@ def _presets_panel(state):
         presets = state.db.get_presets()
         if not presets:
             with presets_container:
-                ui.label("No presets saved yet").classes(
-                    "text-gray-500 italic")
+                ui.label("No presets saved yet").classes("text-gray-500 italic")
             return
+
         with presets_container:
-            for p in presets:
-                with ui.card().classes("w-full p-2"):
+            for preset in presets:
+                with ui.card().classes("w-full p-3"):
                     with ui.row().classes("items-center gap-3"):
-                        ui.label(p.name).classes("font-bold")
+                        ui.label(preset.name).classes("font-bold")
                         ui.label(
-                            p.created_at.strftime("%Y-%m-%d %H:%M")
-                            if p.created_at else ""
+                            preset.created_at.strftime("%Y-%m-%d %H:%M")
+                            if preset.created_at
+                            else ""
                         ).classes("text-xs text-gray-500")
                         ui.space()
-                        ui.button("Load", icon="download",
-                                  on_click=lambda _, pn=p.name: _load(pn)
-                                  ).props("flat dense")
-                        ui.button("Delete", icon="delete",
-                                  on_click=lambda _, pn=p.name: _delete(pn),
-                                  color="red"
-                                  ).props("flat dense")
-                    if p.notes:
-                        ui.label(p.notes).classes(
-                            "text-xs text-gray-400 mt-1")
+                        ui.button(
+                            "Load",
+                            icon="download",
+                            on_click=lambda _, pn=preset.name: _load(pn),
+                        ).props("flat dense")
+                        ui.button(
+                            "Delete",
+                            icon="delete",
+                            on_click=lambda _, pn=preset.name: _delete(pn),
+                            color="red",
+                        ).props("flat dense")
+                    if preset.notes:
+                        ui.label(preset.notes).classes("text-xs text-gray-400 mt-1")
+                    with ui.expansion("Preview config", value=False).classes("w-full"):
+                        try:
+                            cfg = state.db.load_preset(preset.name) or {}
+                            ui.code(json.dumps(cfg, indent=2)).classes("w-full text-xs")
+                        except Exception:
+                            ui.label("Could not render preset preview").classes(
+                                "text-xs text-red-400"
+                            )
 
     def _load(name: str):
         config = state.db.load_preset(name)
@@ -298,3 +394,7 @@ def _presets_panel(state):
         _refresh_presets()
 
     _refresh_presets()
+
+
+def _split_csv(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]

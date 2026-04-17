@@ -1,64 +1,110 @@
 """NiceGUI application shell — main tabbed layout."""
+
 from __future__ import annotations
 
-from nicegui import app, ui
+import json
+from pathlib import Path
 
-from .state import get_state
-from .pages.setup import setup_page
-from .pages.monitor import monitor_page
+from nicegui import ui
+
 from .pages.analysis import analysis_page
 from .pages.board import board_page
+from .pages.monitor import monitor_page
+from .pages.setup import setup_page
+from .state import get_state
 
 
-def _auto_import_on_startup():
-    """Import existing JSONL experiments + best_config preset on first startup."""
-    import json
+def _load_json(path: Path) -> dict | None:
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else None
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _import_hierarchical_best_preset() -> None:
+    """Import the best hierarchical run summary as a preset if available."""
+    state = get_state()
+    summary_path = state.experiments_dir / "best" / "best_hierarchical_round.json"
+    summary = _load_json(summary_path)
+    if not summary:
+        return
+
+    presets = state.db.get_presets()
+    if any(p.name == "Best Hierarchical (imported)" for p in presets):
+        return
+
+    preset_config = {
+        "_strategy": {
+            "rounds": state.strategy.get("rounds", 50),
+            "workers": state.strategy.get("workers", 0),
+            "plateau_threshold": state.strategy.get("plateau_threshold", 1),
+            "seed": summary.get("seed", 0),
+            "pcb_file": state.strategy.get("pcb_file", "LLUPS.kicad_pcb"),
+        },
+        "_hierarchical_best": summary,
+    }
+
+    notes = (
+        "Auto-imported from hierarchical best summary "
+        f"(round={summary.get('round_num', '?')}, score={summary.get('score', '?')})"
+    )
+    state.db.save_preset("Best Hierarchical (imported)", preset_config, notes)
+
+
+def _auto_import_on_startup() -> None:
+    """Import existing experiment data and hierarchical presets on first startup."""
     state = get_state()
 
-    # Import JSONL experiments if DB is empty
     existing = state.db.get_experiments()
     if not existing:
         from .migrations.init_db import import_all_jsonl
+
         import_all_jsonl(state.db, state.experiments_dir)
 
-    # Import best_config.json as a preset if available
+    _import_hierarchical_best_preset()
+
+    # Backward-compatible import for older flat-pipeline checkpoints, if present.
     best_cfg_path = state.experiments_dir / "best_config.json"
     if best_cfg_path.exists():
         presets = state.db.get_presets()
         if not any(p.name == "Best (imported)" for p in presets):
-            try:
-                with open(best_cfg_path) as f:
-                    data = json.load(f)
+            data = _load_json(best_cfg_path)
+            if data:
                 config = data.get("config", data)
-                state.db.save_preset("Best (imported)", config,
-                                     f"Auto-imported from best_config.json "
-                                     f"(score={data.get('score', '?')})")
-            except (json.JSONDecodeError, OSError):
-                pass
+                notes = (
+                    "Auto-imported from best_config.json "
+                    f"(score={data.get('score', data.get('best_score', '?'))})"
+                )
+                state.db.save_preset("Best (imported)", config, notes)
 
 
 _auto_import_on_startup()
 
 
 @ui.page("/")
-def index():
+def index() -> None:
     """Main page with tabbed layout."""
     state = get_state()
 
     ui.dark_mode(True)
-    ui.add_head_html("""
+    ui.add_head_html(
+        """
     <style>
         .nicegui-content { max-width: 1400px; margin: 0 auto; }
         .q-tab-panel { padding: 16px 0 !important; }
     </style>
-    """)
+    """
+    )
 
     with ui.header().classes("items-center justify-between px-6"):
-        ui.label("LLUPS Experiment Manager").classes(
-            "text-xl font-bold tracking-wide")
+        ui.label("LLUPS Experiment Manager").classes("text-xl font-bold tracking-wide")
         with ui.row().classes("items-center gap-3"):
             ui.label(f"Project: {state.project_root.name}").classes(
-                "text-sm text-gray-400")
+                "text-sm text-gray-400"
+            )
+            ui.badge("Hierarchical Subcircuits", color="green").classes("text-xs")
 
     with ui.tabs().classes("w-full") as tabs:
         setup_tab = ui.tab("Setup", icon="tune")
