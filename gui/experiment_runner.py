@@ -80,6 +80,10 @@ class ExperimentRunner:
             schematic_file = str(extra_config["schematic_file"])
         schematic_path = self.project_root / schematic_file
 
+        hierarchical_workers = workers
+        if extra_config and extra_config.get("leaf_workers") is not None:
+            hierarchical_workers = int(extra_config["leaf_workers"])
+
         cmd = [
             sys.executable,
             str(autoexp),
@@ -89,7 +93,7 @@ class ExperimentRunner:
             "--rounds",
             str(rounds),
             "--workers",
-            str(workers),
+            str(hierarchical_workers),
             "--plateau",
             str(plateau),
             "--status-file",
@@ -120,6 +124,7 @@ class ExperimentRunner:
         program_data: dict[str, Any] = {
             "param_ranges": param_ranges or {},
             "score_weights": score_weights or {},
+            "hierarchical_workers": hierarchical_workers,
         }
         if extra_config:
             program_data.update(extra_config)

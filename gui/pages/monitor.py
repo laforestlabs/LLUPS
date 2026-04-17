@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import multiprocessing as mp
 import time
 from pathlib import Path
 from typing import Any, cast
@@ -391,7 +392,31 @@ def monitor_page():
             or status.get("composition_status")
             or "—"
         )
-        top_level_label.set_text(str(top_level))
+
+        hierarchy = status.get("hierarchy", {})
+        if not isinstance(hierarchy, dict):
+            hierarchy = {}
+        leaf_workers = hierarchy.get("leaf_workers", {})
+        if not isinstance(leaf_workers, dict):
+            leaf_workers = {}
+
+        configured_workers = int(state.strategy.get("workers", 1) or 1)
+        if configured_workers <= 0:
+            configured_workers = max(1, mp.cpu_count() // 2)
+
+        active_leaf_workers = int(leaf_workers.get("active", 0) or 0)
+        total_leaf_workers = int(
+            leaf_workers.get("total", configured_workers) or configured_workers
+        )
+        queued_leafs = int(leaf_workers.get("queued", 0) or 0)
+        completed_leafs = int(
+            leaf_workers.get("completed", solved_leaves) or solved_leaves
+        )
+
+        top_level_label.set_text(
+            f"{top_level} | leaf workers {active_leaf_workers}/{total_leaf_workers} "
+            f"| queued {queued_leafs} | completed {completed_leafs}"
+        )
 
         # Best score
         best = status.get("best_score", 0)
@@ -407,10 +432,17 @@ def monitor_page():
 
         # Workers
         w = status.get("workers", {})
+        hierarchy = status.get("hierarchy", {})
+        if not isinstance(hierarchy, dict):
+            hierarchy = {}
+        leaf_workers = hierarchy.get("leaf_workers", {})
+        if not isinstance(leaf_workers, dict):
+            leaf_workers = {}
+
         workers_label.set_text(
-            f"Total: {w.get('total', 0)} | "
-            f"Active: {w.get('in_flight', 0)} | "
-            f"Idle: {w.get('idle', 0)}"
+            f"Run: total={w.get('total', 0)} active={w.get('in_flight', 0)} idle={w.get('idle', 0)}"
+            f" | Leaf: total={leaf_workers.get('total', 0)} active={leaf_workers.get('active', 0)}"
+            f" idle={leaf_workers.get('idle', 0)}"
         )
 
         # Health

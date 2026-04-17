@@ -258,6 +258,7 @@ def _write_live_status(
             "total": 1,
             "in_flight": 0 if phase != "running" else 1,
             "idle": 0 if phase == "running" else 1,
+            "leaf_workers": max(1, getattr(args, "workers", 1)),
         },
         "maybe_stuck": False,
         "hierarchy": {
@@ -265,6 +266,8 @@ def _write_live_status(
             "leaf_total": leaf_total,
             "leaf_accepted": leaf_accepted,
             "top_level_ready": top_level_ready,
+            "leaf_parallelism_enabled": max(1, getattr(args, "workers", 1)) > 1,
+            "leaf_worker_count": max(1, getattr(args, "workers", 1)),
         },
         "timestamp_epoch_s": time.time(),
     }
@@ -282,6 +285,7 @@ def _write_live_status(
         f"elapsed: {_format_mmss(elapsed_s)}",
         f"current_stage: {current_stage}",
         f"leafs: accepted={leaf_accepted} total={leaf_total}",
+        f"leaf_workers: {max(1, getattr(args, 'workers', 1))}",
         f"top_level_ready: {top_level_ready}",
     ]
     status_txt_path.parent.mkdir(parents=True, exist_ok=True)
@@ -422,6 +426,7 @@ def _build_solve_cmd(
     seed: int,
     config: str | None,
     only: list[str],
+    workers: int,
 ) -> list[str]:
     cmd = [
         sys.executable,
@@ -435,6 +440,8 @@ def _build_solve_cmd(
         str(seed),
         "--route",
         "--json",
+        "--workers",
+        str(max(1, workers)),
     ]
     if config:
         cmd.extend(["--config", config])
@@ -704,6 +711,7 @@ def main(argv: list[str] | None = None) -> int:
             seed=round_seed,
             config=args.config,
             only=args.only,
+            workers=max(1, args.workers),
         )
         solve_rc, solve_stdout, solve_stderr = _run_command(
             solve_cmd,
