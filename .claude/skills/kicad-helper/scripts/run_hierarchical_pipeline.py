@@ -284,7 +284,7 @@ def main(argv: list[str] | None = None) -> int:
         "leaf_solve": {},
         "leaf_artifacts": {},
         "composition": {},
-        "visible_parent": {},
+        "parent_pipeline": {},
         "status": "started",
     }
 
@@ -345,9 +345,9 @@ def main(argv: list[str] | None = None) -> int:
         "--parent",
         args.parent,
         "--mode",
-        "grid",
+        "packed",
         "--spacing-mm",
-        "12",
+        "6",
         "--output",
         str(composition_json),
         "--json",
@@ -392,47 +392,44 @@ def main(argv: list[str] | None = None) -> int:
             print(f"composition_json : {composition_json}")
         return 0
 
-    visible_output_dir = output_dir / "visible_parent"
-    visible_cmd = [
+    parent_output_json = output_dir / "parent_pipeline.json"
+    parent_cmd = [
         sys.executable,
-        str(SCRIPT_DIR / "demo_hierarchical_freerouting.py"),
+        str(SCRIPT_DIR / "compose_subcircuits.py"),
         "--project",
         str(project_dir),
         "--parent",
         args.parent,
-        "--base-pcb",
+        "--mode",
+        "packed",
+        "--spacing-mm",
+        "6",
+        "--pcb",
         str(pcb),
-        "--output-dir",
-        str(visible_output_dir),
+        "--route",
+        "--output",
+        str(parent_output_json),
     ]
-    if args.config:
-        visible_cmd.extend(["--config", args.config])
     if args.jar:
-        visible_cmd.extend(["--jar", args.jar])
-    if args.timeout_s is not None:
-        visible_cmd.extend(["--timeout-s", str(args.timeout_s)])
-    if args.max_passes is not None:
-        visible_cmd.extend(["--max-passes", str(args.max_passes)])
-    if args.render_png:
-        visible_cmd.append("--render-png")
-    if args.open:
-        visible_cmd.append("--open")
+        parent_cmd.extend(["--jar", args.jar])
+    if args.config:
+        parent_cmd.extend(["--config", args.config])
     for selector in args.only:
-        visible_cmd.extend(["--only", selector])
+        parent_cmd.extend(["--only", selector])
 
-    rc, visible_stdout, _ = _run_command(
-        visible_cmd,
+    rc, parent_stdout, _ = _run_command(
+        parent_cmd,
         cwd=project_dir,
-        label="Phase 3: Visible parent assembly and routing",
+        label="Phase 3: Parent assembly and routing",
         capture_json=False,
     )
-    final_summary["visible_parent"] = {
+    final_summary["parent_pipeline"] = {
         "exit_code": rc,
-        "output_dir": str(visible_output_dir),
-        "stdout_captured": visible_stdout,
+        "output_json": str(parent_output_json),
+        "stdout_captured": parent_stdout,
     }
     if rc != 0:
-        final_summary["status"] = "visible_parent_failed"
+        final_summary["status"] = "parent_pipeline_failed"
         if args.json:
             print(json.dumps(final_summary, indent=2, sort_keys=True))
         return rc
@@ -449,7 +446,7 @@ def main(argv: list[str] | None = None) -> int:
     print("=" * 78)
     print(f"accepted_leaf_artifacts : {leaf_summary['accepted_artifact_count']}")
     print(f"composition_json        : {composition_json}")
-    print(f"visible_parent_dir      : {visible_output_dir}")
+    print(f"parent_pipeline_json    : {parent_output_json}")
     print("Goal direction          : leaf-first -> routed artifacts -> parent assembly")
 
     return 0

@@ -253,10 +253,12 @@ def _discover_leaf_gallery(experiments_dir: Path) -> list[dict[str, Any]]:
 
         renders_dir = artifact_dir / "renders"
         preview_candidates = [
-            renders_dir / "routed_front_all.png",
             renders_dir / "routed_copper_both.png",
-            renders_dir / "pre_route_front_all.png",
+            renders_dir / "routed_front_all.png",
+            renders_dir / "routed_back_all.png",
             renders_dir / "pre_route_copper_both.png",
+            renders_dir / "pre_route_front_all.png",
+            renders_dir / "pre_route_back_all.png",
         ]
         preview = next((p for p in preview_candidates if p.exists()), None)
         if preview is None:
@@ -287,6 +289,27 @@ def _discover_leaf_gallery(experiments_dir: Path) -> list[dict[str, Any]]:
                 "instance_path": instance_path,
                 "artifact_dir": artifact_dir.name,
                 "preview_path": str(preview),
+                "front_preview_path": str(renders_dir / "routed_front_all.png")
+                if (renders_dir / "routed_front_all.png").exists()
+                else (
+                    str(renders_dir / "pre_route_front_all.png")
+                    if (renders_dir / "pre_route_front_all.png").exists()
+                    else ""
+                ),
+                "back_preview_path": str(renders_dir / "routed_back_all.png")
+                if (renders_dir / "routed_back_all.png").exists()
+                else (
+                    str(renders_dir / "pre_route_back_all.png")
+                    if (renders_dir / "pre_route_back_all.png").exists()
+                    else ""
+                ),
+                "copper_preview_path": str(renders_dir / "routed_copper_both.png")
+                if (renders_dir / "routed_copper_both.png").exists()
+                else (
+                    str(renders_dir / "pre_route_copper_both.png")
+                    if (renders_dir / "pre_route_copper_both.png").exists()
+                    else ""
+                ),
                 "trace_count": traces,
                 "via_count": vias,
             }
@@ -298,15 +321,13 @@ def _discover_leaf_gallery(experiments_dir: Path) -> list[dict[str, Any]]:
 def _discover_parent_preview_sets(experiments_dir: Path) -> list[dict[str, Any]]:
     """Discover side-by-side parent preview pairs from known output locations."""
     candidate_dirs = [
-        experiments_dir / "hierarchical_freerouting_demo",
         experiments_dir / "hierarchical_parent_smoke",
     ]
 
     autoexp_root = experiments_dir / "hierarchical_autoexperiment"
     if autoexp_root.is_dir():
-        for round_dir in sorted(autoexp_root.glob("round_*")):
+        for round_dir in sorted(autoexp_root.glob("round_*"), reverse=True):
             candidate_dirs.append(round_dir / "visible_parent")
-            candidate_dirs.append(round_dir / "visible_parent" / "visible_parent")
 
     preview_sets: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -317,14 +338,19 @@ def _discover_parent_preview_sets(experiments_dir: Path) -> list[dict[str, Any]]
 
         preloaded_candidates = [
             directory / "parent_preloaded.png",
+            directory / "preloaded_png.png",
             directory / "preloaded.png",
             directory / "board_preloaded.png",
+            directory / "parent_stamped.png",
+            directory / "board.png",
+            directory / "snapshot.png",
         ]
         routed_candidates = [
-            directory / "parent_freerouted.png",
             directory / "parent_routed.png",
             directory / "routed.png",
             directory / "board_routed.png",
+            directory / "parent_freerouted.png",
+            directory / "routed_png.png",
         ]
 
         preloaded = next((p for p in preloaded_candidates if p.exists()), None)
@@ -338,15 +364,30 @@ def _discover_parent_preview_sets(experiments_dir: Path) -> list[dict[str, Any]]
             continue
         seen.add(key)
 
-        metadata = _safe_load_json(directory / "demo_metadata.json") or {}
+        metadata = _safe_load_json(directory / "debug.json") or {}
+        if not metadata:
+            metadata = _safe_load_json(directory / "metadata.json") or {}
+        if not metadata:
+            metadata = _safe_load_json(directory / "summary.json") or {}
+        if not metadata:
+            metadata = _safe_load_json(directory / "parent_composition.json") or {}
+        if not metadata:
+            metadata = _safe_load_json(directory / "demo_metadata.json") or {}
+
         parent = (
             metadata.get("parent", {})
             if isinstance(metadata.get("parent"), dict)
+            else metadata.get("subcircuit_id", {})
+            if isinstance(metadata.get("subcircuit_id"), dict)
             else {}
         )
         composition = (
-            metadata.get("composition", {})
+            metadata.get("composition_state", {})
+            if isinstance(metadata.get("composition_state"), dict)
+            else metadata.get("composition", {})
             if isinstance(metadata.get("composition"), dict)
+            else metadata
+            if isinstance(metadata, dict)
             else {}
         )
 

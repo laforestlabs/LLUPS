@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any
 
 from nicegui import ui
@@ -43,6 +44,41 @@ def analysis_page() -> None:
 
 
 def _experiment_data_panel(state) -> None:
+    def _ensure_latest_running_experiment() -> None:
+        active_id = state.active_experiment_id
+        if not active_id:
+            return
+
+        exp = state.db.get_experiment(active_id)
+        if exp is not None:
+            return
+
+        status = state.runner.read_status()
+        total_rounds = int(
+            status.get("total_rounds", 0) or state.strategy.get("rounds", 0) or 0
+        )
+        best_score = float(status.get("best_score", 0) or 0)
+        completed_rounds = int(status.get("round", 0) or 0)
+        phase = str(status.get("phase", "running") or "running")
+        if phase not in {"running", "stopping", "done", "error"}:
+            phase = "running"
+
+        exp = state.db.create_experiment(
+            name=f"Hierarchical Run {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            pcb_file=state.strategy.get("pcb_file", "LLUPS.kicad_pcb"),
+            total_rounds=total_rounds,
+            config=state.to_config_dict(),
+        )
+        state.active_experiment_id = exp.id
+        state.db.update_experiment(
+            exp.id,
+            status=phase,
+            best_score=best_score,
+            completed_rounds=completed_rounds,
+        )
+
+    _ensure_latest_running_experiment()
+
     experiments = state.db.get_experiments()
     if not experiments:
         ui.label(
@@ -73,7 +109,10 @@ def _experiment_data_panel(state) -> None:
         }
 
     exp_options = _build_exp_options()
-    best_default = max(experiments, key=lambda e: e.completed_rounds or 0)
+    best_default = (
+        next((exp for exp in experiments if exp.id == state.active_experiment_id), None)
+        or experiments[0]
+    )
     selected_exp = {"id": best_default.id}
 
     content = ui.column().classes("w-full")
@@ -184,8 +223,18 @@ def _experiment_data_panel(state) -> None:
         ui.button("Import JSONL", icon="upload", on_click=_import).props("flat")
 
         def _refresh() -> None:
+            _ensure_latest_running_experiment()
             new_options = _build_exp_options()
             exp_select.options = new_options
+
+            active_id = state.active_experiment_id
+            if active_id and active_id in new_options:
+                selected_exp["id"] = active_id
+                exp_select.value = active_id
+            elif selected_exp["id"] not in new_options and new_options:
+                selected_exp["id"] = next(iter(new_options))
+                exp_select.value = selected_exp["id"]
+
             exp_select.update()
             if selected_exp["id"]:
                 _load_experiment(selected_exp["id"])
@@ -193,12 +242,24 @@ def _experiment_data_panel(state) -> None:
         ui.button("Refresh", icon="refresh", on_click=_refresh).props("flat")
 
     def _auto_refresh() -> None:
+        _ensure_latest_running_experiment()
+        new_options = _build_exp_options()
+        exp_select.options = new_options
+
+        active_id = state.active_experiment_id
+        if active_id and active_id in new_options:
+            if selected_exp["id"] != active_id:
+                selected_exp["id"] = active_id
+                exp_select.value = active_id
+        elif selected_exp["id"] not in new_options and new_options:
+            selected_exp["id"] = next(iter(new_options))
+            exp_select.value = selected_exp["id"]
+
+        exp_select.update()
+
         if selected_exp["id"]:
             exp = state.db.get_experiment(selected_exp["id"])
-            if exp and exp.status == "running":
-                new_options = _build_exp_options()
-                exp_select.options = new_options
-                exp_select.update()
+            if exp and exp.status in {"running", "stopping"}:
                 _load_experiment(selected_exp["id"])
 
     ui.timer(10.0, _auto_refresh)
@@ -237,6 +298,26 @@ def _leaf_gallery_panel(state) -> None:
         return
 
     accepted: list[dict[str, Any]] = []
+
+    def _open_preview_dialog(title: str, preview_path, subtitle: str = "") -> None:
+        with (
+            ui.dialog().props("maximized") as dialog,
+            ui.card().classes("w-full h-full bg-slate-950 text-white p-4"),
+        ):
+            with ui.row().classes("w-full items-center gap-3 mb-3"):
+                ui.label(title).classes("text-xl font-bold")
+                if subtitle:
+                    ui.label(subtitle).classes("text-sm text-gray-400 font-mono")
+                ui.space()
+                ui.button("Close", icon="close", on_click=dialog.close).props(
+                    "flat color=white"
+                )
+            with ui.column().classes("w-full h-full items-center justify-center"):
+                ui.image(str(preview_path)).classes(
+                    "w-full h-[88vh] object-contain rounded border border-slate-700 bg-slate-900"
+                )
+        dialog.open()
+
     for artifact_dir in sorted(sub_root.iterdir()):
         if not artifact_dir.is_dir():
             continue
@@ -270,13 +351,39 @@ def _leaf_gallery_panel(state) -> None:
                 metadata = {}
 
         renders_dir = artifact_dir / "renders"
-        preview_candidates = [
-            renders_dir / "routed_front_all.png",
-            renders_dir / "routed_copper_both.png",
-            renders_dir / "pre_route_front_all.png",
-            renders_dir / "pre_route_copper_both.png",
-        ]
-        preview = next((p for p in preview_candidates if p.exists()), None)
+        front_preview = next(
+            (
+                p
+                for p in [
+                    renders_dir / "routed_front_all.png",
+                    renders_dir / "pre_route_front_all.png",
+                ]
+                if p.exists()
+            ),
+            None,
+        )
+        back_preview = next(
+            (
+                p
+                for p in [
+                    renders_dir / "routed_back_all.png",
+                    renders_dir / "pre_route_back_all.png",
+                ]
+                if p.exists()
+            ),
+            None,
+        )
+        copper_preview = next(
+            (
+                p
+                for p in [
+                    renders_dir / "routed_copper_both.png",
+                    renders_dir / "pre_route_copper_both.png",
+                ]
+                if p.exists()
+            ),
+            None,
+        )
 
         accepted.append(
             {
@@ -289,7 +396,9 @@ def _leaf_gallery_panel(state) -> None:
                 "trace_count": len(solved.get("traces", [])),
                 "via_count": len(solved.get("vias", [])),
                 "artifact_dir": artifact_dir.name,
-                "preview": preview,
+                "front_preview": front_preview,
+                "back_preview": back_preview,
+                "copper_preview": copper_preview,
             }
         )
 
@@ -302,16 +411,25 @@ def _leaf_gallery_panel(state) -> None:
     ui.label(f"{len(accepted)} accepted routed leaf artifacts").classes(
         "text-sm text-gray-400 mb-3"
     )
+    ui.label(
+        "Each leaf now shows separate front, back, and combined-copper previews so "
+        "silkscreen and back-layer routing are easier to inspect. Click any preview "
+        "to open a larger inspection view."
+    ).classes("text-sm text-gray-400 mb-4")
 
-    with ui.grid(columns=2).classes("w-full gap-4"):
+    with ui.grid(columns=1).classes("w-full gap-4"):
         for item in accepted:
-            with ui.card().classes("w-full p-3"):
+            with ui.card().classes("w-full p-4"):
                 with ui.row().classes("w-full items-center gap-2"):
                     ui.badge("LEAF", color="green")
-                    ui.label(str(item["sheet_name"])).classes("font-bold")
+                    ui.label(str(item["sheet_name"])).classes("font-bold text-lg")
                     ui.space()
-                    ui.label(f"T{item['trace_count']}").classes("text-cyan-300 text-sm")
-                    ui.label(f"V{item['via_count']}").classes("text-amber-300 text-sm")
+                    ui.badge(f"{item['trace_count']} traces", color="cyan").classes(
+                        "text-xs"
+                    )
+                    ui.badge(f"{item['via_count']} vias", color="amber").classes(
+                        "text-xs"
+                    )
 
                 if item["instance_path"]:
                     ui.label(str(item["instance_path"])).classes(
@@ -319,29 +437,163 @@ def _leaf_gallery_panel(state) -> None:
                     )
 
                 ui.label(str(item["artifact_dir"])).classes(
-                    "text-xs text-gray-500 font-mono"
+                    "text-xs text-gray-500 font-mono mb-2"
                 )
 
-                if item["preview"] is not None:
-                    ui.image(str(item["preview"])).classes(
-                        "w-full max-h-[360px] object-contain rounded-lg border border-slate-700 bg-slate-950 mt-3"
-                    )
-                else:
-                    ui.label("No preview image found for this artifact").classes(
-                        "text-gray-500 italic mt-3"
-                    )
+                with ui.grid(columns=3).classes("w-full gap-3"):
+                    for label, preview in [
+                        ("Front (silkscreen + copper)", item["front_preview"]),
+                        ("Back (silkscreen + copper)", item["back_preview"]),
+                        ("Combined copper", item["copper_preview"]),
+                    ]:
+                        with ui.card().classes("w-full p-2 bg-slate-900"):
+                            ui.label(label).classes(
+                                "text-xs text-gray-300 font-medium mb-2"
+                            )
+                            if preview is not None:
+                                ui.image(str(preview)).classes(
+                                    "w-full h-[360px] object-contain rounded border border-slate-700 bg-slate-950 cursor-pointer"
+                                ).on(
+                                    "click",
+                                    lambda _, p=preview, preview_label=label, item=item: (
+                                        _open_preview_dialog(
+                                            f"{item['sheet_name']} — {preview_label}",
+                                            p,
+                                            str(
+                                                item["instance_path"]
+                                                or item["artifact_dir"]
+                                            ),
+                                        )
+                                    ),
+                                )
+                                ui.button(
+                                    "Open full resolution",
+                                    icon="open_in_full",
+                                    on_click=lambda p=preview, preview_label=label, item=item: (
+                                        _open_preview_dialog(
+                                            f"{item['sheet_name']} — {preview_label}",
+                                            p,
+                                            str(
+                                                item["instance_path"]
+                                                or item["artifact_dir"]
+                                            ),
+                                        )
+                                    ),
+                                ).props("flat dense").classes("mt-2 text-cyan-300")
+                            else:
+                                ui.label("Preview not available").classes(
+                                    "text-gray-500 italic text-sm"
+                                )
 
 
 def _parent_preview_panel(state) -> None:
     ui.label(
-        "Important caveat: the stamped parent KiCad board preserves routed child copper, "
-        "but the FreeRouting DSN view may not faithfully display all preloaded child routes "
-        "as already-routed geometry. Use the preloaded/stamped parent preview as the source "
-        "of truth for preserved child copper, and treat the FreeRouting window primarily as "
-        "the parent interconnect routing stage."
+        "The parent previews below now come from the single unified parent pipeline. "
+        "The stamped parent image is the source of truth for preserved routed child copper, "
+        "and the routed parent image shows the result after parent interconnect routing. "
+        "If the parent pipeline cannot produce valid geometry, it should fail explicitly "
+        "instead of silently continuing to routing."
     ).classes("text-sm text-amber-300 mb-4")
 
     preview_sets: list[dict[str, Any]] = []
+
+    def _open_preview_dialog(title: str, preview_path, subtitle: str = "") -> None:
+        with (
+            ui.dialog().props("maximized") as dialog,
+            ui.card().classes("w-full h-full bg-slate-950 text-white p-4"),
+        ):
+            with ui.row().classes("w-full items-center gap-3 mb-3"):
+                ui.label(title).classes("text-xl font-bold")
+                if subtitle:
+                    ui.label(subtitle).classes("text-sm text-gray-400 font-mono")
+                ui.space()
+                ui.button("Close", icon="close", on_click=dialog.close).props(
+                    "flat color=white"
+                )
+            with ui.column().classes("w-full h-full items-center justify-center"):
+                ui.image(str(preview_path)).classes(
+                    "w-full h-[88vh] object-contain rounded border border-slate-700 bg-slate-900"
+                )
+        dialog.open()
+
+    def _normalize_copper_accounting(payload: dict[str, Any]) -> dict[str, int]:
+        return {
+            "expected_preserved_child_trace_count": int(
+                payload.get("expected_preserved_child_trace_count", 0) or 0
+            ),
+            "expected_preserved_child_via_count": int(
+                payload.get("expected_preserved_child_via_count", 0) or 0
+            ),
+            "preserved_child_trace_count": int(
+                payload.get("preserved_child_trace_count", 0) or 0
+            ),
+            "preserved_child_via_count": int(
+                payload.get("preserved_child_via_count", 0) or 0
+            ),
+            "routed_total_trace_count": int(
+                payload.get("routed_total_trace_count", 0) or 0
+            ),
+            "routed_total_via_count": int(
+                payload.get("routed_total_via_count", 0) or 0
+            ),
+            "added_parent_trace_count": int(
+                payload.get("added_parent_trace_count", 0) or 0
+            ),
+            "added_parent_via_count": int(
+                payload.get("added_parent_via_count", 0) or 0
+            ),
+        }
+
+    def _extract_copper_accounting(payload: dict[str, Any]) -> dict[str, int]:
+        if not isinstance(payload, dict):
+            return {}
+
+        normalized = _normalize_copper_accounting(payload)
+        if any(normalized.values()):
+            return normalized
+
+        routing_result = payload.get("routing_result", {})
+        if isinstance(routing_result, dict):
+            copper = routing_result.get("copper_accounting", {})
+            if isinstance(copper, dict):
+                normalized = _normalize_copper_accounting(copper)
+                if any(normalized.values()):
+                    return normalized
+
+        hierarchy = payload.get("hierarchical_status", {})
+        if isinstance(hierarchy, dict):
+            copper = hierarchy.get("copper_accounting", {})
+            if isinstance(copper, dict):
+                normalized = _normalize_copper_accounting(copper)
+                if any(normalized.values()):
+                    return normalized
+
+        composition = payload.get("composition", {})
+        track_counts = payload.get("track_counts", {})
+        if isinstance(composition, dict) and isinstance(track_counts, dict):
+            preloaded = track_counts.get("preloaded", {})
+            final = track_counts.get("final", {})
+            if isinstance(preloaded, dict) and isinstance(final, dict):
+                expected_traces = int(composition.get("trace_count", 0) or 0)
+                expected_vias = int(composition.get("via_count", 0) or 0)
+                preloaded_traces = int(preloaded.get("traces", 0) or 0)
+                preloaded_vias = int(preloaded.get("vias", 0) or 0)
+                final_traces = int(final.get("traces", 0) or 0)
+                final_vias = int(final.get("vias", 0) or 0)
+                return {
+                    "expected_preserved_child_trace_count": expected_traces,
+                    "expected_preserved_child_via_count": expected_vias,
+                    "preserved_child_trace_count": min(
+                        expected_traces, preloaded_traces
+                    ),
+                    "preserved_child_via_count": min(expected_vias, preloaded_vias),
+                    "routed_total_trace_count": final_traces,
+                    "routed_total_via_count": final_vias,
+                    "added_parent_trace_count": max(0, final_traces - preloaded_traces),
+                    "added_parent_via_count": max(0, final_vias - preloaded_vias),
+                }
+
+        return {}
 
     def _add_preview_set(base_dir, label: str) -> None:
         if not base_dir.exists():
@@ -353,8 +605,12 @@ def _parent_preview_panel(state) -> None:
 
         for candidate in [
             base_dir / "parent_preloaded.png",
+            base_dir / "preloaded_png.png",
             base_dir / "preloaded.png",
+            base_dir / "board_preloaded.png",
+            base_dir / "parent_stamped.png",
             base_dir / "board.png",
+            base_dir / "snapshot.png",
         ]:
             if candidate.exists():
                 preloaded = candidate
@@ -362,8 +618,10 @@ def _parent_preview_panel(state) -> None:
 
         for candidate in [
             base_dir / "parent_freerouted.png",
+            base_dir / "routed_png.png",
             base_dir / "parent_routed.png",
             base_dir / "routed.png",
+            base_dir / "board_routed.png",
         ]:
             if candidate.exists():
                 routed = candidate
@@ -371,6 +629,9 @@ def _parent_preview_panel(state) -> None:
 
         for candidate in [
             base_dir / "demo_metadata.json",
+            base_dir / "debug.json",
+            base_dir / "metadata.json",
+            base_dir / "summary.json",
             base_dir / "parent_composition.json",
         ]:
             if candidate.exists():
@@ -380,6 +641,19 @@ def _parent_preview_panel(state) -> None:
         if preloaded is None and routed is None and metadata is None:
             return
 
+        metadata_payload: dict[str, Any] = {}
+        copper_accounting: dict[str, int] = {}
+        if metadata is not None:
+            try:
+                with open(metadata, encoding="utf-8") as f:
+                    loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    metadata_payload = loaded
+                    copper_accounting = _extract_copper_accounting(loaded)
+            except (OSError, json.JSONDecodeError):
+                metadata_payload = {}
+                copper_accounting = {}
+
         preview_sets.append(
             {
                 "label": label,
@@ -387,13 +661,11 @@ def _parent_preview_panel(state) -> None:
                 "preloaded": preloaded,
                 "routed": routed,
                 "metadata": metadata,
+                "metadata_payload": metadata_payload,
+                "copper_accounting": copper_accounting,
             }
         )
 
-    _add_preview_set(
-        state.experiments_dir / "hierarchical_freerouting_demo",
-        "Hierarchical FreeRouting Demo",
-    )
     _add_preview_set(
         state.experiments_dir / "hierarchical_parent_smoke",
         "Parent Smoke Test",
@@ -401,7 +673,7 @@ def _parent_preview_panel(state) -> None:
 
     auto_root = state.experiments_dir / "hierarchical_autoexperiment"
     if auto_root.exists():
-        for round_dir in sorted(auto_root.glob("round_*")):
+        for round_dir in sorted(auto_root.glob("round_*"), reverse=True):
             visible_dir = round_dir / "visible_parent"
             if visible_dir.exists():
                 _add_preview_set(visible_dir, f"Autoexperiment {round_dir.name}")
@@ -414,34 +686,125 @@ def _parent_preview_panel(state) -> None:
 
     with ui.column().classes("w-full gap-6"):
         for item in preview_sets:
+            copper = item["copper_accounting"]
             with ui.card().classes("w-full p-4"):
-                ui.label(str(item["label"])).classes("text-lg font-bold mb-2")
+                ui.label(str(item["label"])).classes("text-lg font-bold mb-1")
                 ui.label(str(item["base_dir"])).classes(
                     "text-xs text-gray-500 font-mono mb-3"
                 )
+                ui.label(
+                    "Compare the stamped parent against the routed parent from the unified "
+                    "parent pipeline. The stamped image is the best visual proof that routed "
+                    "child copper survived composition. The routed/final image is mainly for "
+                    "checking what parent interconnect was added afterward."
+                ).classes("text-sm text-gray-300 mb-4")
 
-                with ui.row().classes("w-full gap-4 items-start"):
-                    with ui.column().classes("flex-1"):
-                        ui.label("Preloaded / stamped parent").classes(
-                            "text-sm font-bold text-gray-300 mb-2"
+                if copper:
+                    with ui.row().classes("w-full gap-2 mb-4 flex-wrap"):
+                        ui.badge(
+                            "Preserved child copper",
+                            color="green",
                         )
+                        ui.badge(
+                            f"traces {copper.get('preserved_child_trace_count', 0)}/"
+                            f"{copper.get('expected_preserved_child_trace_count', 0)}",
+                            color="cyan",
+                        )
+                        ui.badge(
+                            f"vias {copper.get('preserved_child_via_count', 0)}/"
+                            f"{copper.get('expected_preserved_child_via_count', 0)}",
+                            color="amber",
+                        )
+                        ui.badge(
+                            f"added parent traces {copper.get('added_parent_trace_count', 0)}",
+                            color="blue",
+                        )
+                        ui.badge(
+                            f"added parent vias {copper.get('added_parent_via_count', 0)}",
+                            color="purple",
+                        )
+                        ui.badge(
+                            f"final traces {copper.get('routed_total_trace_count', 0)}",
+                            color="teal",
+                        )
+                        ui.badge(
+                            f"final vias {copper.get('routed_total_via_count', 0)}",
+                            color="orange",
+                        )
+
+                with ui.grid(columns=2).classes("w-full gap-4"):
+                    with ui.card().classes("w-full p-3 bg-slate-900"):
+                        ui.label("Stamped parent").classes(
+                            "text-sm font-bold text-gray-200 mb-2"
+                        )
+                        ui.label(
+                            "Use this first when you want to verify preserved child copper, "
+                            "module spacing, and the truth of the composed parent before parent "
+                            "routing adds anything new. This image is generated by the same "
+                            "single parent pipeline that performs stamping and routing."
+                        ).classes("text-xs text-gray-400 mb-3")
                         if item["preloaded"] is not None:
                             ui.image(str(item["preloaded"])).classes(
-                                "w-full max-h-[420px] object-contain rounded-lg border border-slate-700 bg-slate-950"
+                                "w-full h-[520px] object-contain rounded border border-slate-700 bg-slate-950 cursor-pointer"
+                            ).on(
+                                "click",
+                                lambda _, p=item["preloaded"], label=item["label"]: (
+                                    _open_preview_dialog(
+                                        f"{label} — Stamped parent",
+                                        p,
+                                        str(item["base_dir"]),
+                                    )
+                                ),
                             )
+                            ui.button(
+                                "Open full resolution",
+                                icon="open_in_full",
+                                on_click=lambda p=item["preloaded"], label=item["label"]: (
+                                    _open_preview_dialog(
+                                        f"{label} — Stamped parent",
+                                        p,
+                                        str(item["base_dir"]),
+                                    )
+                                ),
+                            ).props("flat dense").classes("mt-2 text-cyan-300")
                         else:
                             ui.label("No preloaded preview found").classes(
                                 "text-gray-500 italic"
                             )
 
-                    with ui.column().classes("flex-1"):
-                        ui.label("Routed / final parent").classes(
-                            "text-sm font-bold text-gray-300 mb-2"
+                    with ui.card().classes("w-full p-3 bg-slate-900"):
+                        ui.label("Routed parent").classes(
+                            "text-sm font-bold text-gray-200 mb-2"
                         )
+                        ui.label(
+                            "Use this to inspect newly added parent interconnect. If child copper "
+                            "looks visually understated here, compare against the stamped view "
+                            "and the copper-accounting badges above."
+                        ).classes("text-xs text-gray-400 mb-3")
                         if item["routed"] is not None:
                             ui.image(str(item["routed"])).classes(
-                                "w-full max-h-[420px] object-contain rounded-lg border border-slate-700 bg-slate-950"
+                                "w-full h-[520px] object-contain rounded border border-slate-700 bg-slate-950 cursor-pointer"
+                            ).on(
+                                "click",
+                                lambda _, p=item["routed"], label=item["label"]: (
+                                    _open_preview_dialog(
+                                        f"{label} — Routed parent",
+                                        p,
+                                        str(item["base_dir"]),
+                                    )
+                                ),
                             )
+                            ui.button(
+                                "Open full resolution",
+                                icon="open_in_full",
+                                on_click=lambda p=item["routed"], label=item["label"]: (
+                                    _open_preview_dialog(
+                                        f"{label} — Routed parent",
+                                        p,
+                                        str(item["base_dir"]),
+                                    )
+                                ),
+                            ).props("flat dense").classes("mt-2 text-cyan-300")
                         else:
                             ui.label("No routed preview found").classes(
                                 "text-gray-500 italic"
@@ -450,12 +813,11 @@ def _parent_preview_panel(state) -> None:
                 if item["metadata"] is not None:
                     with ui.expansion("Metadata", value=False).classes("w-full mt-4"):
                         try:
-                            with open(item["metadata"], encoding="utf-8") as f:
-                                payload = json.load(f)
+                            payload = item["metadata_payload"]
                             ui.code(json.dumps(payload, indent=2)).classes(
                                 "w-full text-xs"
                             )
-                        except (OSError, json.JSONDecodeError):
+                        except (OSError, json.JSONDecodeError, TypeError):
                             ui.label("Could not load metadata").classes(
                                 "text-red-400 text-sm"
                             )

@@ -34,6 +34,7 @@ import argparse
 import json
 import math
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -117,6 +118,16 @@ class ParentCompositionState:
     inferred_interconnect_net_count: int = 0
     routed_interconnect_net_count: int = 0
     failed_interconnect_net_count: int = 0
+    preserved_child_trace_count: int = 0
+    preserved_child_via_count: int = 0
+    expected_preserved_child_trace_count: int = 0
+    expected_preserved_child_via_count: int = 0
+    routed_total_trace_count: int = 0
+    routed_total_via_count: int = 0
+    added_parent_trace_count: int = 0
+    added_parent_via_count: int = 0
+    packing_metadata: dict[str, Any] = field(default_factory=dict)
+    geometry_validation: dict[str, Any] = field(default_factory=dict)
     score_total: float = 0.0
     score_breakdown: dict[str, float] = field(default_factory=dict)
     score_notes: list[str] = field(default_factory=list)
@@ -149,6 +160,16 @@ class ParentCompositionState:
             "inferred_interconnect_net_count": self.inferred_interconnect_net_count,
             "routed_interconnect_net_count": self.routed_interconnect_net_count,
             "failed_interconnect_net_count": self.failed_interconnect_net_count,
+            "preserved_child_trace_count": self.preserved_child_trace_count,
+            "preserved_child_via_count": self.preserved_child_via_count,
+            "expected_preserved_child_trace_count": self.expected_preserved_child_trace_count,
+            "expected_preserved_child_via_count": self.expected_preserved_child_via_count,
+            "routed_total_trace_count": self.routed_total_trace_count,
+            "routed_total_via_count": self.routed_total_via_count,
+            "added_parent_trace_count": self.added_parent_trace_count,
+            "added_parent_via_count": self.added_parent_via_count,
+            "packing_metadata": dict(self.packing_metadata),
+            "geometry_validation": dict(self.geometry_validation),
             "score_total": self.score_total,
             "score_breakdown": dict(self.score_breakdown),
             "score_notes": list(self.score_notes),
@@ -281,92 +302,73 @@ def _compose_artifacts(
     entries: list[CompositionEntry] = []
     transformed_payloads: list[dict[str, Any]] = []
     child_artifact_placements: list[ChildArtifactPlacement] = []
+    packing_metadata: dict[str, Any] = {}
+
+    def _append_entry(index: int, artifact, origin: Point) -> None:
+        rotation = (index * rotation_step_deg) % 360.0
+        transformed = transform_loaded_artifact(
+            artifact,
+            origin=origin,
+            rotation=rotation,
+        )
+
+        entry = CompositionEntry(
+            artifact_dir=artifact.artifact_dir,
+            sheet_name=artifact.sheet_name,
+            instance_path=artifact.instance_path,
+            origin=origin,
+            rotation=rotation,
+            transformed_bbox=transformed.instance.transformed_bbox,
+            component_count=len(transformed.transformed_components),
+            trace_count=len(transformed.transformed_traces),
+            via_count=len(transformed.transformed_vias),
+            anchor_count=len(transformed.transformed_anchors),
+        )
+        entries.append(entry)
+        child_artifact_placements.append(
+            ChildArtifactPlacement(
+                artifact=artifact,
+                origin=origin,
+                rotation=rotation,
+            )
+        )
+        transformed_payloads.append(
+            {
+                "artifact": artifact_debug_dict(artifact),
+                "transformed": transformed_debug_dict(transformed),
+                "summary": transformed_summary(transformed),
+            }
+        )
 
     if mode == "row":
         cursor_x = 0.0
         cursor_y = 0.0
 
         for index, artifact in enumerate(loaded_artifacts):
-            rotation = (index * rotation_step_deg) % 360.0
             origin = Point(cursor_x, cursor_y)
-            transformed = transform_loaded_artifact(
-                artifact,
-                origin=origin,
-                rotation=rotation,
-            )
+            _append_entry(index, artifact, origin)
+            cursor_x += entries[-1].transformed_bbox[0] + spacing_mm
 
-            entry = CompositionEntry(
-                artifact_dir=artifact.artifact_dir,
-                sheet_name=artifact.sheet_name,
-                instance_path=artifact.instance_path,
-                origin=origin,
-                rotation=rotation,
-                transformed_bbox=transformed.instance.transformed_bbox,
-                component_count=len(transformed.transformed_components),
-                trace_count=len(transformed.transformed_traces),
-                via_count=len(transformed.transformed_vias),
-                anchor_count=len(transformed.transformed_anchors),
-            )
-            entries.append(entry)
-            child_artifact_placements.append(
-                ChildArtifactPlacement(
-                    artifact=artifact,
-                    origin=origin,
-                    rotation=rotation,
-                )
-            )
-            transformed_payloads.append(
-                {
-                    "artifact": artifact_debug_dict(artifact),
-                    "transformed": transformed_debug_dict(transformed),
-                    "summary": transformed_summary(transformed),
-                }
-            )
-
-            cursor_x += transformed.instance.transformed_bbox[0] + spacing_mm
+        packing_metadata = {
+            "strategy": "row",
+            "row_count": 1 if entries else 0,
+            "sort_key": "input_order",
+        }
 
     elif mode == "column":
         cursor_x = 0.0
         cursor_y = 0.0
 
         for index, artifact in enumerate(loaded_artifacts):
-            rotation = (index * rotation_step_deg) % 360.0
             origin = Point(cursor_x, cursor_y)
-            transformed = transform_loaded_artifact(
-                artifact,
-                origin=origin,
-                rotation=rotation,
-            )
+            _append_entry(index, artifact, origin)
+            cursor_y += entries[-1].transformed_bbox[1] + spacing_mm
 
-            entry = CompositionEntry(
-                artifact_dir=artifact.artifact_dir,
-                sheet_name=artifact.sheet_name,
-                instance_path=artifact.instance_path,
-                origin=origin,
-                rotation=rotation,
-                transformed_bbox=transformed.instance.transformed_bbox,
-                component_count=len(transformed.transformed_components),
-                trace_count=len(transformed.transformed_traces),
-                via_count=len(transformed.transformed_vias),
-                anchor_count=len(transformed.transformed_anchors),
-            )
-            entries.append(entry)
-            child_artifact_placements.append(
-                ChildArtifactPlacement(
-                    artifact=artifact,
-                    origin=origin,
-                    rotation=rotation,
-                )
-            )
-            transformed_payloads.append(
-                {
-                    "artifact": artifact_debug_dict(artifact),
-                    "transformed": transformed_debug_dict(transformed),
-                    "summary": transformed_summary(transformed),
-                }
-            )
-
-            cursor_y += transformed.instance.transformed_bbox[1] + spacing_mm
+        packing_metadata = {
+            "strategy": "column",
+            "column_count": 1 if entries else 0,
+            "sort_key": "input_order",
+        }
 
     elif mode == "grid":
         count = len(loaded_artifacts)
@@ -384,41 +386,95 @@ def _compose_artifacts(
         for index, artifact in enumerate(loaded_artifacts):
             row = index // cols
             col = index % cols
-            rotation = (index * rotation_step_deg) % 360.0
             origin = Point(col * cell_w, row * cell_h)
-            transformed = transform_loaded_artifact(
-                artifact,
-                origin=origin,
-                rotation=rotation,
-            )
+            _append_entry(index, artifact, origin)
 
-            entry = CompositionEntry(
-                artifact_dir=artifact.artifact_dir,
-                sheet_name=artifact.sheet_name,
-                instance_path=artifact.instance_path,
-                origin=origin,
-                rotation=rotation,
-                transformed_bbox=transformed.instance.transformed_bbox,
-                component_count=len(transformed.transformed_components),
-                trace_count=len(transformed.transformed_traces),
-                via_count=len(transformed.transformed_vias),
-                anchor_count=len(transformed.transformed_anchors),
+        packing_metadata = {
+            "strategy": "grid",
+            "grid_columns": cols,
+            "grid_rows": math.ceil(count / cols) if count else 0,
+            "cell_width_mm": cell_w,
+            "cell_height_mm": cell_h,
+            "max_child_width_mm": max_width,
+            "max_child_height_mm": max_height,
+            "sort_key": "input_order",
+        }
+
+    elif mode == "packed":
+        indexed_artifacts = list(enumerate(loaded_artifacts))
+        indexed_artifacts.sort(
+            key=lambda item: (
+                -(item[1].layout.width * item[1].layout.height),
+                -item[1].layout.width,
+                -item[1].layout.height,
+                item[0],
             )
-            entries.append(entry)
-            child_artifact_placements.append(
-                ChildArtifactPlacement(
-                    artifact=artifact,
-                    origin=origin,
-                    rotation=rotation,
-                )
+        )
+
+        total_area = sum(
+            max(0.0, artifact.layout.width) * max(0.0, artifact.layout.height)
+            for _, artifact in indexed_artifacts
+        )
+        max_child_width = max(
+            (max(0.0, artifact.layout.width) for _, artifact in indexed_artifacts),
+            default=0.0,
+        )
+        target_row_width = max(
+            max_child_width,
+            math.sqrt(total_area) * 1.35 if total_area > 0.0 else max_child_width,
+        )
+
+        row_count = 0
+        row_y = 0.0
+        row_x = 0.0
+        row_height = 0.0
+        row_widths: list[float] = []
+        row_heights: list[float] = []
+        row_item_counts: list[int] = []
+        current_row_items = 0
+
+        for sorted_pos, (original_index, artifact) in enumerate(indexed_artifacts):
+            width = max(0.0, artifact.layout.width)
+
+            should_wrap = (
+                current_row_items > 0
+                and row_x > 0.0
+                and (row_x + width) > target_row_width
             )
-            transformed_payloads.append(
-                {
-                    "artifact": artifact_debug_dict(artifact),
-                    "transformed": transformed_debug_dict(transformed),
-                    "summary": transformed_summary(transformed),
-                }
-            )
+            if should_wrap:
+                row_widths.append(max(0.0, row_x - spacing_mm))
+                row_heights.append(row_height)
+                row_item_counts.append(current_row_items)
+                row_count += 1
+                row_y += row_height + spacing_mm
+                row_x = 0.0
+                row_height = 0.0
+                current_row_items = 0
+
+            origin = Point(row_x, row_y)
+            _append_entry(original_index, artifact, origin)
+
+            row_x += entries[-1].transformed_bbox[0] + spacing_mm
+            row_height = max(row_height, entries[-1].transformed_bbox[1])
+            current_row_items += 1
+
+        if current_row_items > 0:
+            row_widths.append(max(0.0, row_x - spacing_mm))
+            row_heights.append(row_height)
+            row_item_counts.append(current_row_items)
+            row_count += 1
+
+        packing_metadata = {
+            "strategy": "packed_rows",
+            "sort_key": "area_desc_width_desc_height_desc",
+            "target_row_width_mm": target_row_width,
+            "estimated_total_child_area_mm2": total_area,
+            "max_child_width_mm": max_child_width,
+            "row_count": row_count,
+            "row_widths_mm": row_widths,
+            "row_heights_mm": row_heights,
+            "row_item_counts": row_item_counts,
+        }
 
     else:
         raise ValueError(f"Unsupported composition mode: {mode}")
@@ -468,6 +524,16 @@ def _compose_artifacts(
         inferred_interconnect_net_count=len(composition.inferred_interconnect_nets),
         routed_interconnect_net_count=len(composition.routed_interconnect_nets),
         failed_interconnect_net_count=len(composition.failed_interconnect_nets),
+        preserved_child_trace_count=composition.trace_count,
+        preserved_child_via_count=composition.via_count,
+        expected_preserved_child_trace_count=composition.trace_count,
+        expected_preserved_child_via_count=composition.via_count,
+        routed_total_trace_count=composition.trace_count,
+        routed_total_via_count=composition.via_count,
+        added_parent_trace_count=0,
+        added_parent_via_count=0,
+        packing_metadata=packing_metadata,
+        geometry_validation={},
         score_total=composition.score.total if composition.score else 0.0,
         score_breakdown=dict(composition.score.breakdown) if composition.score else {},
         score_notes=list(composition.score.notes) if composition.score else [],
@@ -539,6 +605,8 @@ def _save_composition_snapshot(
             },
             "notes": list(state.composition_notes),
             "board_outline": state.to_dict()["bounding_box"],
+            "packing_metadata": dict(state.packing_metadata),
+            "geometry_validation": dict(state.geometry_validation),
         },
     }
     payload = {
@@ -652,10 +720,147 @@ def _json_payload(
     }
 
 
+# ---------------------------------------------------------------------------
+# Parent board stamping, routing, validation, rendering, and artifact persistence
+# ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# Parent board stamping, routing, and artifact persistence
-# ---------------------------------------------------------------------------
+
+def _validate_parent_geometry(
+    state: ParentCompositionState,
+) -> dict[str, Any]:
+    """Validate that composed parent geometry fits inside the derived outline."""
+    composition = state.composition
+    if composition is None:
+        raise RuntimeError("ParentCompositionState has no composition object")
+
+    outline = composition.board_state.board_outline
+    if not outline or len(outline) < 2:
+        raise RuntimeError("Parent composition has no valid board outline")
+
+    tl, br = outline
+    if br.x <= tl.x or br.y <= tl.y:
+        raise RuntimeError(
+            "Parent composition produced a degenerate board outline "
+            f"({tl.x:.3f}, {tl.y:.3f}) -> ({br.x:.3f}, {br.y:.3f})"
+        )
+
+    margin = 0.05
+    min_x = tl.x - margin
+    min_y = tl.y - margin
+    max_x = br.x + margin
+    max_y = br.y + margin
+
+    outside_components: list[dict[str, Any]] = []
+    outside_pads = 0
+    outside_traces = 0
+    outside_vias = 0
+
+    for ref, comp in (composition.board_state.components or {}).items():
+        bbox_tl, bbox_br = comp.bbox()
+        component_outside = (
+            bbox_tl.x < min_x
+            or bbox_tl.y < min_y
+            or bbox_br.x > max_x
+            or bbox_br.y > max_y
+        )
+        pad_outside_count = 0
+        for pad in comp.pads:
+            if (
+                pad.pos.x < min_x
+                or pad.pos.x > max_x
+                or pad.pos.y < min_y
+                or pad.pos.y > max_y
+            ):
+                pad_outside_count += 1
+                outside_pads += 1
+        if component_outside or pad_outside_count > 0:
+            outside_components.append(
+                {
+                    "ref": ref,
+                    "bbox": {
+                        "top_left": {"x": bbox_tl.x, "y": bbox_tl.y},
+                        "bottom_right": {"x": bbox_br.x, "y": bbox_br.y},
+                    },
+                    "outside_body": component_outside,
+                    "outside_pad_count": pad_outside_count,
+                }
+            )
+
+    for trace in composition.board_state.traces or []:
+        if (
+            trace.start.x < min_x
+            or trace.start.x > max_x
+            or trace.start.y < min_y
+            or trace.start.y > max_y
+            or trace.end.x < min_x
+            or trace.end.x > max_x
+            or trace.end.y < min_y
+            or trace.end.y > max_y
+        ):
+            outside_traces += 1
+
+    for via in composition.board_state.vias or []:
+        if (
+            via.pos.x < min_x
+            or via.pos.x > max_x
+            or via.pos.y < min_y
+            or via.pos.y > max_y
+        ):
+            outside_vias += 1
+
+    validation = {
+        "accepted": not outside_components
+        and outside_traces == 0
+        and outside_vias == 0,
+        "board_outline": {
+            "top_left": {"x": tl.x, "y": tl.y},
+            "bottom_right": {"x": br.x, "y": br.y},
+            "width_mm": max(0.0, br.x - tl.x),
+            "height_mm": max(0.0, br.y - tl.y),
+        },
+        "outside_component_count": len(outside_components),
+        "outside_components": outside_components[:50],
+        "outside_pad_count": outside_pads,
+        "outside_trace_count": outside_traces,
+        "outside_via_count": outside_vias,
+    }
+    state.geometry_validation = validation
+    return validation
+
+
+def _render_parent_board_views(
+    pcb_path: Path,
+    output_dir: Path,
+) -> dict[str, str]:
+    """Render standard parent board preview images."""
+    script_dir = Path(__file__).resolve().parent
+    render_script = script_dir / "render_pcb.py"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    cmd = [
+        sys.executable,
+        str(render_script),
+        str(pcb_path),
+        "--output-dir",
+        str(output_dir),
+        "--views",
+        "front_all",
+        "back_all",
+        "copper_both",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Parent render failed for "
+            f"{pcb_path}: {result.stderr.strip() or result.stdout.strip()}"
+        )
+
+    rendered = {
+        "front_all": str(output_dir / "front_all.png"),
+        "back_all": str(output_dir / "back_all.png"),
+        "copper_both": str(output_dir / "copper_both.png"),
+    }
+    return {name: path for name, path in rendered.items() if Path(path).exists()}
 
 
 def _stamp_parent_board(
@@ -700,35 +905,41 @@ def _stamp_parent_board(
     board_state = composition.board_state
     components_json = []
     for ref, comp in (board_state.components or {}).items():
-        components_json.append({
-            "ref": ref,
-            "x": comp.pos.x,
-            "y": comp.pos.y,
-            "rotation": comp.rotation,
-            "layer": 0 if comp.layer == Layer.FRONT else 1,
-        })
+        components_json.append(
+            {
+                "ref": ref,
+                "x": comp.pos.x,
+                "y": comp.pos.y,
+                "rotation": comp.rotation,
+                "layer": 0 if comp.layer == Layer.FRONT else 1,
+            }
+        )
 
     traces_json = []
-    for trace in (board_state.traces or []):
-        traces_json.append({
-            "start_x": trace.start.x,
-            "start_y": trace.start.y,
-            "end_x": trace.end.x,
-            "end_y": trace.end.y,
-            "width": trace.width_mm,
-            "layer": "F.Cu" if trace.layer == Layer.FRONT else "B.Cu",
-            "net_name": trace.net or "",
-        })
+    for trace in board_state.traces or []:
+        traces_json.append(
+            {
+                "start_x": trace.start.x,
+                "start_y": trace.start.y,
+                "end_x": trace.end.x,
+                "end_y": trace.end.y,
+                "width": trace.width_mm,
+                "layer": "F.Cu" if trace.layer == Layer.FRONT else "B.Cu",
+                "net_name": trace.net or "",
+            }
+        )
 
     vias_json = []
-    for via in (board_state.vias or []):
-        vias_json.append({
-            "x": via.pos.x,
-            "y": via.pos.y,
-            "size": via.size_mm,
-            "drill": via.drill_mm,
-            "net_name": via.net or "",
-        })
+    for via in board_state.vias or []:
+        vias_json.append(
+            {
+                "x": via.pos.x,
+                "y": via.pos.y,
+                "size": via.size_mm,
+                "drill": via.drill_mm,
+                "net_name": via.net or "",
+            }
+        )
 
     # Compute the board outline from the composition
     outline = board_state.board_outline
@@ -740,6 +951,16 @@ def _stamp_parent_board(
             "br_x": outline[1].x,
             "br_y": outline[1].y,
         }
+
+    geometry_validation = _validate_parent_geometry(state)
+    if not geometry_validation.get("accepted", False):
+        raise RuntimeError(
+            "Parent composition geometry is invalid before stamping: "
+            f"outside_components={geometry_validation.get('outside_component_count', 0)} "
+            f"outside_pads={geometry_validation.get('outside_pad_count', 0)} "
+            f"outside_traces={geometry_validation.get('outside_trace_count', 0)} "
+            f"outside_vias={geometry_validation.get('outside_via_count', 0)}"
+        )
 
     payload = {
         "pcb_path": str(output_pcb),
@@ -948,9 +1169,7 @@ def _route_parent_board(
     copper = import_routed_copper(str(routed_pcb))
 
     # Collect interconnect net names for validation
-    interconnect_net_names = sorted(
-        composition.inferred_interconnect_nets.keys()
-    )
+    interconnect_net_names = sorted(composition.inferred_interconnect_nets.keys())
 
     validation = validate_routed_board(
         str(routed_pcb),
@@ -1022,12 +1241,42 @@ def _persist_parent_artifact(
     )
 
     # Build notes for the artifact
+    expected_child_trace_count = int(state.trace_count)
+    expected_child_via_count = int(state.via_count)
+    routed_total_trace_count = len(all_traces)
+    routed_total_via_count = len(all_vias)
+    preserved_child_trace_count = min(
+        expected_child_trace_count, routed_total_trace_count
+    )
+    preserved_child_via_count = min(expected_child_via_count, routed_total_via_count)
+    added_parent_trace_count = max(
+        0, routed_total_trace_count - preserved_child_trace_count
+    )
+    added_parent_via_count = max(0, routed_total_via_count - preserved_child_via_count)
+
+    state.expected_preserved_child_trace_count = expected_child_trace_count
+    state.expected_preserved_child_via_count = expected_child_via_count
+    state.preserved_child_trace_count = preserved_child_trace_count
+    state.preserved_child_via_count = preserved_child_via_count
+    state.routed_total_trace_count = routed_total_trace_count
+    state.routed_total_via_count = routed_total_via_count
+    state.added_parent_trace_count = added_parent_trace_count
+    state.added_parent_via_count = added_parent_via_count
+
     notes = [
         "parent_composition=true",
         f"child_count={len(state.entries)}",
         f"mode={state.mode}",
         f"interconnect_nets={state.interconnect_net_count}",
         f"inferred_interconnects={state.inferred_interconnect_net_count}",
+        f"expected_child_traces={expected_child_trace_count}",
+        f"expected_child_vias={expected_child_via_count}",
+        f"preserved_child_traces={preserved_child_trace_count}",
+        f"preserved_child_vias={preserved_child_via_count}",
+        f"routed_total_traces={routed_total_trace_count}",
+        f"routed_total_vias={routed_total_via_count}",
+        f"added_parent_traces={added_parent_trace_count}",
+        f"added_parent_vias={added_parent_via_count}",
     ]
     validation = routing_result.get("validation", {})
     if validation:
@@ -1064,6 +1313,14 @@ def _persist_parent_artifact(
         "via_count": len(all_vias),
         "interconnect_net_count": state.interconnect_net_count,
         "inferred_interconnect_net_count": state.inferred_interconnect_net_count,
+        "preserved_child_trace_count": state.preserved_child_trace_count,
+        "preserved_child_via_count": state.preserved_child_via_count,
+        "expected_preserved_child_trace_count": state.expected_preserved_child_trace_count,
+        "expected_preserved_child_via_count": state.expected_preserved_child_via_count,
+        "routed_total_trace_count": state.routed_total_trace_count,
+        "routed_total_via_count": state.routed_total_via_count,
+        "added_parent_trace_count": state.added_parent_trace_count,
+        "added_parent_via_count": state.added_parent_via_count,
         "score_total": state.score_total,
         "validation": validation,
         "notes": notes,
@@ -1078,13 +1335,51 @@ def _persist_parent_artifact(
     debug_payload = {
         "schema_version": "parent-compose-v1",
         "parent_composition": True,
+        "geometry_validation": dict(state.geometry_validation),
         "routing_result": {
             "routed_board_path": routing_result.get("routed_board_path", ""),
             "trace_count": len(all_traces),
             "via_count": len(all_vias),
             "freerouting_stats": routing_result.get("freerouting_stats", {}),
+            "copper_accounting": {
+                "expected_preserved_child_trace_count": state.expected_preserved_child_trace_count,
+                "expected_preserved_child_via_count": state.expected_preserved_child_via_count,
+                "preserved_child_trace_count": state.preserved_child_trace_count,
+                "preserved_child_via_count": state.preserved_child_via_count,
+                "routed_total_trace_count": state.routed_total_trace_count,
+                "routed_total_via_count": state.routed_total_via_count,
+                "added_parent_trace_count": state.added_parent_trace_count,
+                "added_parent_via_count": state.added_parent_via_count,
+            },
         },
         "validation": validation,
+        "hierarchical_status": {
+            "current_parent": state.parent_sheet_name,
+            "current_node": state.parent_instance_path,
+            "top_level_status": "accepted"
+            if validation.get("accepted")
+            else "rejected",
+            "composition_status": "routed"
+            if not routing_result.get("failed")
+            else "failed",
+            "leaf_workers": {
+                "total": 0,
+                "active": 0,
+                "idle": 0,
+                "queued": 0,
+                "completed": len(state.entries),
+            },
+            "copper_accounting": {
+                "expected_preserved_child_trace_count": state.expected_preserved_child_trace_count,
+                "expected_preserved_child_via_count": state.expected_preserved_child_via_count,
+                "preserved_child_trace_count": state.preserved_child_trace_count,
+                "preserved_child_via_count": state.preserved_child_via_count,
+                "routed_total_trace_count": state.routed_total_trace_count,
+                "routed_total_via_count": state.routed_total_via_count,
+                "added_parent_trace_count": state.added_parent_trace_count,
+                "added_parent_via_count": state.added_parent_via_count,
+            },
+        },
         "composition_state": state.to_dict(),
     }
     debug_path = artifact_dir / "debug.json"
@@ -1094,7 +1389,6 @@ def _persist_parent_artifact(
     )
 
     return str(artifact_dir)
-
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -1119,7 +1413,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--mode",
-        choices=("row", "column", "grid"),
+        choices=("row", "column", "grid", "packed"),
         default="row",
         help="Initial rigid composition mode (default: row)",
     )
@@ -1277,15 +1571,61 @@ def main(argv: list[str] | None = None) -> int:
                 cfg.update(load_project_config(str(proj_cfg_path)))
 
         try:
+            geometry_validation = _validate_parent_geometry(state)
+            if not geometry_validation.get("accepted", False):
+                print(
+                    json.dumps(
+                        {
+                            "parent_geometry_validation_failed": True,
+                            "geometry_validation": geometry_validation,
+                        },
+                        indent=2,
+                    ),
+                    file=sys.stderr,
+                )
+                print(
+                    "error: parent composition geometry validation failed before stamping",
+                    file=sys.stderr,
+                )
+                return 1
+
             # Stamp
             stamped_pcb = _stamp_parent_board(state, pcb_path, project_dir, cfg)
             print(f"parent_stamped_pcb : {stamped_pcb}")
+
+            stamped_render_dir = stamped_pcb.parent / "renders"
+            stamped_renders = _render_parent_board_views(
+                stamped_pcb,
+                stamped_render_dir / ".tmp_parent_stamped_views",
+            )
+            if stamped_renders.get("front_all"):
+                shutil.copy2(
+                    stamped_renders["front_all"],
+                    stamped_render_dir / "parent_stamped.png",
+                )
+                print(
+                    f"parent_stamped_png : {stamped_render_dir / 'parent_stamped.png'}"
+                )
 
             if args.route:
                 routing_result = _route_parent_board(
                     stamped_pcb, state, project_dir, cfg
                 )
                 if not routing_result.get("failed"):
+                    routed_board_path = Path(routing_result["routed_board_path"])
+                    routed_renders = _render_parent_board_views(
+                        routed_board_path,
+                        stamped_render_dir / ".tmp_parent_routed_views",
+                    )
+                    if routed_renders.get("front_all"):
+                        shutil.copy2(
+                            routed_renders["front_all"],
+                            stamped_render_dir / "parent_routed.png",
+                        )
+                        print(
+                            f"parent_routed_png  : {stamped_render_dir / 'parent_routed.png'}"
+                        )
+
                     artifact_dir = _persist_parent_artifact(
                         state, routing_result, project_dir, cfg
                     )
