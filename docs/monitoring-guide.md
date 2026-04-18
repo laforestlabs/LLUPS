@@ -13,14 +13,14 @@ How to watch your layout evolve during an optimization run, and how to analyze r
 Open two terminals. In the first, start an experiment:
 
 ```bash
-python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --rounds 100
+autoexperiment LLUPS.kicad_pcb --rounds 100
 ```
 
 In the second, pick one of these to watch progress:
 
 | Method | Command | What you see |
 |--------|---------|-------------|
-| **Web dashboard** | `python3 .claude/skills/kicad-helper/scripts/dashboard_app.py --port 5000` then open `http://localhost:5000` | Live score chart, round table, log viewer, start/stop controls |
+| **Web dashboard** | `dashboard-app --port 5000` then open `http://localhost:5000` | Live score chart, round table, log viewer, start/stop controls |
 | **Terminal status** | `watch -n2 cat .experiments/run_status.txt` | One-line summary: round, best score, ETA, kept count |
 | **Live HTML report** | `xdg-open report.html` | Rebuilt after each round and auto-refreshes while the run is active |
 | **Watch frames** | `ls -lt .experiments/frames/ \| head` | PNG snapshots appearing as each round completes |
@@ -35,7 +35,7 @@ xdg-open .experiments/progress.gif
 xdg-open .experiments/experiments_dashboard.png
 
 # Interactive HTML report (richest view — rebuilt live during runs, filterable tables, per-net analysis)
-python3 .claude/skills/kicad-helper/scripts/generate_report.py .experiments/ -o report.html
+generate-report .experiments/ -o report.html
 xdg-open report.html
 ```
 
@@ -80,7 +80,7 @@ Every run writes to the `.experiments/` directory. Here is every artifact, when 
 | `render_drc_overlay.py LLUPS.kicad_pcb .experiments/rounds/round_NNNN.json` | PNG | Board image with DRC violation markers overlaid |
 | `render_failure_heatmap.py .experiments/ LLUPS.kicad_pcb` | PNG | Heatmap of routing failure hotspots on the board |
 
-All scripts are in `.claude/skills/kicad-helper/scripts/`.
+All commands are available as CLI entry points after `pip install -e KiCraft/`.
 
 ### Hierarchical / subcircuit observability model
 
@@ -108,7 +108,7 @@ This is especially important for candidate-round review. A round preview image i
 The dashboard is the easiest way to watch a run in real time.
 
 ```bash
-python3 .claude/skills/kicad-helper/scripts/dashboard_app.py --port 5000
+dashboard-app --port 5000
 ```
 
 Open `http://localhost:5000` in any browser. The page auto-refreshes every few seconds.
@@ -124,7 +124,7 @@ Open `http://localhost:5000` in any browser. The page auto-refreshes every few s
 **Stopping a run:** Click the Stop button in the dashboard, or from the terminal:
 
 ```bash
-python3 .claude/skills/kicad-helper/scripts/dashboard_app.py --stop
+dashboard-app --stop
 # or simply:
 touch .experiments/stop.now
 ```
@@ -205,7 +205,7 @@ The dashboard PNG contains up to five panels:
 To regenerate this from history (e.g., after adjusting `plot_experiments.py`):
 
 ```bash
-python3 .claude/skills/kicad-helper/scripts/plot_experiments.py \
+plot-experiments \
   .experiments/experiments.jsonl \
   .experiments/experiments_dashboard.png
 ```
@@ -215,7 +215,7 @@ python3 .claude/skills/kicad-helper/scripts/plot_experiments.py \
 The richest post-run view. A single self-contained HTML file with no external dependencies — works offline.
 
 ```bash
-python3 .claude/skills/kicad-helper/scripts/generate_report.py .experiments/ -o report.html
+generate-report .experiments/ -o report.html
 xdg-open report.html
 ```
 
@@ -238,7 +238,7 @@ For hierarchical/subcircuit work, pair the HTML report with the persisted artifa
 Visualize exactly where DRC violations occur on the board for a specific round:
 
 ```bash
-python3 .claude/skills/kicad-helper/scripts/render_drc_overlay.py \
+render-drc-overlay \
   LLUPS.kicad_pcb \
   .experiments/rounds/round_0042.json \
   --output drc_overlay.png
@@ -251,7 +251,7 @@ Markers: red X = short, orange circle = unconnected, yellow halo = clearance vio
 See which board areas have the most routing failures across all rounds:
 
 ```bash
-python3 .claude/skills/kicad-helper/scripts/render_failure_heatmap.py \
+render-failure-heatmap \
   .experiments/ LLUPS.kicad_pcb \
   --output failure_heatmap.png
 ```
@@ -292,14 +292,14 @@ Produces a color-graded heatmap overlaid on the board outline, with the top 10 f
 
 ```bash
 # Quick sanity check (fast, ~5 min)
-python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --rounds 20
+autoexperiment LLUPS.kicad_pcb --rounds 20
 
 # Standard run
-python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --rounds 100
+autoexperiment LLUPS.kicad_pcb --rounds 100
 
 # Long exploration with aggressive plateau escape
-python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --rounds 500 --plateau 8
+autoexperiment LLUPS.kicad_pcb --rounds 500 --plateau 8
 
 # Verbose logging (writes .experiments/debug.log)
-python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --rounds 100 --log-level DEBUG
+autoexperiment LLUPS.kicad_pcb --rounds 100 --log-level DEBUG
 ```

@@ -1,24 +1,24 @@
 ---
-name: kicad-helper
+name: KiCraft
 description: Use when the user asks to "check trace widths", "audit my layout", "list footprints", "rearrange footprints", "arrange LEDs in a grid", "move component", "run DRC", "check clearances", "align components", or discusses KiCad PCB layout automation. Provides Python scripts using the KiCad 9 pcbnew API to parse and modify .kicad_pcb files.
 ---
 
 # KiCad PCB Helper
 
-Automate KiCad 9 PCB tasks using the `kicad-helper` Python package (installed
-as a git submodule at `kicad-helper/`).
+Automate KiCad 9 PCB tasks using the `KiCraft` Python package (installed
+as a git submodule at `KiCraft/`).
 
 ## Installation
 
 The package is installed as an editable pip package from the submodule:
 
 ```bash
-pip install -e kicad-helper/
+pip install -e KiCraft/
 ```
 
 ## CLI Commands
 
-All commands are available as installed entry points after `pip install -e kicad-helper/`.
+All commands are available as installed entry points after `pip install -e KiCraft/`.
 Run them directly from the command line.
 
 ### Inspection
@@ -85,15 +85,15 @@ Run them directly from the command line.
 ### GUI
 
 ```bash
-python -m kicad_helper.gui
+python -m kicraft.gui
 ```
 
 ## Package Structure
 
 ```
-kicad-helper/                    # Git submodule
+KiCraft/                    # Git submodule
 ├── pyproject.toml               # Package config with CLI entry points
-├── kicad_helper/
+├── kicraft/
 │   ├── autoplacer/              # Placement and routing engine
 │   │   ├── config.py            # DEFAULT_CONFIG + project config loader
 │   │   ├── freerouting_runner.py

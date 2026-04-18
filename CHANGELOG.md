@@ -1,29 +1,29 @@
 # LLUPS Engineering Changelog
 
 
-## 2025-07-12: Phases 6b + 6c — kicad-helper extracted to standalone package
+## 2025-07-12: Phases 6b + 6c — KiCraft extracted to standalone package
 
 ### Completed
-- **Phase 6b: Extract kicad-helper to standalone repository**
-  - Created `/home/jason/Documents/kicad-helper/` with proper Python package
-  - `kicad_helper/` package: autoplacer, scoring, gui, cli subpackages
+- **Phase 6b: Extract KiCraft to standalone repository**
+  - Created `/home/jason/Documents/KiCraft/` with proper Python package
+  - `kicraft/` package: autoplacer, scoring, gui, cli subpackages
   - `pyproject.toml` with 30+ CLI entry points (solve-subcircuits, autoexperiment, etc.)
-  - All imports converted from bare `autoplacer.*` to `kicad_helper.autoplacer.*`
+  - All imports converted from bare `autoplacer.*` to `kicraft.autoplacer.*`
   - Removed all `sys.path` hacks (kept pcbnew path helper)
   - 7/7 import smoke tests pass
   - Git repo initialized (`9992d38`)
 
 - **Phase 6c: Reintegrate into LLUPS**
-  - Removed `.claude/skills/kicad-helper/scripts/` (62 files) and `gui/` (19 files) from LLUPS
-  - Added `kicad-helper/` as git submodule
-  - `pip install -e kicad-helper/` provides all CLI entry points
+  - Removed `.claude/skills/KiCraft/scripts/` (62 files) and `gui/` (19 files) from LLUPS
+  - Added `KiCraft/` as git submodule
+  - `pip install -e KiCraft/` provides all CLI entry points
   - Updated AGENTS.md and SKILL.md for new paths
   - Pipeline verification: 6 leaves solved + routed, parent assembled, zero tracebacks
 
 ### Files touched
-- Removed: `.claude/skills/kicad-helper/scripts/**`, `gui/**` (81 files)
-- Added: `kicad-helper/` (submodule, 91 files)
-- Modified: `AGENTS.md`, `.claude/skills/kicad-helper/SKILL.md`, `docs/CLEANUP_PLAN.md`
+- Removed: `.claude/skills/KiCraft/scripts/**`, `gui/**` (81 files)
+- Added: `KiCraft/` (submodule, 91 files)
+- Modified: `AGENTS.md`, `.claude/skills/KiCraft/SKILL.md`, `docs/CLEANUP_PLAN.md`
 
 ### Verification
 - `solve-subcircuits LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route` — all leaves routed, parent composed
@@ -50,7 +50,7 @@
 
 ### Verification findings
 - Re-ran:
-  - `python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 2 --leaf-rounds 1 --fast-smoke --workers 0`
+  - `python3 .claude/skills/KiCraft/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 2 --leaf-rounds 1 --fast-smoke --workers 0`
 - Confirmed:
   - no Python traceback
   - hierarchical run completed successfully
@@ -98,7 +98,7 @@
 
 ### Verification findings
 - Re-ran bounded hierarchical verification with:
-  - `python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 2 --leaf-rounds 1 --fast-smoke --workers 0`
+  - `python3 .claude/skills/KiCraft/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 2 --leaf-rounds 1 --fast-smoke --workers 0`
 - Confirmed:
   - no Python traceback
   - hierarchical run still completed
@@ -172,7 +172,7 @@
 
 ### Verification findings
 - Verified bounded routed leaf solving still completes successfully with:
-  - `python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route --fast-smoke --workers 0`
+  - `python3 .claude/skills/KiCraft/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route --fast-smoke --workers 0`
 - Confirmed from the completed bounded leaf run:
   - no Python traceback
   - real routed leaf solving remained active
@@ -180,7 +180,7 @@
   - canonical `leaf_routed.kicad_pcb` artifacts persisted
   - `solved_layout.json` persisted
 - Verified bounded hierarchical execution with:
-  - `python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 2 --leaf-rounds 1 --fast-smoke --workers 0`
+  - `python3 .claude/skills/KiCraft/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 2 --leaf-rounds 1 --fast-smoke --workers 0`
 - Confirmed from the completed hierarchical run:
   - no Python traceback
   - `leaf_timing_summary` persisted in round artifacts
@@ -247,8 +247,8 @@ Context:
 
 Your tasks:
 1. Read and verify the recent scheduling-related edits in:
-   - `LLUPS/.claude/skills/kicad-helper/scripts/solve_subcircuits.py`
-   - `LLUPS/.claude/skills/kicad-helper/scripts/autoexperiment.py`
+   - `LLUPS/.claude/skills/KiCraft/scripts/solve_subcircuits.py`
+   - `LLUPS/.claude/skills/KiCraft/scripts/autoexperiment.py`
    - `LLUPS/CHANGELOG.md`
 2. Improve the scheduling heuristic beyond simple prior-round ordering. Consider weighting:
    - prior `leaf_total_s`
@@ -257,8 +257,8 @@ Your tasks:
    - failure history
 3. Improve routed-leaf failure handling so one failing leaf does not waste as much parallel work or force broad serial re-execution.
 4. Verify the updated behavior with bounded runs, preferably including:
-   - `python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route --fast-smoke --workers 0`
-   - `python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 2 --leaf-rounds 1 --fast-smoke --workers 0`
+   - `python3 .claude/skills/KiCraft/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route --fast-smoke --workers 0`
+   - `python3 .claude/skills/KiCraft/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 2 --leaf-rounds 1 --fast-smoke --workers 0`
 5. Confirm that round artifacts still persist:
    - canonical `leaf_routed.kicad_pcb`
    - `solved_layout.json`
@@ -378,7 +378,7 @@ Your tasks:
 ### Verification findings
 - Re-ran the required verification command in fast-smoke mode:
 
-  `python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route --fast-smoke`
+  `python3 .claude/skills/KiCraft/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route --fast-smoke`
 
 - This fast-smoke verification run completed successfully within the bounded timeout.
 - The completed run showed:
@@ -427,7 +427,7 @@ Your tasks:
 ### Verification findings
 - Re-ran the required verification command with a bounded timeout:
 
-  `python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+  `python3 .claude/skills/KiCraft/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
 
 - The run still did not complete within the bounded timeout, but the captured output again showed:
   - no Python traceback before timeout
@@ -551,7 +551,7 @@ Your tasks:
 ### Verification status
 - Re-ran the required verification command twice with longer time budgets:
 
-  `python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+  `python3 .claude/skills/KiCraft/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
 
 - Both verification attempts timed out before full completion.
 - In both runs, the captured output showed:
@@ -713,7 +713,7 @@ Your tasks:
 - Re-ran syntax verification for `solve_subcircuits.py`.
 - Re-ran the required pipeline verification command:
 
-`python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+`python3 .claude/skills/KiCraft/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
 
 Observed from captured output:
 - repeated placement/routing attempts were visible for the same leaf within a single solve
@@ -757,7 +757,7 @@ Observed from captured output:
 - Re-ran Python compile checks for the edited GUI and hierarchical orchestration files.
 - Re-ran the required subcircuit pipeline verification command:
 
-`python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+`python3 .claude/skills/KiCraft/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
 
 Observed outcome from captured output:
 - routed leaf solve activity executed
@@ -776,11 +776,11 @@ Observed outcome from captured output:
 
 ### Completed
 - Deleted the old whole-board/top-down router entrypoints:
-  - `.claude/skills/kicad-helper/scripts/autopipeline.py`
-  - `.claude/skills/kicad-helper/scripts/autoplace.py`
-  - `.claude/skills/kicad-helper/scripts/autoroute.py`
-  - `.claude/skills/kicad-helper/scripts/demo_hierarchical_freerouting.py`
-  - `.claude/skills/kicad-helper/scripts/autoplacer/pipeline.py`
+  - `.claude/skills/KiCraft/scripts/autopipeline.py`
+  - `.claude/skills/KiCraft/scripts/autoplace.py`
+  - `.claude/skills/KiCraft/scripts/autoroute.py`
+  - `.claude/skills/KiCraft/scripts/demo_hierarchical_freerouting.py`
+  - `.claude/skills/KiCraft/scripts/autoplacer/pipeline.py`
 - Removed the old router compatibility switch from the GUI/runner path so the experiment manager no longer offers or forwards a “skip visible stage” mode.
 - Continued renaming active hierarchical fields away from stale top-down/demo terminology:
   - `top_level_ready` → `parent_routed`
@@ -803,7 +803,7 @@ Observed outcome from captured output:
 - GUI and active hierarchical scripts should still compile after the purge.
 - Because this cleanup touches the hierarchical subcircuits/autoplacer pipeline and its orchestration, the required verification command remains:
 
-`python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+`python3 .claude/skills/KiCraft/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
 
 ### Known limitations / next follow-up
 - Some historical changelog and handoff notes still mention removed names such as `skip_visible`, `top_level_ready`, and old demo-era parent preview layouts. Those notes are historical, but the active code should continue being cleaned until only canonical terminology remains.
@@ -836,7 +836,7 @@ Observed outcome from captured output:
 - GUI-side code should still be compile-checked after these monitor/analysis compatibility fixes.
 - Because this branch continues to touch hierarchical orchestration visibility around the subcircuits pipeline, the required verification command remains:
 
-`python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+`python3 .claude/skills/KiCraft/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
 
 ### Known limitations / next follow-up
 - The root cause of stale terminal status is still in status production/persistence, not only in monitor rendering. A future pass should make the final emitted status payload fully self-consistent so the UI does not need to normalize it defensively.
@@ -873,7 +873,7 @@ Observed outcome from captured output:
 - GUI-side code should still be compile-checked after these monitor changes.
 - Because this branch continues to touch hierarchical orchestration/visibility around the subcircuits pipeline, the required verification command remains:
 
-`python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+`python3 .claude/skills/KiCraft/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
 
 ### Known limitations / next follow-up
 - The monitor event stream is improved, but it still synthesizes part of the operator-console view from current status rather than from a dedicated stage-transition event log.
@@ -908,7 +908,7 @@ Observed outcome from captured output:
 ### Verification target
 - Because this work touches the hierarchical subcircuits/autoplacer pipeline, the required verification command for this branch remains:
 
-`python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+`python3 .claude/skills/KiCraft/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
 
 ### Known limitations / next follow-up
 - Parent packing should still be evaluated further against real hierarchy cases to confirm bounding-box reduction and absence of overlaps across varied child sets.
@@ -1140,13 +1140,13 @@ This is intended to reward escaping a plateau instead of endlessly re-labeling n
 
 ### Verification
 - Earlier in the session, ran required subcircuit pipeline verification:
-  - `python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+  - `python3 .claude/skills/KiCraft/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
   - Outcome: completed without Python exceptions; leaf artifacts written under `.experiments/subcircuits/`; routed leaf artifacts persisted canonical copper in `solved_layout.json`; run did not hang.
 - After the first-pass leaf size-reduction implementation, reran the required subcircuit pipeline command.
   - Outcome: no Python traceback was observed before timeout, and accepted leaf reroute/reduction activity was visible in the logs, but the command did not complete within the bounded runtime used for verification.
   - Interpretation at that point: the new loop was functionally active, but runtime/regression tuning was still needed before this could be considered fully re-verified against the required completion criterion.
 - After tuning leaf ordering and shrink-loop behavior, reran the required subcircuit pipeline command again:
-  - `python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+  - `python3 .claude/skills/KiCraft/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
   - Outcome: completed successfully without Python exceptions or hangs.
   - Observed behavior:
     - leaf artifacts were written under `.experiments/subcircuits/`
@@ -1154,7 +1154,7 @@ This is intended to reward escaping a plateau instead of endlessly re-labeling n
     - leaf grouping/ordering logs were visible (`Found ... component clusters (with 6 IC groups)`, `Starting swap optimization`, `Orderedness (...)`)
     - the tuned shrink loop no longer caused the required verification command to time out
 - After adding topology-aware placement scoring and experiment-manager GUI cleanup, reran the required subcircuit pipeline command again:
-  - `python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+  - `python3 .claude/skills/KiCraft/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
   - Outcome: completed successfully without Python exceptions or hangs.
   - Observed behavior:
     - topology-aware ordering remained active during leaf solving
@@ -1166,14 +1166,14 @@ This is intended to reward escaping a plateau instead of endlessly re-labeling n
   - the CHARGER leaf accepted with ordered passive placement and routed successfully
   - current size-reduction metadata shows the loop is attempted, and some accepted leaves now reduce while others still conservatively keep the original outline
 - Ran hierarchical smoke tests:
-  - `python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 1 --leaf-rounds 1 --workers 2 --skip-visible`
+  - `python3 .claude/skills/KiCraft/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 1 --leaf-rounds 1 --workers 2 --skip-visible`
   - Outcome 1: completed successfully with `score=97.81`, `leafs=6/7`, `compose=ok`, `top=ok`.
   - Outcome 2: completed successfully with `score=98.33`, `leafs=6/7`, `compose=ok`, `top=ok`.
   - Outcome 3: completed successfully with `score=100.55`, `leafs=6/7`, `compose=ok`, `top=ok`.
 - Confirmed final `.experiments/run_status.json` now includes non-empty hierarchical copper-accounting data.
 - Confirmed `.experiments/rounds/round_0001.json` now records parent copper-accounting data under `artifacts.parent_copper_accounting`.
 - After the first-pass scoring redesign, ran:
-  - `python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 3 --leaf-rounds 1 --workers 2 --skip-visible --plateau 2`
+  - `python3 .claude/skills/KiCraft/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 3 --leaf-rounds 1 --workers 2 --skip-visible --plateau 2`
   - Outcome:
     - Round 1: `score=76.88` `[KEPT]`
     - Round 2: `score=76.74` `[discard]`
@@ -1197,9 +1197,9 @@ This is intended to reward escaping a plateau instead of endlessly re-labeling n
 
 ### Files Changed
 - `AGENTS.md`
-- `.claude/skills/kicad-helper/scripts/compose_subcircuits.py`
-- `.claude/skills/kicad-helper/scripts/autoexperiment.py`
-- `.claude/skills/kicad-helper/scripts/solve_subcircuits.py`
+- `.claude/skills/KiCraft/scripts/compose_subcircuits.py`
+- `.claude/skills/KiCraft/scripts/autoexperiment.py`
+- `.claude/skills/KiCraft/scripts/solve_subcircuits.py`
 - `gui/pages/monitor.py`
 - `gui/state.py`
 - `gui/pages/setup.py`
@@ -1373,7 +1373,7 @@ The experiment was running correctly but appeared stuck because the first batch 
 
 ## 2026-04-09: 45-Round Autoexperiment Audit
 
-- Ran `python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --rounds 45 --program .claude/skills/kicad-helper/scripts/program.md`
+- Ran `python3 .claude/skills/KiCraft/scripts/autoexperiment.py LLUPS.kicad_pcb --rounds 45 --program .claude/skills/KiCraft/scripts/program.md`
 - Live monitoring used `.experiments/run_status.json`, `.experiments/run_status.txt`, and the Flask dashboard on port 5000
 - Run completed in about 12 minutes with 22 workers; artifacts written to `.experiments/` including `experiments.jsonl`, `rounds/`, `progress.gif`, and `experiments_dashboard.png`
 - Baseline reported `score=0.00`, `shorts=38`, `drc_total=393`

@@ -120,14 +120,14 @@ This is the first point where the hierarchical routing flow becomes real.
 
 Primary files:
 - `docs/subcircuits_pipeline_design.md`
-- `.claude/skills/kicad-helper/scripts/solve_subcircuits.py`
-- `.claude/skills/kicad-helper/scripts/compose_subcircuits.py`
-- `.claude/skills/kicad-helper/scripts/demo_hierarchical_freerouting.py`
-- `.claude/skills/kicad-helper/scripts/autoplacer/brain/subcircuit_solver.py`
-- `.claude/skills/kicad-helper/scripts/autoplacer/brain/subcircuit_composer.py`
-- `.claude/skills/kicad-helper/scripts/autoplacer/brain/subcircuit_instances.py`
-- `.claude/skills/kicad-helper/scripts/autoplacer/hardware/adapter.py`
-- `.claude/skills/kicad-helper/scripts/autoplacer/freerouting_runner.py`
+- `KiCraft/kicraft/cli/solve_subcircuits.py`
+- `KiCraft/kicraft/cli/compose_subcircuits.py`
+- `KiCraft/kicraft/cli/demo_hierarchical_freerouting.py`
+- `KiCraft/kicraft/autoplacer/brain/subcircuit_solver.py`
+- `KiCraft/kicraft/autoplacer/brain/subcircuit_composer.py`
+- `KiCraft/kicraft/autoplacer/brain/subcircuit_instances.py`
+- `KiCraft/kicraft/autoplacer/hardware/adapter.py`
+- `KiCraft/kicraft/autoplacer/freerouting_runner.py`
 
 ### Important caution for the next agent
 

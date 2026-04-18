@@ -33,7 +33,7 @@ git rm -r --cached .experiments/
 git rm --cached LLUPS.kicad_sch.bak
 git rm --cached report.html
 git rm --cached BOM.xlsx
-git rm --cached .claude/skills/kicad-helper/scripts/autoplacer/brain/placement.py.bak
+git rm --cached .claude/skills/KiCraft/scripts/autoplacer/brain/placement.py.bak
 ```
 
 ### Verification
@@ -87,7 +87,7 @@ __pycache__/
 .experiments/
 
 # === Scoring results ===
-.claude/skills/kicad-helper/scripts/results/
+.claude/skills/KiCraft/scripts/results/
 
 # === Logs ===
 logs/
@@ -136,15 +136,15 @@ Content already captured in `CHANGELOG.md`. These clutter the scripts directory:
 ### Commands
 
 ```
-rm .claude/skills/kicad-helper/scripts/HANDOFF_2026-04-17_*.md
-rm .claude/skills/kicad-helper/scripts/NEXT_AGENT_PROMPT_2026-04-17_*.md
-rm .claude/skills/kicad-helper/scripts/autoplacer/brain/placement.py.bak
+rm .claude/skills/KiCraft/scripts/HANDOFF_2026-04-17_*.md
+rm .claude/skills/KiCraft/scripts/NEXT_AGENT_PROMPT_2026-04-17_*.md
+rm .claude/skills/KiCraft/scripts/autoplacer/brain/placement.py.bak
 rm -f LLUPS.kicad_sch.bak
 rmdir LLUPS-backups/ 2>/dev/null
 rm -rf __pycache__/
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null
-rm -rf .claude/skills/kicad-helper/scripts/results/
+rm -rf .claude/skills/KiCraft/scripts/results/
 ```
 
 ---
@@ -181,7 +181,7 @@ Three overlapping roadmap/next-steps documents:
 
 ### Script: `clean_experiments.py`
 
-Location: `.claude/skills/kicad-helper/scripts/clean_experiments.py`
+Location: `.claude/skills/KiCraft/scripts/clean_experiments.py`
 
 Three modes:
 
@@ -208,11 +208,11 @@ Add `--clean` and `--clean-after` flags to `autoexperiment.py`.
 
 ---
 
-## Phase 6: Separate kicad-helper into Its Own Codebase  [x]
+## Phase 6: Separate KiCraft into Its Own Codebase  [x]
 
 ### Coupling analysis
 
-kicad-helper is ~95% generic. LLUPS-specific content in exactly 3 files:
+KiCraft is ~95% generic. LLUPS-specific content in exactly 3 files:
 
 | File | LLUPS content | Fix |
 |---|---|---|
@@ -248,21 +248,21 @@ GUI files with LLUPS defaults:
 - Parameterize remaining hardcoded LLUPS references
 
 **6b — Extract (new repo):**
-- Create `kicad-helper` repository
-- Move scripts + autoplacer + scoring + gui as `kicad_helper` package
+- Create `KiCraft` repository
+- Move scripts + autoplacer + scoring + gui as `kicraft` package
 - Add `pyproject.toml` with CLI entry points
 - Add minimal test suite
 
 **6c — Reintegrate:**
-- Add kicad-helper as git submodule or pip dependency in LLUPS
+- Add KiCraft as git submodule or pip dependency in LLUPS
 - Update `AGENTS.md`, `SKILL.md` for new paths
 
 ### Target standalone structure
 
 ```
-kicad-helper/
+KiCraft/
 ├── pyproject.toml
-├── kicad_helper/
+├── kicraft/
 │   ├── autoplacer/
 │   │   ├── config.py           # DEFAULT_CONFIG only
 │   │   ├── freerouting_runner.py
@@ -287,7 +287,7 @@ kicad-helper/
 | 3. Delete stale files | [x] | d362c84 | 7 handoffs + backups |
 | 4. Consolidate docs | [x] | bf73fbe | 3 docs → 1 |
 | 5. Cleanup script | [x] | bf73fbe | 3 modes working |
-| 6a. Decouple kicad-helper | [x] | 7c7df2c | All hardcodes removed |
+| 6a. Decouple KiCraft | [x] | 7c7df2c | All hardcodes removed |
 | 6b. Extract to new repo | [x] | 7d9e56c | 91 files, pyproject.toml, 7/7 tests pass |
 | 6c. Reintegrate | [x] | 7d9e56c | submodule + pip install -e, pipeline verified |
 
@@ -300,7 +300,7 @@ kicad-helper/
 | Untracking .experiments/ | Lose experiment history in git | All data is regenerable pipeline output |
 | Deleting handoff files | Lose context | Content duplicated in CHANGELOG.md |
 | Blanket `.experiments/` gitignore | Might miss wanted file | Nothing in .experiments/ is source |
-| kicad-helper separation | Breaks current workflow | Phase 6a (decouple) is low-risk prep |
+| KiCraft separation | Breaks current workflow | Phase 6a (decouple) is low-risk prep |
 
 ---
 
@@ -319,42 +319,42 @@ kicad-helper/
 - Tracked files: 196 → 114 (42% reduction)
 - Generated artifacts: removed ~129K lines from git history
 - .gitignore: 80 lines → 50 lines (clean, organized)
-- LLUPS-specific hardcodes in kicad-helper: eliminated from functional code
+- LLUPS-specific hardcodes in KiCraft: eliminated from functional code
 - Cleanup script: working with --before-run, --after-run, --nuke modes
 - Documentation: consolidated from 3 roadmap docs to 1
 
 **Remaining:**
-- Phase 6b: Extract kicad-helper to separate repository
+- Phase 6b: Extract KiCraft to separate repository
 - Phase 6c: Reintegrate as submodule/dependency
 
 ### 2025-07-12 — Phases 6b + 6c completed
 
 **Commits:**
-- `9992d38` (kicad-helper repo) — Initial commit: standalone Python package
+- `9992d38` (KiCraft repo) — Initial commit: standalone Python package
 - `7d9e56c` (LLUPS) — Phase 6b+6c: Extract and reintegrate as submodule
 
-**Phase 6b — Extract kicad-helper to standalone repo:**
-- Created `/home/jason/Documents/kicad-helper/` with proper Python package structure
-- `kicad_helper/` package with autoplacer, scoring, gui, cli subpackages
+**Phase 6b — Extract KiCraft to standalone repo:**
+- Created `/home/jason/Documents/KiCraft/` with proper Python package structure
+- `kicraft/` package with autoplacer, scoring, gui, cli subpackages
 - `pyproject.toml` with 30+ CLI entry points (`solve-subcircuits`, `autoexperiment`, etc.)
-- All imports converted to `kicad_helper.*` package prefix
+- All imports converted to `kicraft.*` package prefix
 - sys.path hacks removed (kept only pcbnew path helper)
 - Added `main()` wrappers to `parse_schematic.py` and `add_gnd_zone.py`
 - 7/7 import tests pass
 - Git repo initialized on `main` branch
 
 **Phase 6c — Reintegrate into LLUPS:**
-- Removed `.claude/skills/kicad-helper/scripts/` (62 files)
+- Removed `.claude/skills/KiCraft/scripts/` (62 files)
 - Removed `gui/` from LLUPS root (19 files)
-- Added kicad-helper as git submodule at `kicad-helper/`
-- `pip install -e kicad-helper/` provides all CLI entry points
+- Added KiCraft as git submodule at `KiCraft/`
+- `pip install -e KiCraft/` provides all CLI entry points
 - Updated `AGENTS.md` with new paths and `solve-subcircuits` CLI command
-- Updated `.claude/skills/kicad-helper/SKILL.md` for submodule layout
+- Updated `.claude/skills/KiCraft/SKILL.md` for submodule layout
 - Pipeline verification: all 6 leaves solved + routed, parent assembled — zero tracebacks
 
 **Results:**
 - LLUPS tracked files: 114 → 32 (72% reduction from original 196)
-- kicad-helper: 91 files in standalone repo with proper packaging
+- KiCraft: 91 files in standalone repo with proper packaging
 - All CLI commands available as installed entry points
 - Subcircuit pipeline verified end-to-end through new package structure
 

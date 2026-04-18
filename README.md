@@ -26,6 +26,7 @@ LLUPS.kicad_pcb          # PCB layout
 generate_project.py      # Regenerates project artifacts
 spec.md                  # Design specification
 BOM.csv / BOM.xlsx       # Bill of materials
+KiCraft/                 # KiCraft tooling (git submodule)
 ```
 
 ## Regenerating
@@ -39,7 +40,7 @@ Requires KiCad 9 CLI tools (`kicad-cli`) for netlist export.
 ## Running the Optimizer
 
 ```bash
-python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --rounds 100
+autoexperiment LLUPS.kicad_pcb --rounds 100
 ```
 
 The optimizer iterates placement and routing, keeping candidates that improve the overall score and discarding the rest. The best layout is saved to `LLUPS_best.kicad_pcb`.
@@ -53,7 +54,7 @@ The optimizer iterates placement and routing, keeping candidates that improve th
 
 ```bash
 # Full exploration: unlock all footprints + vary board size over 150 rounds
-python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb \
+autoexperiment LLUPS.kicad_pcb \
   --rounds 150 --unlock-all --board-size-search
 ```
 
@@ -62,11 +63,11 @@ python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb \
 A standalone NiceGUI web app for configuring, running, monitoring, and analyzing experiments.
 
 ```bash
-# Install dependencies (first time only)
-pip install nicegui sqlalchemy plotly scipy
+# Install KiCraft with GUI dependencies (first time only)
+pip install -e "KiCraft/[gui]"
 
 # Launch the GUI
-python3 -m gui
+python3 -m kicraft.gui
 # then open http://localhost:8080
 ```
 
@@ -89,7 +90,7 @@ Experiment data is stored in `.experiments/llups.db` (SQLite). Existing JSONL lo
 
 ```bash
 # Experiment Manager GUI (recommended — includes live charts + analysis)
-python3 -m gui
+python3 -m kicraft.gui
 
 # Or: one-line terminal status
 watch -n2 cat .experiments/run_status.txt
@@ -108,7 +109,7 @@ xdg-open .experiments/progress.gif
 xdg-open .experiments/experiments_dashboard.png
 
 # Interactive HTML report (richest view; rebuilt live during the run and finalized at the end)
-python3 .claude/skills/kicad-helper/scripts/generate_report.py .experiments/ -o report.html
+generate-report .experiments/ -o report.html
 xdg-open report.html
 ```
 
@@ -128,24 +129,24 @@ Full details on every artifact, the web dashboard, the HTML report sections, DRC
 Static QA score (independent of the optimizer):
 
 ```bash
-python3 .claude/skills/kicad-helper/scripts/score_layout.py LLUPS.kicad_pcb
+score-layout LLUPS.kicad_pcb
 ```
 
-## KiCad Helper Scripts
+## KiCraft CLI Commands
 
-Automation scripts using the KiCad 9 `pcbnew` Python API:
+Automation commands using the KiCad 9 `pcbnew` Python API, provided by the [KiCraft](KiCraft/) submodule:
 
-| Script | Purpose |
+| Command | Purpose |
 |---|---|
-| `list_footprints.py` | List components with positions |
-| `check_trace_widths.py` | Find traces below minimum width |
-| `run_drc.py` | Report DRC markers |
-| `net_report.py` | List nets and pad counts |
-| `move_component.py` | Move a footprint to X,Y |
-| `arrange_grid.py` | Arrange components in a grid |
-| `align_components.py` | Align components along an axis |
+| `list-footprints` | List components with positions |
+| `check-trace-widths` | Find traces below minimum width |
+| `run-drc` | Report DRC markers |
+| `net-report` | List nets and pad counts |
+| `move-component` | Move a footprint to X,Y |
+| `arrange-grid` | Arrange components in a grid |
+| `align-components` | Align components along an axis |
 
-All in `.claude/skills/kicad-helper/scripts/`.
+All available as CLI commands after `pip install -e KiCraft/`.
 
 ## Subcircuits Workflow
 
@@ -162,7 +163,7 @@ The hierarchical/subcircuits redesign is currently focused on a real leaf-first 
 Current verification command:
 
 ```bash
-python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch \
+solve-subcircuits LLUPS.kicad_sch \
   --pcb LLUPS.kicad_pcb \
   --rounds 1 \
   --route

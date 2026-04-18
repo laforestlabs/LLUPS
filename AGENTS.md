@@ -40,7 +40,7 @@ solve-subcircuits LLUPS.kicad_sch \
 Alternatively, if the CLI entry point is not on PATH:
 
 ```bash
-python -m kicad_helper.cli.solve_subcircuits LLUPS.kicad_sch \
+python -m kicraft.cli.solve_subcircuits LLUPS.kicad_sch \
   --pcb LLUPS.kicad_pcb \
   --rounds 1 \
   --route
@@ -76,16 +76,16 @@ When extending the pipeline, prefer work that moves verification toward that ful
 
 - `LLUPS.kicad_pcb` — Main PCB layout file
 - `LLUPS_autoplacer.json` — Project-specific autoplacer configuration
-- `kicad-helper/` — Git submodule: KiCad automation toolkit (pip install -e kicad-helper/)
-  - `kicad_helper/autoplacer/` — Placement and routing engine
+- `KiCraft/` — Git submodule: KiCad automation toolkit (pip install -e KiCraft/)
+  - `kicraft/autoplacer/` — Placement and routing engine
     - `brain/placement.py` — Core placement solver and force simulation
     - `brain/types.py` — Data types and scoring weights
     - `config.py` — Default configuration + project config loader
     - `hardware/adapter.py` — KiCad pcbnew API interface
-  - `kicad_helper/scoring/` — Layout quality scoring checks
-  - `kicad_helper/gui/` — NiceGUI experiment manager
-  - `kicad_helper/cli/` — CLI entry-point scripts
+  - `kicraft/scoring/` — Layout quality scoring checks
+  - `kicraft/gui/` — NiceGUI experiment manager
+  - `kicraft/cli/` — CLI entry-point scripts
     - `autoexperiment.py` — Experiment runner
     - `solve_subcircuits.py` — Subcircuit placement and routing
     - `program.md` — Search space definition
-- `.claude/skills/kicad-helper/SKILL.md` — Claude skill definition
+- `.claude/skills/KiCraft/SKILL.md` — Claude skill definition
