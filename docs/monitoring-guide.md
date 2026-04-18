@@ -3,6 +3,8 @@
 How to watch your layout evolve during an optimization run, and how to analyze results after it finishes.
 
 > **Performance note:** All monitoring methods are read-only. They read output files written by the experiment loop — they never interfere with it and add zero overhead to the optimization.
+>
+> **Board-first observability note:** For hierarchical/subcircuit runs, the preferred visual source of truth is the persisted `.kicad_pcb` artifact for each meaningful stage. PNG previews are useful for quick review, but they should be treated as renders derived from those KiCad board files, not as the canonical artifact themselves.
 
 ---
 
@@ -48,12 +50,18 @@ Every run writes to the `.experiments/` directory. Here is every artifact, when 
 | File | Format | Contents |
 |------|--------|----------|
 | `report.html` | HTML | Interactive report rebuilt after each completed round; auto-refreshes while the run is active |
-| `run_status.json` | JSON | Machine-readable status: round, best score, ETA, worker counts, throughput |
-| `run_status.txt` | Text | Human-readable one-liner of the same status |
+| `run_status.json` | JSON | Machine-readable status: round, best score, ETA, worker counts, throughput, preview paths, and live board-source paths |
+| `run_status.txt` | Text | Human-readable one-liner of the same status, including preview paths and KiCad board-source paths when available |
 | `experiments.jsonl` | JSONL | One JSON record per round — full scoring breakdown, config delta, DRC counts, timing |
 | `rounds/round_NNNN.json` | JSON | Comprehensive detail for one round: per-net routing results, DRC violation coordinates, phase timing |
 | `frames/frame_NNNN.png` | PNG | Board snapshot with score overlay, colored border (green=kept, red=shorts, gray=discarded) |
 | `best/best.kicad_pcb` | KiCad PCB | Current best layout (updated only when score improves) |
+| `.experiments/subcircuits/<slug>/leaf_pre_freerouting.kicad_pcb` | KiCad PCB | Canonical accepted leaf pre-route board snapshot |
+| `.experiments/subcircuits/<slug>/leaf_routed.kicad_pcb` | KiCad PCB | Canonical accepted leaf routed board snapshot |
+| `.experiments/subcircuits/<slug>/round_000N_leaf_pre_freerouting.kicad_pcb` | KiCad PCB | Round-specific leaf pre-route board snapshot for candidate-round inspection |
+| `.experiments/subcircuits/<slug>/round_000N_leaf_routed.kicad_pcb` | KiCad PCB | Round-specific leaf routed board snapshot for candidate-round inspection |
+| `.experiments/subcircuits/<parent-slug>/parent_pre_freerouting.kicad_pcb` | KiCad PCB | Canonical parent stamped/pre-route board snapshot |
+| `.experiments/subcircuits/<parent-slug>/parent_routed.kicad_pcb` | KiCad PCB | Canonical parent routed board snapshot |
 
 ### Generated After Run Completes
 
@@ -73,6 +81,23 @@ Every run writes to the `.experiments/` directory. Here is every artifact, when 
 | `render_failure_heatmap.py .experiments/ LLUPS.kicad_pcb` | PNG | Heatmap of routing failure hotspots on the board |
 
 All scripts are in `.claude/skills/kicad-helper/scripts/`.
+
+### Hierarchical / subcircuit observability model
+
+For hierarchical runs, there are two complementary sources of truth:
+
+| Artifact type | Role |
+|--------------|------|
+| `solved_layout.json` | Machine-readable canonical geometry and acceptance data |
+| `.kicad_pcb` stage snapshots | Human-inspectable and visually canonical board artifacts |
+
+Preferred review order:
+
+1. inspect the relevant `.kicad_pcb` path for the stage you care about
+2. inspect the PNG preview rendered from that board
+3. inspect JSON metadata/log fields to understand why the optimizer accepted, rejected, skipped, or failed that stage
+
+This is especially important for candidate-round review. A round preview image is only a convenience; the corresponding `round_000N_*.kicad_pcb` file is the artifact that should answer “what exact board did this round produce?”
 
 ---
 
@@ -94,6 +119,7 @@ Open `http://localhost:5000` in any browser. The page auto-refreshes every few s
 - **Round table** — filterable, sortable; click a row to expand full detail (timing, per-net routing, DRC)
 - **Log viewer** — tails `.experiments/debug.log`
 - **Start/Stop controls** — start a new run or gracefully stop the current one
+- **Live preview source paths** — for hierarchical/subcircuit runs, the monitor can expose the actual `.kicad_pcb` files backing the currently displayed leaf and parent previews
 
 **Stopping a run:** Click the Stop button in the dashboard, or from the terminal:
 
@@ -114,6 +140,21 @@ watch -n2 cat .experiments/run_status.txt
 ```
 
 This prints a refreshing one-liner with round number, best score, ETA, and kept count.
+
+For hierarchical/subcircuit runs, `run_status.txt` and `run_status.json` may also include:
+
+- preview image paths currently selected by the live monitor
+- leaf round board paths such as:
+  - `leaf_round_pre_route_board`
+  - `leaf_round_routed_board`
+- parent board paths such as:
+  - `parent_stamped_board`
+  - `parent_routed_board`
+
+These fields are useful when you want to correlate:
+- what the human is seeing in the monitor
+- what board file actually produced that image
+- what the optimizer most recently logged
 
 For machine-readable status (useful for scripting):
 
@@ -144,6 +185,8 @@ xdg-open .experiments/progress.gif
 ```
 
 Each frame is one round. Green border = kept improvement. Red border = shorts detected. Gray border = discarded (no improvement). The score and round number are overlaid on each frame.
+
+For hierarchical/subcircuit debugging, treat the GIF as a quick summary only. If a frame looks suspicious, the next step should be to inspect the corresponding persisted `.kicad_pcb` artifact rather than relying on the GIF alone.
 
 ### Dashboard Panels (PNG)
 
@@ -176,6 +219,8 @@ python3 .claude/skills/kicad-helper/scripts/generate_report.py .experiments/ -o 
 xdg-open report.html
 ```
 
+For hierarchical/subcircuit work, pair the HTML report with the persisted artifact tree under `.experiments/subcircuits/`. The report is best for trend review; the artifact tree is best for stage-by-stage board inspection.
+
 **Sections:**
 
 | Section | What it shows |
@@ -186,6 +231,7 @@ xdg-open report.html
 | **Net failure analysis** | Top 50 failing nets ranked by failure count, with failure modes |
 | **Shorts dashboard** | All rounds that had shorts — nets involved, coordinates |
 | **Config sensitivity** | Scatter plot per tunable parameter (X=value, Y=score, color=kept/discard) |
+| **Hierarchical observability context** | When present in the underlying status/round payloads, use preview paths, board paths, and routing summaries to connect optimizer logs to exact persisted board artifacts |
 
 ### DRC Overlay
 
@@ -236,6 +282,9 @@ Produces a color-graded heatmap overlaid on the board outline, with the top 10 f
 | Dashboard PNG missing | matplotlib not installed | `pip install matplotlib numpy` |
 | Status shows "maybe_stuck" | A round is taking much longer than average | Usually resolves on its own; complex layouts take longer. Check `debug.log` for errors |
 | Experiment won't stop | `stop.now` not in the right directory | `touch .experiments/stop.now` — must be inside the `.experiments/` dir used by the run |
+| A preview looks wrong or ambiguous | You are looking only at a PNG render | Inspect the corresponding `.kicad_pcb` path from `run_status.json`, the monitor, or the artifact directory |
+| Candidate-round previews look too similar | You are comparing artifact-level renders instead of round-specific boards | Check for `round_000N_leaf_pre_freerouting.kicad_pcb` and `round_000N_leaf_routed.kicad_pcb` under the leaf artifact directory |
+| You cannot tell whether a round failed, skipped, or routed | The image alone is insufficient | Inspect the round payload/log summary fields such as router, reason, failed/skipped, and failed/routed internal nets |
 
 ---
 

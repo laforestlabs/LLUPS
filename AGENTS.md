@@ -1,5 +1,29 @@
 # LLUPS Project Rules
 
+## Session Continuity / Handoff Rule
+
+When a work session is getting long, approaching context limits, or ending before the implementation plan is complete, write a concise continuation handoff before stopping.
+
+### Required handoff contents
+
+Record enough detail that the next session can continue immediately without re-discovery:
+
+1. what was completed
+2. what remains next, in priority order
+3. exact files touched
+4. exact verification commands already run and their outcomes
+5. any open bugs, misleading behaviors, or known limitations
+6. the next recommended implementation step
+7. if useful, the latest commit hashes relevant to the work
+
+### Preferred locations
+
+Persist the handoff in at least one durable place inside the repo, preferably:
+- `CHANGELOG.md` for user-visible progress notes, and/or
+- a focused next-steps note near the affected pipeline code
+
+Also include a short chat summary, but do not rely on chat history alone for continuity.
+
 ## Verification After Code Changes
 
 After making changes to the subcircuits/autoplacer pipeline (`brain/placement.py`, `brain/types.py`, `config.py`, `brain/subcircuit_*.py`, `freerouting_runner.py`, `hardware/adapter.py`, `solve_subcircuits.py`, `compose_subcircuits.py`, or related hierarchical pipeline modules), always run the subcircuit pipeline once before considering the task complete.

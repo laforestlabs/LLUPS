@@ -159,6 +159,8 @@ The purpose is not presentation polish. The purpose is to make these questions a
 - are footprints outside or misaligned to `Edge.Cuts`?
 - did FreeRouting add meaningful copper?
 - did routing improve or worsen the board visually?
+- what exact persisted `.kicad_pcb` file produced the preview being reviewed?
+- what machine-readable routing/log summary corresponds to that board snapshot?
 
 The preferred artifact location is:
 
@@ -177,6 +179,27 @@ The preferred minimal artifact set per leaf is:
 - `pre_vs_routed_contact_sheet.png`
 
 These artifacts should be treated as debugging aids that expose geometry and legality problems early. They do not change the MVP definition, but they do make the current blocker much easier to inspect.
+
+Just as important, renders should not become the only inspectable artifact. The preferred direction for this branch is now board-first observability:
+
+- persist a meaningful `.kicad_pcb` stage snapshot first
+- render PNG previews from that persisted board
+- expose the board path alongside the preview in monitoring and analysis surfaces
+- preserve enough machine-readable metadata to correlate optimizer logs with the exact board artifact
+
+For leaf candidate rounds, that means the preferred observability bundle is no longer only artifact-level renders. It should include round-specific board snapshots such as:
+
+- `round_0003_leaf_pre_freerouting.kicad_pcb`
+- `round_0003_leaf_routed.kicad_pcb`
+
+and round-specific metadata that can answer:
+
+- whether the round routed, failed, or was skipped
+- which internal nets routed or failed
+- which router and reason were recorded
+- which preview images and board files belong to that round
+
+This keeps KiCad board files as the visual source of truth while JSON remains the machine-readable source of truth.
 
 ### Current LLUPS-specific blockers
 
@@ -689,7 +712,7 @@ That is explicitly out of scope for the first redesign phase.
 
 ## 10. Artifact Model
 
-Each solved leaf subcircuit must produce two artifacts.
+Each solved leaf subcircuit must produce two canonical artifact families, and may also produce additional stage-specific observability artifacts.
 
 ### 10.1 JSON metadata artifact
 
@@ -698,6 +721,7 @@ Purpose:
 - caching
 - reproducibility
 - score tracking
+- optimizer/log review
 
 Suggested contents:
 
@@ -716,6 +740,12 @@ Suggested contents:
 - interface anchor geometry
 - score breakdown
 - artifact generation timestamp
+- acceptance / rejection status
+- routing summary
+- preview paths
+- board paths for meaningful stage snapshots
+
+The preferred canonical machine-readable artifact for accepted layouts is `solved_layout.json`.
 
 ### 10.2 Mini `.kicad_pcb` artifact
 
@@ -724,6 +754,7 @@ Purpose:
 - debugging
 - visual diffing
 - optional replay/import
+- visual source of truth for stage review
 
 Suggested contents:
 
@@ -732,6 +763,27 @@ Suggested contents:
 - synthetic local outline
 - interface labels or markers
 - optional score annotation in comments or metadata
+
+For this branch, the preferred board-first artifact rule is:
+
+- persist `.kicad_pcb` stage snapshots first
+- render PNG previews from those persisted boards
+- expose the board paths anywhere previews are shown
+
+For accepted leaves, the preferred board artifacts are:
+
+- `leaf_pre_freerouting.kicad_pcb`
+- `leaf_routed.kicad_pcb`
+
+For candidate-round observability, the preferred board artifacts are:
+
+- `round_000N_leaf_pre_freerouting.kicad_pcb`
+- `round_000N_leaf_routed.kicad_pcb`
+
+For parent composition/routing, the preferred board artifacts are:
+
+- `parent_pre_freerouting.kicad_pcb`
+- `parent_routed.kicad_pcb`
 
 ### 10.3 Artifact identity
 
@@ -744,6 +796,24 @@ Artifacts should be keyed by a stable identity derived from:
 - interface schema version
 
 This enables caching and invalidation.
+
+### 10.4 Observability artifacts
+
+In addition to canonical accepted artifacts, the pipeline should preserve enough stage-specific observability data to support both human and machine review.
+
+Preferred observability contents include:
+
+- round-specific preview image paths
+- round-specific board paths
+- router name
+- routed / failed / skipped state
+- failure reason
+- routed internal nets
+- failed internal nets
+- routed copper summary
+- DRC summaries and reports
+
+These observability artifacts are not a replacement for canonical solved geometry. They exist to make optimizer behavior and board-state transitions inspectable without ambiguity.
 
 ---
 
