@@ -208,7 +208,7 @@ Add `--clean` and `--clean-after` flags to `autoexperiment.py`.
 
 ---
 
-## Phase 6: Separate kicad-helper into Its Own Codebase  [~]
+## Phase 6: Separate kicad-helper into Its Own Codebase  [x]
 
 ### Coupling analysis
 
@@ -288,8 +288,8 @@ kicad-helper/
 | 4. Consolidate docs | [x] | bf73fbe | 3 docs → 1 |
 | 5. Cleanup script | [x] | bf73fbe | 3 modes working |
 | 6a. Decouple kicad-helper | [x] | 7c7df2c | All hardcodes removed |
-| 6b. Extract to new repo | [ ] | | |
-| 6c. Reintegrate | [ ] | | |
+| 6b. Extract to new repo | [x] | 7d9e56c | 91 files, pyproject.toml, 7/7 tests pass |
+| 6c. Reintegrate | [x] | 7d9e56c | submodule + pip install -e, pipeline verified |
 
 ---
 
@@ -326,3 +326,36 @@ kicad-helper/
 **Remaining:**
 - Phase 6b: Extract kicad-helper to separate repository
 - Phase 6c: Reintegrate as submodule/dependency
+
+### 2025-07-12 — Phases 6b + 6c completed
+
+**Commits:**
+- `9992d38` (kicad-helper repo) — Initial commit: standalone Python package
+- `7d9e56c` (LLUPS) — Phase 6b+6c: Extract and reintegrate as submodule
+
+**Phase 6b — Extract kicad-helper to standalone repo:**
+- Created `/home/jason/Documents/kicad-helper/` with proper Python package structure
+- `kicad_helper/` package with autoplacer, scoring, gui, cli subpackages
+- `pyproject.toml` with 30+ CLI entry points (`solve-subcircuits`, `autoexperiment`, etc.)
+- All imports converted to `kicad_helper.*` package prefix
+- sys.path hacks removed (kept only pcbnew path helper)
+- Added `main()` wrappers to `parse_schematic.py` and `add_gnd_zone.py`
+- 7/7 import tests pass
+- Git repo initialized on `main` branch
+
+**Phase 6c — Reintegrate into LLUPS:**
+- Removed `.claude/skills/kicad-helper/scripts/` (62 files)
+- Removed `gui/` from LLUPS root (19 files)
+- Added kicad-helper as git submodule at `kicad-helper/`
+- `pip install -e kicad-helper/` provides all CLI entry points
+- Updated `AGENTS.md` with new paths and `solve-subcircuits` CLI command
+- Updated `.claude/skills/kicad-helper/SKILL.md` for submodule layout
+- Pipeline verification: all 6 leaves solved + routed, parent assembled — zero tracebacks
+
+**Results:**
+- LLUPS tracked files: 114 → 32 (72% reduction from original 196)
+- kicad-helper: 91 files in standalone repo with proper packaging
+- All CLI commands available as installed entry points
+- Subcircuit pipeline verified end-to-end through new package structure
+
+**All phases complete.** The cleanup plan is fully executed.

@@ -1,5 +1,35 @@
 # LLUPS Engineering Changelog
 
+
+## 2025-07-12: Phases 6b + 6c — kicad-helper extracted to standalone package
+
+### Completed
+- **Phase 6b: Extract kicad-helper to standalone repository**
+  - Created `/home/jason/Documents/kicad-helper/` with proper Python package
+  - `kicad_helper/` package: autoplacer, scoring, gui, cli subpackages
+  - `pyproject.toml` with 30+ CLI entry points (solve-subcircuits, autoexperiment, etc.)
+  - All imports converted from bare `autoplacer.*` to `kicad_helper.autoplacer.*`
+  - Removed all `sys.path` hacks (kept pcbnew path helper)
+  - 7/7 import smoke tests pass
+  - Git repo initialized (`9992d38`)
+
+- **Phase 6c: Reintegrate into LLUPS**
+  - Removed `.claude/skills/kicad-helper/scripts/` (62 files) and `gui/` (19 files) from LLUPS
+  - Added `kicad-helper/` as git submodule
+  - `pip install -e kicad-helper/` provides all CLI entry points
+  - Updated AGENTS.md and SKILL.md for new paths
+  - Pipeline verification: 6 leaves solved + routed, parent assembled, zero tracebacks
+
+### Files touched
+- Removed: `.claude/skills/kicad-helper/scripts/**`, `gui/**` (81 files)
+- Added: `kicad-helper/` (submodule, 91 files)
+- Modified: `AGENTS.md`, `.claude/skills/kicad-helper/SKILL.md`, `docs/CLEANUP_PLAN.md`
+
+### Verification
+- `solve-subcircuits LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route` — all leaves routed, parent composed
+- `python -m pytest tests/test_import.py -v` — 7/7 pass
+- CLI entry points working: `solve-subcircuits --help`, `clean-experiments --help`, `render-pcb --help`
+
 ## 2026-04-18: Final Timing-Summary Extraction Fix + Closeout
 
 ### Completed
