@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from nicegui import ui
@@ -15,9 +16,12 @@ from ..components.param_sensitivity import (
 )
 from ..components.progression_viewer import create_progression_viewer
 from ..components.score_chart import (
+    build_leaf_timing_figure,
     build_score_figure,
     build_stage_figure,
     build_subscore_figure,
+    build_timing_figure,
+    build_timing_summary_figure,
 )
 from ..state import get_state
 
@@ -149,6 +153,8 @@ def _experiment_data_panel(state) -> None:
             with ui.tabs().classes("w-full") as tabs:
                 scores_tab = ui.tab("Scores", icon="show_chart")
                 stages_tab = ui.tab("Stages", icon="timeline")
+                timing_tab = ui.tab("Timing", icon="schedule")
+                scheduling_tab = ui.tab("Scheduling", icon="alt_route")
                 table_tab = ui.tab("All Rounds", icon="table_chart")
                 sensitivity_tab = ui.tab("Sensitivity", icon="tune")
                 correlation_tab = ui.tab("Correlations", icon="grid_view")
@@ -170,6 +176,30 @@ def _experiment_data_panel(state) -> None:
                     fig_stage = build_stage_figure(rounds, "Pipeline Stage Timeline")
                     ui.plotly(fig_stage).classes("w-full h-80")
                     _stage_summary(rounds)
+
+                with ui.tab_panel(timing_tab):
+                    fig_timing = build_timing_figure(rounds, "Round Timing Breakdown")
+                    ui.plotly(fig_timing).classes("w-full h-96")
+
+                    ui.separator()
+
+                    fig_leaf_timing = build_leaf_timing_figure(
+                        rounds, "Leaf Pipeline Timing Breakdown"
+                    )
+                    ui.plotly(fig_leaf_timing).classes("w-full h-80")
+
+                    ui.separator()
+
+                    fig_timing_summary = build_timing_summary_figure(
+                        rounds, "Timing Summary"
+                    )
+                    ui.plotly(fig_timing_summary).classes("w-full h-[28rem]")
+
+                    ui.separator()
+                    _timing_summary_panel(rounds)
+
+                with ui.tab_panel(scheduling_tab):
+                    _scheduling_summary_panel(rounds)
 
                 with ui.tab_panel(table_tab):
                     create_experiment_table(rounds)
@@ -318,12 +348,89 @@ def _leaf_gallery_panel(state) -> None:
                 )
         dialog.open()
 
+    def _round_preview_paths(round_payload: dict[str, Any]) -> dict[str, Any]:
+        routing = round_payload.get("routing", {})
+        if not isinstance(routing, dict):
+            routing = {}
+
+        preview_paths = round_payload.get("preview_paths", {})
+        if not isinstance(preview_paths, dict):
+            preview_paths = {}
+
+        board_paths = round_payload.get("board_paths", {})
+        if not isinstance(board_paths, dict):
+            board_paths = {}
+
+        log_summary = round_payload.get("log_summary", {})
+        if not isinstance(log_summary, dict):
+            log_summary = {}
+
+        render_diagnostics = routing.get("render_diagnostics", {})
+        if not isinstance(render_diagnostics, dict):
+            render_diagnostics = {}
+
+        def _path_or_none(value: Any) -> Path | None:
+            if not value:
+                return None
+            try:
+                return Path(str(value))
+            except (TypeError, ValueError):
+                return None
+
+        def _paths_for(stage_key: str) -> dict[str, Path | None]:
+            stage_payload = render_diagnostics.get(stage_key, {})
+            if not isinstance(stage_payload, dict):
+                stage_payload = {}
+            board_views = stage_payload.get("board_views", {})
+            if not isinstance(board_views, dict):
+                board_views = {}
+            paths = board_views.get("paths", {})
+            if not isinstance(paths, dict):
+                paths = {}
+            return {
+                "front": _path_or_none(paths.get("front_all")),
+                "back": _path_or_none(paths.get("back_all")),
+                "copper": _path_or_none(paths.get("copper_both")),
+            }
+
+        pre_route = _paths_for("pre_route")
+        routed = _paths_for("routed")
+        return {
+            "pre_front": _path_or_none(preview_paths.get("pre_route_front"))
+            or pre_route["front"],
+            "pre_back": _path_or_none(preview_paths.get("pre_route_back"))
+            or pre_route["back"],
+            "pre_copper": _path_or_none(preview_paths.get("pre_route_copper"))
+            or pre_route["copper"],
+            "routed_front": _path_or_none(preview_paths.get("routed_front"))
+            or routed["front"],
+            "routed_back": _path_or_none(preview_paths.get("routed_back"))
+            or routed["back"],
+            "routed_copper": _path_or_none(preview_paths.get("routed_copper"))
+            or routed["copper"],
+            "illegal_board": _path_or_none(board_paths.get("illegal_pre_stamp")),
+            "pre_route_board": _path_or_none(board_paths.get("pre_route")),
+            "routed_board": _path_or_none(board_paths.get("routed")),
+            "router": str(log_summary.get("router", "") or ""),
+            "reason": str(log_summary.get("reason", "") or ""),
+            "failed": bool(log_summary.get("failed", False)),
+            "skipped": bool(log_summary.get("skipped", False)),
+            "failed_internal_nets": list(
+                log_summary.get("failed_internal_nets", []) or []
+            ),
+            "routed_internal_nets": list(
+                log_summary.get("routed_internal_nets", []) or []
+            ),
+            "total_length_mm": float(log_summary.get("total_length_mm", 0.0) or 0.0),
+        }
+
     for artifact_dir in sorted(sub_root.iterdir()):
         if not artifact_dir.is_dir():
             continue
 
         solved_path = artifact_dir / "solved_layout.json"
         metadata_path = artifact_dir / "metadata.json"
+        debug_path = artifact_dir / "debug.json"
         if not solved_path.exists():
             continue
 
@@ -349,6 +456,28 @@ def _leaf_gallery_panel(state) -> None:
                     metadata = loaded
             except (OSError, json.JSONDecodeError):
                 metadata = {}
+
+        debug_payload: dict[str, Any] = {}
+        if debug_path.exists():
+            try:
+                with open(debug_path, encoding="utf-8") as f:
+                    loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    debug_payload = loaded
+            except (OSError, json.JSONDecodeError):
+                debug_payload = {}
+
+        extra = debug_payload.get("extra", {})
+        if not isinstance(extra, dict):
+            extra = {}
+
+        all_rounds = extra.get("all_rounds", [])
+        if not isinstance(all_rounds, list):
+            all_rounds = []
+
+        best_round = extra.get("best_round", {})
+        if not isinstance(best_round, dict):
+            best_round = {}
 
         renders_dir = artifact_dir / "renders"
         front_preview = next(
@@ -385,6 +514,57 @@ def _leaf_gallery_panel(state) -> None:
             None,
         )
 
+        candidate_rounds: list[dict[str, Any]] = []
+        for round_payload in all_rounds:
+            if not isinstance(round_payload, dict):
+                continue
+            placement = round_payload.get("placement", {})
+            if not isinstance(placement, dict):
+                placement = {}
+            routing = round_payload.get("routing", {})
+            if not isinstance(routing, dict):
+                routing = {}
+            validation_payload = routing.get("validation", {})
+            if not isinstance(validation_payload, dict):
+                validation_payload = {}
+            preview_paths = _round_preview_paths(round_payload)
+            candidate_rounds.append(
+                {
+                    "round_index": int(round_payload.get("round_index", 0) or 0),
+                    "seed": int(round_payload.get("seed", 0) or 0),
+                    "score": float(round_payload.get("score", 0.0) or 0.0),
+                    "routed": bool(round_payload.get("routed", False)),
+                    "accepted": bool(validation_payload.get("accepted", False)),
+                    "traces": int(routing.get("traces", 0) or 0),
+                    "vias": int(routing.get("vias", 0) or 0),
+                    "net_distance": float(placement.get("net_distance", 0.0) or 0.0),
+                    "crossovers": int(placement.get("crossover_count", 0) or 0),
+                    "compactness": float(placement.get("compactness", 0.0) or 0.0),
+                    "pre_front": preview_paths["pre_front"],
+                    "pre_back": preview_paths["pre_back"],
+                    "pre_copper": preview_paths["pre_copper"],
+                    "routed_front": preview_paths["routed_front"],
+                    "routed_back": preview_paths["routed_back"],
+                    "routed_copper": preview_paths["routed_copper"],
+                    "illegal_board": preview_paths["illegal_board"],
+                    "pre_route_board": preview_paths["pre_route_board"],
+                    "routed_board": preview_paths["routed_board"],
+                    "router": preview_paths["router"],
+                    "reason": preview_paths["reason"],
+                    "failed": preview_paths["failed"],
+                    "skipped": preview_paths["skipped"],
+                    "failed_internal_nets": preview_paths["failed_internal_nets"],
+                    "routed_internal_nets": preview_paths["routed_internal_nets"],
+                    "total_length_mm": preview_paths["total_length_mm"],
+                }
+            )
+
+        candidate_rounds.sort(key=lambda item: item["score"], reverse=True)
+
+        best_round_index = None
+        if best_round:
+            best_round_index = int(best_round.get("round_index", 0) or 0)
+
         accepted.append(
             {
                 "sheet_name": solved.get("sheet_name")
@@ -399,6 +579,8 @@ def _leaf_gallery_panel(state) -> None:
                 "front_preview": front_preview,
                 "back_preview": back_preview,
                 "copper_preview": copper_preview,
+                "candidate_rounds": candidate_rounds,
+                "best_round_index": best_round_index,
             }
         )
 
@@ -415,7 +597,12 @@ def _leaf_gallery_panel(state) -> None:
         "Each leaf now shows separate front, back, and combined-copper previews so "
         "silkscreen and back-layer routing are easier to inspect. Click any preview "
         "to open a larger inspection view."
-    ).classes("text-sm text-gray-400 mb-4")
+    ).classes("text-sm text-gray-400 mb-2")
+    ui.label(
+        "Use the candidate-round inspector under each accepted leaf to see whether "
+        "the solver actually explored multiple placements, which seed won, and how "
+        "the attempted rounds scored against each other."
+    ).classes("text-sm text-amber-300 mb-4")
 
     with ui.grid(columns=1).classes("w-full gap-4"):
         for item in accepted:
@@ -484,6 +671,190 @@ def _leaf_gallery_panel(state) -> None:
                                 ui.label("Preview not available").classes(
                                     "text-gray-500 italic text-sm"
                                 )
+
+                candidate_rounds = item["candidate_rounds"]
+                if candidate_rounds:
+                    with ui.expansion(
+                        f"Candidate round inspector ({len(candidate_rounds)} attempted rounds)",
+                        value=False,
+                    ).classes("w-full mt-4"):
+                        ui.label(
+                            "These are the attempted placement/routing rounds for this leaf. "
+                            "The winning round is marked so you can tell whether the solver "
+                            "actually explored alternatives or just converged to one obvious answer."
+                        ).classes("text-sm text-gray-400 mb-3")
+
+                        with ui.column().classes("w-full gap-3"):
+                            for round_item in candidate_rounds:
+                                is_best = (
+                                    item["best_round_index"] is not None
+                                    and round_item["round_index"]
+                                    == item["best_round_index"]
+                                )
+                                with ui.card().classes("w-full p-3 bg-slate-900/70"):
+                                    with ui.row().classes("w-full items-center gap-2"):
+                                        ui.badge(
+                                            f"ROUND {round_item['round_index']}",
+                                            color="blue",
+                                        )
+                                        if is_best:
+                                            ui.badge("WINNER", color="green")
+                                        if round_item["accepted"]:
+                                            ui.badge("ACCEPTED", color="green")
+                                        elif round_item["routed"]:
+                                            ui.badge("ROUTED", color="orange")
+                                        else:
+                                            ui.badge("FAILED", color="red")
+                                        ui.space()
+                                        ui.label(
+                                            f"score {round_item['score']:.2f}"
+                                        ).classes("font-mono text-green-300")
+
+                                    with ui.row().classes(
+                                        "w-full gap-4 flex-wrap mt-2"
+                                    ):
+                                        ui.label(f"seed={round_item['seed']}").classes(
+                                            "text-xs text-gray-400 font-mono"
+                                        )
+                                        ui.label(
+                                            f"crossovers={round_item['crossovers']}"
+                                        ).classes("text-xs text-cyan-300")
+                                        ui.label(
+                                            f"net_distance={round_item['net_distance']:.2f}"
+                                        ).classes("text-xs text-cyan-300")
+                                        ui.label(
+                                            f"compactness={round_item['compactness']:.2f}"
+                                        ).classes("text-xs text-cyan-300")
+                                        ui.label(
+                                            f"traces={round_item['traces']}"
+                                        ).classes("text-xs text-amber-300")
+                                        ui.label(f"vias={round_item['vias']}").classes(
+                                            "text-xs text-amber-300"
+                                        )
+                                        if round_item["router"]:
+                                            ui.label(
+                                                f"router={round_item['router']}"
+                                            ).classes(
+                                                "text-xs text-purple-300 font-mono"
+                                            )
+                                        ui.label(
+                                            f"length_mm={round_item['total_length_mm']:.2f}"
+                                        ).classes("text-xs text-emerald-300")
+
+                                    with ui.expansion(
+                                        "Board paths and machine diagnostics",
+                                        value=False,
+                                    ).classes("w-full mt-3"):
+                                        if round_item["reason"]:
+                                            ui.label(
+                                                f"reason={round_item['reason']}"
+                                            ).classes(
+                                                "text-xs text-amber-300 font-mono break-all mb-2"
+                                            )
+
+                                        with ui.column().classes("w-full gap-1"):
+                                            for label, board_path in [
+                                                (
+                                                    "illegal_pre_stamp_board",
+                                                    round_item["illegal_board"],
+                                                ),
+                                                (
+                                                    "pre_route_board",
+                                                    round_item["pre_route_board"],
+                                                ),
+                                                (
+                                                    "routed_board",
+                                                    round_item["routed_board"],
+                                                ),
+                                            ]:
+                                                if board_path is not None:
+                                                    ui.label(
+                                                        f"{label}={board_path}"
+                                                    ).classes(
+                                                        "text-[11px] text-gray-400 font-mono break-all"
+                                                    )
+
+                                        if round_item["failed_internal_nets"]:
+                                            ui.label(
+                                                "failed_internal_nets="
+                                                + ", ".join(
+                                                    str(net)
+                                                    for net in round_item[
+                                                        "failed_internal_nets"
+                                                    ]
+                                                )
+                                            ).classes(
+                                                "text-[11px] text-red-300 font-mono break-all mt-2"
+                                            )
+
+                                        if round_item["routed_internal_nets"]:
+                                            ui.label(
+                                                "routed_internal_nets="
+                                                + ", ".join(
+                                                    str(net)
+                                                    for net in round_item[
+                                                        "routed_internal_nets"
+                                                    ]
+                                                )
+                                            ).classes(
+                                                "text-[11px] text-green-300 font-mono break-all"
+                                            )
+
+                                        ui.label(
+                                            f"failed={round_item['failed']} | skipped={round_item['skipped']}"
+                                        ).classes(
+                                            "text-[11px] text-gray-500 font-mono mt-2"
+                                        )
+
+                                    with ui.grid(columns=3).classes(
+                                        "w-full gap-3 mt-3"
+                                    ):
+                                        for preview_label, preview in [
+                                            (
+                                                "Pre-route front",
+                                                round_item["pre_front"],
+                                            ),
+                                            (
+                                                "Routed front",
+                                                round_item["routed_front"],
+                                            ),
+                                            (
+                                                "Routed copper",
+                                                round_item["routed_copper"],
+                                            ),
+                                        ]:
+                                            with ui.card().classes(
+                                                "w-full p-2 bg-slate-950/70"
+                                            ):
+                                                ui.label(preview_label).classes(
+                                                    "text-xs text-gray-300 font-medium mb-2"
+                                                )
+                                                if (
+                                                    preview is not None
+                                                    and preview.exists()
+                                                ):
+                                                    ui.image(str(preview)).classes(
+                                                        "w-full h-[220px] object-contain rounded border border-slate-700 bg-slate-950 cursor-pointer"
+                                                    ).on(
+                                                        "click",
+                                                        lambda _, p=preview, preview_label=preview_label, item=item, round_item=round_item: (
+                                                            _open_preview_dialog(
+                                                                f"{item['sheet_name']} — round {round_item['round_index']} — {preview_label}",
+                                                                p,
+                                                                f"{item['instance_path'] or item['artifact_dir']} | seed={round_item['seed']}",
+                                                            )
+                                                        ),
+                                                    )
+                                                else:
+                                                    ui.label(
+                                                        "No per-round preview available"
+                                                    ).classes(
+                                                        "text-gray-500 italic text-sm"
+                                                    )
+                else:
+                    ui.label(
+                        "No candidate-round metadata was found for this leaf."
+                    ).classes("text-sm text-gray-500 italic mt-4")
 
 
 def _parent_preview_panel(state) -> None:
@@ -602,43 +973,73 @@ def _parent_preview_panel(state) -> None:
         preloaded = None
         routed = None
         metadata = None
+        stamped_board = None
+        routed_board = None
 
-        for candidate in [
-            base_dir / "parent_preloaded.png",
-            base_dir / "preloaded_png.png",
-            base_dir / "preloaded.png",
-            base_dir / "board_preloaded.png",
-            base_dir / "parent_stamped.png",
-            base_dir / "board.png",
-            base_dir / "snapshot.png",
-        ]:
-            if candidate.exists():
-                preloaded = candidate
+        search_dirs = [
+            base_dir,
+            base_dir / "renders",
+        ]
+
+        for search_dir in search_dirs:
+            for candidate in [
+                search_dir / "parent_stamped.png",
+                search_dir / "board.png",
+                search_dir / "snapshot.png",
+            ]:
+                if candidate.exists():
+                    preloaded = candidate
+                    break
+            if preloaded is not None:
+                break
+
+        for search_dir in search_dirs:
+            for candidate in [
+                search_dir / "parent_routed.png",
+                search_dir / "routed.png",
+                search_dir / "board_routed.png",
+            ]:
+                if candidate.exists():
+                    routed = candidate
+                    break
+            if routed is not None:
                 break
 
         for candidate in [
-            base_dir / "parent_freerouted.png",
-            base_dir / "routed_png.png",
-            base_dir / "parent_routed.png",
-            base_dir / "routed.png",
-            base_dir / "board_routed.png",
+            base_dir / "parent_pre_freerouting.kicad_pcb",
+            base_dir / "parent_stamped.kicad_pcb",
         ]:
             if candidate.exists():
-                routed = candidate
+                stamped_board = candidate
                 break
 
         for candidate in [
-            base_dir / "demo_metadata.json",
-            base_dir / "debug.json",
-            base_dir / "metadata.json",
-            base_dir / "summary.json",
-            base_dir / "parent_composition.json",
+            base_dir / "parent_routed.kicad_pcb",
         ]:
             if candidate.exists():
-                metadata = candidate
+                routed_board = candidate
                 break
 
-        if preloaded is None and routed is None and metadata is None:
+        for search_dir in search_dirs:
+            for candidate in [
+                search_dir / "debug.json",
+                search_dir / "metadata.json",
+                search_dir / "summary.json",
+                search_dir / "parent_composition.json",
+            ]:
+                if candidate.exists():
+                    metadata = candidate
+                    break
+            if metadata is not None:
+                break
+
+        if (
+            preloaded is None
+            and routed is None
+            and metadata is None
+            and stamped_board is None
+            and routed_board is None
+        ):
             return
 
         metadata_payload: dict[str, Any] = {}
@@ -654,29 +1055,33 @@ def _parent_preview_panel(state) -> None:
                 metadata_payload = {}
                 copper_accounting = {}
 
+        artifact_paths = metadata_payload.get("artifact_paths", {})
+        if not isinstance(artifact_paths, dict):
+            artifact_paths = {}
+
+        if stamped_board is None and artifact_paths.get("parent_pre_freerouting_board"):
+            stamped_board = Path(str(artifact_paths["parent_pre_freerouting_board"]))
+        if routed_board is None and artifact_paths.get("parent_routed_board"):
+            routed_board = Path(str(artifact_paths["parent_routed_board"]))
+
         preview_sets.append(
             {
                 "label": label,
                 "base_dir": base_dir,
                 "preloaded": preloaded,
                 "routed": routed,
+                "stamped_board": stamped_board,
+                "routed_board": routed_board,
                 "metadata": metadata,
                 "metadata_payload": metadata_payload,
                 "copper_accounting": copper_accounting,
             }
         )
 
-    _add_preview_set(
-        state.experiments_dir / "hierarchical_parent_smoke",
-        "Parent Smoke Test",
-    )
-
     auto_root = state.experiments_dir / "hierarchical_autoexperiment"
     if auto_root.exists():
         for round_dir in sorted(auto_root.glob("round_*"), reverse=True):
-            visible_dir = round_dir / "visible_parent"
-            if visible_dir.exists():
-                _add_preview_set(visible_dir, f"Autoexperiment {round_dir.name}")
+            _add_preview_set(round_dir, f"Autoexperiment {round_dir.name}")
 
     if not preview_sets:
         ui.label("No parent/top-level preview artifacts found yet.").classes(
@@ -743,6 +1148,10 @@ def _parent_preview_panel(state) -> None:
                             "routing adds anything new. This image is generated by the same "
                             "single parent pipeline that performs stamping and routing."
                         ).classes("text-xs text-gray-400 mb-3")
+                        if item["stamped_board"] is not None:
+                            ui.label(f"board={item['stamped_board']}").classes(
+                                "text-[11px] text-emerald-300 font-mono break-all mb-2"
+                            )
                         if item["preloaded"] is not None:
                             ui.image(str(item["preloaded"])).classes(
                                 "w-full h-[520px] object-contain rounded border border-slate-700 bg-slate-950 cursor-pointer"
@@ -768,7 +1177,7 @@ def _parent_preview_panel(state) -> None:
                                 ),
                             ).props("flat dense").classes("mt-2 text-cyan-300")
                         else:
-                            ui.label("No preloaded preview found").classes(
+                            ui.label("No stamped preview found").classes(
                                 "text-gray-500 italic"
                             )
 
@@ -781,6 +1190,10 @@ def _parent_preview_panel(state) -> None:
                             "looks visually understated here, compare against the stamped view "
                             "and the copper-accounting badges above."
                         ).classes("text-xs text-gray-400 mb-3")
+                        if item["routed_board"] is not None:
+                            ui.label(f"board={item['routed_board']}").classes(
+                                "text-[11px] text-emerald-300 font-mono break-all mb-2"
+                            )
                         if item["routed"] is not None:
                             ui.image(str(item["routed"])).classes(
                                 "w-full h-[520px] object-contain rounded border border-slate-700 bg-slate-950 cursor-pointer"
@@ -840,7 +1253,7 @@ def _summary_cards(rounds: list[dict[str, Any]]) -> None:
         leaf_accepted = _as_int(r.get("leaf_accepted", 0))
         if leaf_total > 0:
             best_leaf_accept = max(best_leaf_accept, leaf_accepted / leaf_total)
-        if r.get("top_level_ready"):
+        if r.get("parent_routed"):
             top_ready_count += 1
 
     with ui.row().classes("w-full gap-4 mb-4"):
@@ -849,7 +1262,7 @@ def _summary_cards(rounds: list[dict[str, Any]]) -> None:
         _stat_card("Avg Score", f"{avg_score:.2f}")
         _stat_card("Kept", f"{total_kept} ({(total_kept / len(rounds)):.0%})")
         _stat_card("Best Leaf Acceptance", f"{best_leaf_accept:.0%}")
-        _stat_card("Top-Level Ready", f"{top_ready_count}/{len(rounds)}")
+        _stat_card("Parent Routed", f"{top_ready_count}/{len(rounds)}")
         _stat_card("Total Time", f"{total_duration / 60:.0f}m")
 
 
@@ -868,6 +1281,226 @@ def _stage_summary(rounds: list[dict[str, Any]]) -> None:
         for stage, count in sorted(stage_counts.items()):
             color = _stage_badge_color(stage)
             ui.badge(f"{stage}: {count}", color=color)
+
+
+def _timing_summary_panel(rounds: list[dict[str, Any]]) -> None:
+    ui.label("Timing Summary").classes("text-lg font-bold mt-4 mb-2")
+
+    if not rounds:
+        ui.label("No timing data available").classes("text-gray-500 italic")
+        return
+
+    def _timing_value(round_data: dict[str, Any], key: str) -> float:
+        timing = round_data.get("timing_breakdown", {})
+        if not isinstance(timing, dict):
+            timing = {}
+        return _as_float(timing.get(key, 0.0))
+
+    round_count = max(1, len(rounds))
+    avg_solve = (
+        sum(_timing_value(r, "solve_subcircuits_total") for r in rounds) / round_count
+    )
+    avg_compose = (
+        sum(_timing_value(r, "compose_subcircuits_total") for r in rounds) / round_count
+    )
+    avg_parent_route = (
+        sum(_timing_value(r, "parent_route_total") for r in rounds) / round_count
+    )
+    avg_score = sum(_timing_value(r, "score_round_total") for r in rounds) / round_count
+    avg_render = (
+        sum(
+            _timing_value(r, "pre_route_render_diagnostics_s")
+            + _timing_value(r, "routed_render_diagnostics_s")
+            for r in rounds
+        )
+        / round_count
+    )
+    avg_leaf_total = sum(_timing_value(r, "leaf_total_s") for r in rounds) / round_count
+    avg_round_total = (
+        sum(
+            _timing_value(r, "round_total") or _as_float(r.get("duration_s", 0.0))
+            for r in rounds
+        )
+        / round_count
+    )
+
+    with ui.grid(columns=4).classes("w-full gap-4 mb-4"):
+        _stat_card("Avg Solve", f"{avg_solve:.2f}s")
+        _stat_card("Avg Compose", f"{avg_compose:.2f}s")
+        _stat_card("Avg Parent Route", f"{avg_parent_route:.2f}s")
+        _stat_card("Avg Score", f"{avg_score:.2f}s")
+        _stat_card("Avg Render", f"{avg_render:.2f}s")
+        _stat_card("Avg Leaf Total", f"{avg_leaf_total:.2f}s")
+        _stat_card("Avg Round Total", f"{avg_round_total:.2f}s")
+
+    render_heavy_rounds = sorted(
+        rounds,
+        key=lambda r: (
+            _timing_value(r, "pre_route_render_diagnostics_s")
+            + _timing_value(r, "routed_render_diagnostics_s")
+        ),
+        reverse=True,
+    )[:5]
+
+    ui.label("Most Render-Heavy Rounds").classes("text-md font-bold mt-3 mb-2")
+    if not render_heavy_rounds:
+        ui.label("No render timing data available").classes("text-gray-500 italic")
+        return
+
+    with ui.column().classes("w-full gap-2"):
+        for round_data in render_heavy_rounds:
+            round_num = _as_int(round_data.get("round_num", 0))
+            render_total = _timing_value(
+                round_data, "pre_route_render_diagnostics_s"
+            ) + _timing_value(round_data, "routed_render_diagnostics_s")
+            solve_total = _timing_value(round_data, "solve_subcircuits_total")
+            round_total = _timing_value(round_data, "round_total") or _as_float(
+                round_data.get("duration_s", 0.0)
+            )
+            ui.label(
+                f"Round {round_num}: render={render_total:.2f}s | "
+                f"solve={solve_total:.2f}s | total={round_total:.2f}s"
+            ).classes("text-sm text-gray-300 font-mono")
+
+
+def _scheduling_summary_panel(rounds: list[dict[str, Any]]) -> None:
+    ui.label("Leaf Scheduling + Long-Pole Summary").classes(
+        "text-lg font-bold mt-4 mb-2"
+    )
+
+    if not rounds:
+        ui.label("No scheduling data available").classes("text-gray-500 italic")
+        return
+
+    def _leaf_timing_summary(round_data: dict[str, Any]) -> dict[str, Any]:
+        summary = round_data.get("leaf_timing_summary", {})
+        if not isinstance(summary, dict):
+            summary = {}
+        return summary
+
+    def _scheduled_leafs(round_data: dict[str, Any]) -> list[dict[str, Any]]:
+        summary = _leaf_timing_summary(round_data)
+        rows = summary.get("scheduled_leafs", [])
+        if not isinstance(rows, list):
+            rows = []
+        return [row for row in rows if isinstance(row, dict)]
+
+    def _long_poles(round_data: dict[str, Any]) -> list[dict[str, Any]]:
+        summary = _leaf_timing_summary(round_data)
+        rows = summary.get("long_pole_leafs", [])
+        if not isinstance(rows, list):
+            rows = []
+        return [row for row in rows if isinstance(row, dict)]
+
+    rounds_with_scheduling = [
+        r
+        for r in rounds
+        if _leaf_timing_summary(r) or _scheduled_leafs(r) or _long_poles(r)
+    ]
+    if not rounds_with_scheduling:
+        ui.label(
+            "No persisted scheduling or long-pole metadata found in these rounds."
+        ).classes("text-gray-500 italic")
+        return
+
+    latest_round = max(
+        rounds_with_scheduling,
+        key=lambda r: _as_int(r.get("round_num", 0)),
+    )
+    latest_summary = _leaf_timing_summary(latest_round)
+    latest_scheduled = _scheduled_leafs(latest_round)
+    latest_long_poles = _long_poles(latest_round)
+
+    with ui.grid(columns=4).classes("w-full gap-4 mb-4"):
+        _stat_card(
+            "Latest Leaf Count",
+            str(_as_int(latest_summary.get("leaf_count", 0))),
+        )
+        _stat_card(
+            "Latest Imbalance",
+            f"{_as_float(latest_summary.get('imbalance_ratio', 0.0)):.2f}",
+        )
+        _stat_card(
+            "Latest Max Leaf",
+            f"{_as_float(latest_summary.get('max_leaf_time_s', 0.0)):.2f}s",
+        )
+        _stat_card(
+            "Latest Total Leaf Time",
+            f"{_as_float(latest_summary.get('total_leaf_time_s', 0.0)):.2f}s",
+        )
+
+    ui.label("Latest Recommended Order").classes("text-md font-bold mt-3 mb-2")
+    if latest_scheduled:
+        with ui.column().classes("w-full gap-2 mb-4"):
+            for item in latest_scheduled[:8]:
+                position = _as_int(item.get("scheduled_position", 0))
+                name = str(
+                    item.get("sheet_name", item.get("scheduled_selector", "")) or ""
+                )
+                score = _as_float(item.get("scheduling_score", 0.0))
+                freerouting_s = _as_float(item.get("freerouting_s", 0.0))
+                leaf_total_s = _as_float(item.get("leaf_total_s", 0.0))
+                failed_round_count = _as_int(item.get("failed_round_count", 0))
+                trivial = bool(item.get("historically_trivial_candidate", False))
+                ui.label(
+                    f"{position}. {name} | score={score:.2f} | "
+                    f"leaf={leaf_total_s:.2f}s | freerouting={freerouting_s:.2f}s | "
+                    f"failed_rounds={failed_round_count} | trivial={'yes' if trivial else 'no'}"
+                ).classes("text-sm text-gray-300 font-mono")
+    else:
+        ui.label("No scheduled leaf ordering persisted for the latest round.").classes(
+            "text-gray-500 italic mb-4"
+        )
+
+    ui.label("Latest Long-Pole Leafs").classes("text-md font-bold mt-3 mb-2")
+    if latest_long_poles:
+        with ui.column().classes("w-full gap-2 mb-4"):
+            for item in latest_long_poles[:5]:
+                name = str(item.get("sheet_name", "") or "")
+                leaf_total_s = _as_float(item.get("leaf_total_s", 0.0))
+                route_total_s = _as_float(item.get("route_total_s", 0.0))
+                freerouting_s = _as_float(item.get("freerouting_s", 0.0))
+                internal_net_count = _as_int(item.get("internal_net_count", 0))
+                ui.label(
+                    f"{name}: leaf={leaf_total_s:.2f}s | route={route_total_s:.2f}s | "
+                    f"freerouting={freerouting_s:.2f}s | internal_nets={internal_net_count}"
+                ).classes("text-sm text-gray-300 font-mono")
+    else:
+        ui.label("No long-pole leafs recorded for the latest round.").classes(
+            "text-gray-500 italic mb-4"
+        )
+
+    ui.label("Scheduling Trend by Round").classes("text-md font-bold mt-3 mb-2")
+    with ui.column().classes("w-full gap-2"):
+        for round_data in sorted(
+            rounds_with_scheduling,
+            key=lambda r: _as_int(r.get("round_num", 0)),
+            reverse=True,
+        )[:8]:
+            round_num = _as_int(round_data.get("round_num", 0))
+            summary = _leaf_timing_summary(round_data)
+            scheduled = _scheduled_leafs(round_data)
+            long_poles = _long_poles(round_data)
+            top_scheduled = (
+                ", ".join(
+                    str(
+                        item.get("sheet_name", item.get("scheduled_selector", "")) or ""
+                    )
+                    for item in scheduled[:3]
+                )
+                or "none"
+            )
+            top_long_poles = (
+                ", ".join(
+                    str(item.get("sheet_name", "") or "") for item in long_poles[:3]
+                )
+                or "none"
+            )
+            ui.label(
+                f"Round {round_num}: imbalance={_as_float(summary.get('imbalance_ratio', 0.0)):.2f} | "
+                f"max_leaf={_as_float(summary.get('max_leaf_time_s', 0.0)):.2f}s | "
+                f"scheduled={top_scheduled} | long_poles={top_long_poles}"
+            ).classes("text-sm text-gray-300 font-mono")
 
 
 def _convergence_panel(rounds: list[dict[str, Any]]) -> None:
@@ -897,7 +1530,7 @@ def _convergence_panel(rounds: list[dict[str, Any]]) -> None:
     initial = scores[0] if scores else 0.0
     improvement = best - initial if scores else 0.0
 
-    top_ready = sum(1 for r in rounds if r.get("top_level_ready"))
+    top_ready = sum(1 for r in rounds if r.get("parent_routed"))
     parent_ok = sum(1 for r in rounds if r.get("parent_composed"))
 
     ui.label("Convergence Summary").classes("text-lg font-bold mb-2")
@@ -915,7 +1548,7 @@ def _convergence_panel(rounds: list[dict[str, Any]]) -> None:
             color="orange",
         )
         ui.badge(
-            f"Top-level ready: {top_ready}/{len(rounds)} ({top_ready / len(rounds):.0%})",
+            f"Parent routed: {top_ready}/{len(rounds)} ({top_ready / len(rounds):.0%})",
             color="green",
         )
 
@@ -946,11 +1579,11 @@ def _export_panel(rounds: list[dict[str, Any]], exp_id: int) -> None:
             "leaf_total",
             "leaf_accepted",
             "parent_composed",
-            "top_level_ready",
+            "parent_routed",
             "accepted_trace_count",
             "accepted_via_count",
             "latest_stage",
-            "duration_s",
+            "details",
         ]
         lines = [",".join(keys)]
         for r in rounds:
@@ -993,7 +1626,7 @@ def _stage_badge_color(stage: str) -> str:
         return "blue"
     if stage == "compose_parent":
         return "orange"
-    if stage in {"visible_top_level", "done", "complete"}:
+    if stage in {"route_parent", "done", "complete"}:
         return "green"
     if stage == "startup":
         return "gray"

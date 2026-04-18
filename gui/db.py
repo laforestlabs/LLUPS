@@ -70,12 +70,7 @@ class ExperimentRun(Base):
 
 
 class Round(Base):
-    """One round within an experiment run.
-
-    This schema supports both:
-    - legacy whole-board experiment records
-    - new hierarchical subcircuit experiment records
-    """
+    """One round within a hierarchical subcircuit experiment run."""
 
     __tablename__ = "rounds"
 
@@ -114,18 +109,20 @@ class Round(Base):
     leaf_total = Column(Integer)
     leaf_accepted = Column(Integer)
     parent_composed = Column(Boolean)
-    top_level_ready = Column(Boolean)
+    parent_routed = Column(Boolean)
     accepted_trace_count = Column(Integer)
     accepted_via_count = Column(Integer)
     latest_stage = Column(String(80))
     artifact_root = Column(Text)
     composition_json = Column(Text)
-    visible_output_dir = Column(Text)
+    parent_output_json = Column(Text)
     leaf_names_json = Column(Text, default="[]")
     accepted_leaf_names_json = Column(Text, default="[]")
     hierarchy_json = Column(Text, default="{}")
     artifacts_json = Column(Text, default="{}")
     commands_json = Column(Text, default="{}")
+    timing_breakdown_json = Column(Text, default="{}")
+    leaf_timing_summary_json = Column(Text, default="{}")
 
     # Shared free-form detail
     details = Column(Text)
@@ -158,6 +155,14 @@ class Round(Base):
     @property
     def commands(self) -> dict[str, Any]:
         return _json_loads_dict(self.commands_json)
+
+    @property
+    def timing_breakdown(self) -> dict[str, Any]:
+        return _json_loads_dict(self.timing_breakdown_json)
+
+    @property
+    def leaf_timing_summary(self) -> dict[str, Any]:
+        return _json_loads_dict(self.leaf_timing_summary_json)
 
 
 class Preset(Base):
@@ -204,18 +209,20 @@ class Database:
             "leaf_total": "INTEGER",
             "leaf_accepted": "INTEGER",
             "parent_composed": "BOOLEAN",
-            "top_level_ready": "BOOLEAN",
+            "parent_routed": "BOOLEAN",
             "accepted_trace_count": "INTEGER",
             "accepted_via_count": "INTEGER",
             "latest_stage": "VARCHAR(80)",
             "artifact_root": "TEXT",
             "composition_json": "TEXT",
-            "visible_output_dir": "TEXT",
+            "parent_output_json": "TEXT",
             "leaf_names_json": "TEXT DEFAULT '[]'",
             "accepted_leaf_names_json": "TEXT DEFAULT '[]'",
             "hierarchy_json": "TEXT DEFAULT '{}'",
             "artifacts_json": "TEXT DEFAULT '{}'",
             "commands_json": "TEXT DEFAULT '{}'",
+            "timing_breakdown_json": "TEXT DEFAULT '{}'",
+            "leaf_timing_summary_json": "TEXT DEFAULT '{}'",
         }
 
         with self.engine.begin() as conn:
@@ -285,6 +292,14 @@ class Database:
         if not isinstance(commands, dict):
             commands = {}
 
+        timing_breakdown = data.get("timing_breakdown", {})
+        if not isinstance(timing_breakdown, dict):
+            timing_breakdown = {}
+
+        leaf_timing_summary = data.get("leaf_timing_summary", {})
+        if not isinstance(leaf_timing_summary, dict):
+            leaf_timing_summary = {}
+
         leaf_names = data.get("leaf_names", hierarchy.get("leaf_names", []))
         if not isinstance(leaf_names, list):
             leaf_names = []
@@ -328,9 +343,7 @@ class Database:
                 parent_composed=data.get(
                     "parent_composed", hierarchy.get("parent_composed")
                 ),
-                top_level_ready=data.get(
-                    "top_level_ready", hierarchy.get("top_level_ready")
-                ),
+                parent_routed=data.get("parent_routed", hierarchy.get("parent_routed")),
                 accepted_trace_count=data.get(
                     "accepted_trace_count", hierarchy.get("accepted_trace_count")
                 ),
@@ -342,14 +355,16 @@ class Database:
                 composition_json=data.get(
                     "composition_json", artifacts.get("composition_json")
                 ),
-                visible_output_dir=data.get(
-                    "visible_output_dir", artifacts.get("visible_output_dir")
+                parent_output_json=data.get(
+                    "parent_output_json", artifacts.get("parent_output_json")
                 ),
                 leaf_names_json=_json_dumps(leaf_names),
                 accepted_leaf_names_json=_json_dumps(accepted_leaf_names),
                 hierarchy_json=_json_dumps(hierarchy),
                 artifacts_json=_json_dumps(artifacts),
                 commands_json=_json_dumps(commands),
+                timing_breakdown_json=_json_dumps(timing_breakdown),
+                leaf_timing_summary_json=_json_dumps(leaf_timing_summary),
                 details=data.get("details"),
             )
             s.add(r)
@@ -403,18 +418,20 @@ class Database:
                     "leaf_total": r.leaf_total,
                     "leaf_accepted": r.leaf_accepted,
                     "parent_composed": r.parent_composed,
-                    "top_level_ready": r.top_level_ready,
+                    "parent_routed": r.parent_routed,
                     "accepted_trace_count": r.accepted_trace_count,
                     "accepted_via_count": r.accepted_via_count,
                     "latest_stage": r.latest_stage,
                     "artifact_root": r.artifact_root,
                     "composition_json": r.composition_json,
-                    "visible_output_dir": r.visible_output_dir,
+                    "parent_output_json": r.parent_output_json,
                     "leaf_names": r.leaf_names,
                     "accepted_leaf_names": r.accepted_leaf_names,
                     "hierarchy": r.hierarchy,
                     "artifacts": r.artifacts,
                     "commands": r.commands,
+                    "timing_breakdown": r.timing_breakdown,
+                    "leaf_timing_summary": r.leaf_timing_summary,
                 }
             )
         return result

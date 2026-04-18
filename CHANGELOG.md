@@ -1,5 +1,855 @@
 # LLUPS Engineering Changelog
 
+## 2026-04-18: Final Timing-Summary Extraction Fix + Closeout
+
+### Completed
+- Added explicit JSON payload markers to `solve_subcircuits.py` when `--json` is used:
+  - `===SOLVE_SUBCIRCUITS_JSON_START===`
+  - `===SOLVE_SUBCIRCUITS_JSON_END===`
+- Updated `autoexperiment.py` solve-output parsing to prefer:
+  - explicit solve JSON markers first
+  - dict payloads containing `leaf_subcircuits` or `results` before generic fallback parsing
+- This closes the main intermittent timing-summary extraction issue caused by mixed stdout logs from leaf solving.
+- Re-ran bounded hierarchical verification after the marker-based fix.
+- Confirmed that round artifacts again persist populated:
+  - `leaf_timing_summary.leafs`
+  - `leaf_timing_summary.long_pole_leafs`
+  - `leaf_timing_summary.schedule_recommendation`
+  - `leaf_timing_summary.scheduled_leafs`
+- This also means the earlier GUI / monitor scheduling surfacing now has stable upstream data to display.
+
+### Verification findings
+- Re-ran:
+  - `python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 2 --leaf-rounds 1 --fast-smoke --workers 0`
+- Confirmed:
+  - no Python traceback
+  - hierarchical run completed successfully
+  - round 2 completed with populated `leaf_timing_summary`
+  - long-pole leaves were again visible in round artifacts
+  - the latest bounded run produced a better round-2 score than round 1
+- In the latest successful bounded run, visible long-pole leaves included:
+  - `CHARGER`
+  - `LDO 3.3V`
+  - `BOOST 5V`
+
+### Closeout status
+- The immediate scheduling / failure-handling / GUI-surfacing thread is now in a reasonable stopping state.
+- The pipeline has:
+  - improved scheduling heuristics
+  - better parallel failure preservation
+  - stable timing-summary extraction
+  - GUI / monitor surfacing for scheduling and long-pole data
+- Remaining issues are now more refinement-oriented than unblockers.
+
+### Remaining follow-up
+1. If this work resumes later, refine topology-count quality in scheduling metadata (`trace_count` / `via_count` are still weaker than ideal in some extracted rows).
+2. Optionally enrich the Scheduling tab with:
+   - failure-prone leaf summaries
+   - scheduling-score columns
+   - acceptance/failure history badges
+3. If focus shifts elsewhere, this branch is now in a good enough state to pause without losing the main scheduling/timing thread.
+
+## 2026-04-18: GUI Scheduling + Long-Pole Surfacing Follow-Through
+
+### Completed
+- Extended the GUI data path so round records can persist `leaf_timing_summary` in the local experiment database.
+- Updated `gui/db.py` to store and return `leaf_timing_summary` alongside existing hierarchical round metadata.
+- Added a new Scheduling tab in the analysis view.
+- The analysis Scheduling tab now surfaces:
+  - latest recommended leaf order
+  - latest long-pole leaves
+  - latest imbalance / max-leaf / total-leaf timing summary cards
+  - recent per-round scheduling trend summaries
+- Updated the monitor view so live status can show:
+  - top scheduled leaves
+  - top long-pole leaves
+  - next-priority scheduling hint
+- Extended the live status payload in `autoexperiment.py` so `hierarchy.leaf_timing_summary` is available to the monitor path.
+
+### Verification findings
+- Re-ran bounded hierarchical verification with:
+  - `python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 2 --leaf-rounds 1 --fast-smoke --workers 0`
+- Confirmed:
+  - no Python traceback
+  - hierarchical run still completed
+  - live status payload now includes `hierarchy.leaf_timing_summary`
+  - GUI-facing persistence path for `leaf_timing_summary` is now wired through the DB layer
+- During verification, the run still showed an existing upstream limitation:
+  - some bounded runs continue to produce empty `leaf_timing_summary.leafs` rows even though scheduling recommendation fields are still present
+
+### Current limitation
+- GUI surfacing is now in place, but the underlying timing payload is still inconsistent in some runs.
+- In particular, some bounded hierarchical runs still persist:
+  - empty `leaf_timing_summary.leafs`
+  - empty `long_pole_leafs`
+  while still producing `schedule_recommendation` / `scheduled_leafs`
+- This means the GUI can now display the scheduling structures, but the upstream extraction path still needs another debugging pass for full fidelity.
+
+### Why this mattered
+- The user asked for GUI improvements next.
+- This pass makes scheduling and long-pole information visible without opening raw round JSON.
+- It also closes an important observability gap between:
+  - pipeline artifact generation
+  - DB persistence
+  - analysis view
+  - monitor/live-status view
+
+### Remaining follow-up
+1. Debug why some bounded hierarchical runs still produce empty `leaf_timing_summary.leafs` despite valid scheduling recommendation output.
+2. Once the upstream payload is stable, enrich the Scheduling tab with:
+   - failure-prone leaf summaries
+   - scheduling-score columns
+   - acceptance/failure history badges
+3. Consider adding a dedicated monitor card for:
+   - current long pole
+   - next scheduled leaf
+   - current imbalance ratio
+
+## 2026-04-17: Scheduling Heuristic Upgrade + Parallel Leaf Failure Preservation
+
+### Completed
+- Upgraded hierarchical leaf scheduling beyond simple prior-round ordering.
+- Extended `solve_subcircuits.py` to persist per-leaf scheduling metadata and failure summaries alongside solved leaf artifacts.
+- Added scheduling-related leaf metadata including:
+  - `internal_net_count`
+  - trivial-leaf detection
+  - accepted / failed round counts
+  - per-leaf total timing
+  - routed timing
+  - FreeRouting timing
+- Extended `autoexperiment.py` timing extraction so round-level `leaf_timing_summary` rows now also carry:
+  - trace / via counts
+  - internal-net counts
+  - failure-history signals
+  - trivial-leaf signals
+  - long-pole flags
+  - embedded scheduling / failure metadata
+- Replaced the lightweight ordering heuristic with a weighted scheduling score that prioritizes:
+  - historically slow routed leaves first
+  - leaves with high `freerouting_s` and routed time first
+  - leaves with heavier topology earlier
+  - historically failure-prone leaves early enough to fail fast
+  - trivial / zero-internal-net leaves later
+- Persisted scheduled ordering details into round artifacts via:
+  - `leaf_timing_summary.schedule_recommendation`
+  - `leaf_timing_summary.scheduled_leafs`
+  - score-note summaries such as `leaf_schedule_top5=...`
+- Improved parallel leaf failure handling in `solve_subcircuits.py` so worker-level leaf failures are captured per leaf instead of immediately discarding all successful parallel work.
+- Preserved successful parallel leaf results when individual routed leaves fail.
+- Limited serial recovery to missing leaves after infrastructure-level parallel failures instead of broad full serial re-execution.
+- Raised clearer aggregated leaf-failure summaries when failures remain after preserving successful work.
+- Hardened `autoexperiment.py` JSON extraction so mixed stdout logs from leaf solving no longer suppress `leaf_timing_summary` parsing.
+
+### Verification findings
+- Verified bounded routed leaf solving still completes successfully with:
+  - `python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route --fast-smoke --workers 0`
+- Confirmed from the completed bounded leaf run:
+  - no Python traceback
+  - real routed leaf solving remained active
+  - accepted artifacts were written under `.experiments/subcircuits/`
+  - canonical `leaf_routed.kicad_pcb` artifacts persisted
+  - `solved_layout.json` persisted
+- Verified bounded hierarchical execution with:
+  - `python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 2 --leaf-rounds 1 --fast-smoke --workers 0`
+- Confirmed from the completed hierarchical run:
+  - no Python traceback
+  - `leaf_timing_summary` persisted in round artifacts
+  - scheduling notes remained present
+  - scheduled ordering metadata was persisted
+  - round 2 completed with a better overall score than round 1 in the latest bounded run
+- The latest completed hierarchical run showed meaningful long-pole timing structure, with leaves such as:
+  - `CHARGER`
+  - `LDO 3.3V`
+  - `USB INPUT`
+  still dominating routed tail time mainly through `freerouting_s` and validation cost.
+
+### Current limitation
+- The new scheduling score is stronger than simple ordering, but it is still a static heuristic rather than a true adaptive runtime scheduler.
+- The latest bounded run showed sensible ordering and preserved metadata, but it is still too early to claim a stable wall-clock improvement across runs.
+- Per-leaf topology counts in the extracted timing summary currently depend on persisted scheduling metadata and may still need refinement if richer topology signals are desired.
+- GUI / monitor surfacing of the new scheduling and long-pole metadata is still pending.
+- Parallel failure handling is improved, but hard infrastructure failures can still force partial serial recovery for unfinished leaves.
+
+### Why this mattered
+- This pass moves the pipeline closer to failure-aware, tail-latency-aware leaf scheduling instead of simple submission reordering.
+- The pipeline now preserves more useful work when parallel leaf solving encounters failures.
+- Round artifacts now better explain why a given leaf was prioritized, which makes later tuning more evidence-driven.
+- The bounded hierarchical run now provides clearer evidence for how CPU utilization should improve over time:
+  - long-pole routed leaves are pushed earlier
+  - trivial leaves are delayed
+  - failure-prone leaves are surfaced earlier instead of wasting the tail of the batch
+
+### Remaining follow-up
+1. Surface `leaf_timing_summary`, long-pole leaves, and scheduling recommendations in the GUI / monitor path.
+2. Refine scheduling inputs further, potentially adding:
+   - acceptance history across rounds
+   - parent-impact weighting
+   - richer topology / net-complexity signals
+3. Distinguish infrastructure failures vs expected routed-leaf validation failures more explicitly in hierarchical round artifacts.
+4. Consider whether the live-status payload should expose scheduled order and long-pole leaves directly during execution.
+5. Re-run more bounded experiments to determine whether the new heuristic consistently improves tail behavior.
+
+## 2026-04-17: Next-Agent Continuation Prompt
+
+The following prompt was prepared for the next agent and should be copied into a durable handoff file if the next session starts fresh:
+
+Continue the LLUPS hierarchical subcircuit scheduling / timing / hardware-utilization work.
+
+Context:
+- `solve_subcircuits.py` now supports:
+  - `--fast-smoke`
+  - worker auto-selection via `--workers 0`
+  - preferred leaf ordering via `--leaf-order`
+- `autoexperiment.py` now supports:
+  - worker auto-selection via `--workers 0`
+  - fast-smoke passthrough to leaf solving
+  - extraction of `leaf_timing_summary` from `solve_subcircuits.py` JSON output
+  - persistence of long-pole leaf timing summaries into round artifacts
+  - passing previous-round scheduling recommendations into the next round’s leaf solve command
+- Completed hierarchical fast-smoke runs confirmed:
+  - bounded routed verification works
+  - long-pole leaves are dominated mainly by `freerouting_s` and validation time
+  - scheduling hints are now persisted and passed forward
+- Current limitation:
+  - scheduling is still lightweight and has not yet shown a clear runtime win
+  - routed-leaf failure sensitivity is still present
+  - GUI surfacing of `leaf_timing_summary` is still pending
+
+Your tasks:
+1. Read and verify the recent scheduling-related edits in:
+   - `LLUPS/.claude/skills/kicad-helper/scripts/solve_subcircuits.py`
+   - `LLUPS/.claude/skills/kicad-helper/scripts/autoexperiment.py`
+   - `LLUPS/CHANGELOG.md`
+2. Improve the scheduling heuristic beyond simple prior-round ordering. Consider weighting:
+   - prior `leaf_total_s`
+   - prior `freerouting_s`
+   - trace / via counts
+   - failure history
+3. Improve routed-leaf failure handling so one failing leaf does not waste as much parallel work or force broad serial re-execution.
+4. Verify the updated behavior with bounded runs, preferably including:
+   - `python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route --fast-smoke --workers 0`
+   - `python3 .claude/skills/kicad-helper/scripts/autoexperiment.py LLUPS.kicad_pcb --schematic LLUPS.kicad_sch --rounds 2 --leaf-rounds 1 --fast-smoke --workers 0`
+5. Confirm that round artifacts still persist:
+   - canonical `leaf_routed.kicad_pcb`
+   - `solved_layout.json`
+   - `leaf_timing_summary`
+   - scheduling notes / long-pole notes
+6. If time permits, surface `leaf_timing_summary` into the GUI / live status path.
+7. Update `CHANGELOG.md` and leave another concise durable handoff before stopping.
+
+## 2026-04-17: Long-Pole Leaf Timing Extraction + Scheduling Hints
+
+### Completed
+- Extended `autoexperiment.py` so it now extracts per-leaf timing summaries from the JSON output of `solve_subcircuits.py`.
+- Added long-pole leaf timing extraction that records, per accepted leaf:
+  - `leaf_total_s`
+  - `route_total_s`
+  - `freerouting_s`
+  - render time contribution
+  - placement-side time contribution
+- Added a leaf timing summary payload to hierarchical round records so round artifacts now persist:
+  - total leaf time
+  - average leaf time
+  - max leaf time
+  - imbalance ratio
+  - top long-pole leaves
+  - per-leaf timing rows
+- Added scheduling-hint generation that recommends a leaf solve order biased toward historically slower / heavier leaves first.
+- Added first-pass scheduling support in `solve_subcircuits.py` via `--leaf-order`, allowing the hierarchical runner to pass a preferred leaf execution order by sheet name, sheet file, or instance path.
+- Updated `autoexperiment.py` to pass the previous round’s recommended leaf order into the next round’s leaf solve command.
+- Persisted these scheduling hints and long-pole summaries into round detail metadata and score notes.
+- Kept the earlier worker auto-selection and fast-smoke passthrough improvements in place so the new timing summaries can be observed under practical bounded runs.
+
+### Investigation findings
+- The main low-CPU-utilization issue is not simply “parallelism missing everywhere”.
+- After smoke-mode improvements, the strongest remaining bottleneck is a combination of:
+  - long-pole routed leaves
+  - per-leaf routing / validation cost
+  - failure sensitivity in the routed acceptance path
+- A completed hierarchical fast-smoke run now produces enough timing structure to identify which leaves are dominating wall-clock time.
+- In the latest completed run, the extracted long-pole leaves were dominated by routed leaves such as:
+  - `CHARGER`
+  - `BOOST 5V`
+  - `LDO 3.3V`
+- The extracted timing breakdown showed that these long-pole leaves are dominated primarily by:
+  - `freerouting_s`
+  - routed / pre-route validation time
+  rather than by render work in fast-smoke mode.
+- The resulting imbalance ratio and long-pole list now give the pipeline a concrete basis for future scheduling policy instead of guessing from CPU graphs alone.
+
+### Verification findings
+- A completed hierarchical fast-smoke run was used to verify the new long-pole extraction path.
+- The run completed successfully and produced round artifacts under `.experiments/rounds/`.
+- The round detail payload now includes a top-level `leaf_timing_summary` section.
+- The round score notes now include:
+  - `leaf_timing_total_s=...`
+  - `leaf_timing_avg_s=...`
+  - `leaf_timing_max_s=...`
+  - `leaf_timing_imbalance_ratio=...`
+  - `leaf_schedule_recommendation=...`
+  - `leaf_long_poles=...`
+- A two-round hierarchical fast-smoke run was also used to verify that scheduling recommendations are now passed forward into subsequent leaf solve commands.
+- This confirms that the hierarchical runner can now persist machine-readable scheduling hints and begin applying them across rounds.
+
+### Current limitation
+- The new scheduling support is still lightweight:
+  - it reorders leaf submission order
+  - it does not yet implement a richer adaptive scheduler or failure-aware queue management
+- Parallel execution can still be dominated by one difficult leaf, leaving other cores idle near the end of a batch.
+- Routed-leaf failure sensitivity is still present.
+- Full GUI surfacing of the new `leaf_timing_summary` payload is still pending.
+- The latest two-round verification did not yet show a clear runtime win from the applied ordering, so more iterations and better scheduling heuristics are still needed.
+
+### Why this mattered
+- The user explicitly wants better CPU utilization and better use of available hardware.
+- These changes move the project from intuition-based tuning toward evidence-based scheduling.
+- The new long-pole extraction makes it much easier to answer:
+  - which leaves are dominating wall-clock time?
+  - is routing or validation the real bottleneck?
+  - which leaves should be scheduled earlier to reduce tail latency?
+- The new `--leaf-order` plumbing means the system can now start turning those answers into actual execution-order changes.
+- This creates a concrete foundation for the next scheduling and robustness pass.
+
+### Remaining follow-up
+1. Improve the scheduling heuristic beyond simple prior-round ordering, likely weighting:
+   - prior `leaf_total_s`
+   - prior `freerouting_s`
+   - trace / via counts
+   - failure history
+2. Improve routed-leaf failure handling so one failing leaf does not waste as much parallel work or force broad serial re-execution.
+3. Surface `leaf_timing_summary` in the GUI / live status path so long-pole leaves are visible without opening raw round JSON.
+4. Verify the updated worker behavior and long-pole timing persistence through the experiment-manager data path end-to-end.
+5. Use a durable next-agent prompt so the next session can continue directly from the new scheduling support instead of re-discovering it.
+
+## 2026-04-17: Parallelization Investigation + Worker Auto-Selection Follow-Through
+
+### Completed
+- Added a first-pass fast smoke-test mode to `solve_subcircuits.py` via `--fast-smoke`.
+- Threaded fast-smoke render controls into `subcircuit_render_diagnostics.py` so leaf diagnostic generation can selectively skip expensive outputs.
+- Added configurable switches for:
+  - board-view rendering
+  - DRC JSON writing
+  - DRC report writing
+  - DRC overlay rendering
+  - comparison contact-sheet generation
+- Tightened fast-smoke behavior further so routed leaf verification uses a smoke-specific route-round policy instead of forcing the normal multi-round routed search.
+- In fast-smoke mode, the leaf pipeline now preserves canonical board-first artifacts while reducing nonessential render work:
+  - keep canonical `.kicad_pcb` artifacts
+  - keep `solved_layout.json`
+  - keep routed DRC report sidecars
+  - skip contact sheets
+  - skip DRC overlays
+  - skip pre-route board-view rendering
+  - skip routed board-view rendering
+  - skip routed DRC JSON sidecars
+  - quiet board-render stdout when rendering is enabled
+- Confirmed the render-diagnostics helper file is clean in diagnostics after the smoke-mode changes.
+
+### Verification findings
+- Re-ran the required verification command in fast-smoke mode:
+
+  `python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route --fast-smoke`
+
+- This fast-smoke verification run completed successfully within the bounded timeout.
+- The completed run showed:
+  - no Python traceback
+  - real routed leaf solving, not heuristic fallback
+  - accepted artifacts written under `.experiments/subcircuits/`
+  - canonical routed leaf boards persisted as `leaf_routed.kicad_pcb`
+  - canonical machine-readable artifacts persisted as `solved_layout.json`
+  - all six leaf subcircuits solved through the routed path and summarized at the end of the run
+- Confirmed artifact behavior after the completed run:
+  - no `pre_vs_routed_contact_sheet.png` files were produced
+  - no `*drc_overlay.png` files were produced
+  - no `routed_front_all.png` preview files were produced
+  - canonical `leaf_routed.kicad_pcb` files were produced for routed leaves
+  - `solved_layout.json` files remained present
+- Confirmed persisted debug payload behavior for fast-smoke artifacts:
+  - timing data is present in `debug.json`
+  - preview-path fields are empty as expected in fast-smoke mode
+  - render-diagnostics payloads explicitly record skipped contact sheets, skipped board views, and skipped overlays
+
+### Current limitation
+- Fast smoke mode is now good enough for bounded routed verification, but it is intentionally less visually rich than the default path.
+- GUI round-level timing persistence and timing-tab verification are still pending a completed end-to-end hierarchical experiment-manager run.
+- `solve_subcircuits.py` still has some non-critical static-analysis complaints in the checker environment, mostly around environment-specific imports and a few legacy warnings.
+
+### Why this mattered
+- This change gives the project a practical routed smoke-test path that preserves board-first truth while cutting derived-artifact cost enough to complete verification quickly.
+- It confirms that the biggest remaining smoke-test win came from combining render suppression with smoke-specific route-round throttling.
+- It also provides a cleaner baseline for the next optimization pass on hardware utilization and worker scheduling.
+
+### Remaining follow-up
+1. Verify round-level timing persistence through the experiment-manager DB and analysis timing tab after a completed hierarchical run.
+2. Continue refining the new applied scheduling support so prior-round long-pole timing actually improves later-round wall-clock time.
+3. Revisit hardware utilization / worker scheduling now that a bounded routed smoke verification path exists.
+4. Optionally add a second smoke tier that restores a minimal final routed preview for accepted leaves only.
+
+## 2026-04-17: Timing Verification Follow-Through + Smoke-Test Bottleneck Confirmation
+
+### Completed
+- Performed a verification/debug pass on the recent timing-instrumentation follow-through.
+- Fixed the main timing implementation breakage in `solve_subcircuits.py` where `_route_local_subcircuit(...)` now returns `(routing_dict, route_timing_dict)` but one size-reduction reroute call site was still treating the result as a plain dict.
+- Added the missing `time` import required by the new monotonic timing instrumentation in `solve_subcircuits.py`.
+- Tightened a small analysis-page typing issue in the leaf round preview helper so mixed metadata values no longer force an incorrect `dict[str, Path | None]` return type.
+- Confirmed that timing data is being written into persisted leaf debug payloads through `debug.json` under `extra.best_round`, `extra.all_rounds`, and `extra.solve_summary`.
+
+### Verification findings
+- Re-ran the required verification command with a bounded timeout:
+
+  `python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+
+- The run still did not complete within the bounded timeout, but the captured output again showed:
+  - no Python traceback before timeout
+  - real routed leaf solving, not heuristic fallback
+  - canonical leaf board stamping under `.experiments/subcircuits/`
+  - repeated pre-route and routed render generation
+- Confirmed persisted artifact files still exist for routed leaves, including `metadata.json`, `debug.json`, and `solved_layout.json` under `.experiments/subcircuits/...`.
+- Confirmed `debug.json` now contains `timing_breakdown` payloads for solved rounds.
+- Confirmed the current smoke-test bottleneck is still strongly consistent with render-heavy behavior: the timed run output showed repeated pre-route and routed PNG generation plus repeated duplicated render/export logging for the same leaf artifact.
+
+### Current limitation
+- A full completed end-to-end verification run still was not captured after the timing changes.
+- GUI round-level timing persistence in the experiment-manager database and timing-tab rendering were not re-verified end-to-end in this pass because the bounded solve run did not complete through the full higher-level flow.
+- Some static-analysis environment warnings remain dependency-related (`pcbnew`, GUI libs, ORM libs not importable in the checker environment) and were not treated as code regressions.
+- There are still a few non-critical static-analysis complaints in `solve_subcircuits.py`; the highest-value runtime breakage was fixed first.
+
+### Why this mattered
+- This pass increased confidence that the timing work is at least partially live in persisted leaf artifacts instead of only existing in code.
+- The verification output also strengthened the earlier suspicion that smoke-test runtime is being dominated by render/export work rather than by scoring or orchestration overhead alone.
+- That means the next optimization pass should focus first on a minimal-render smoke mode before attempting broader concurrency redesign.
+
+### Remaining follow-up
+1. Verify that round-level timing data reaches the experiment-manager DB and analysis timing tab after a completed hierarchical run.
+2. Continue improving current leaf scheduling / worker allocation now that:
+   - fast smoke mode exists
+   - worker auto-selection exists
+   - long-pole timing extraction exists
+   - first-pass applied leaf ordering exists
+3. Improve routed-leaf failure handling so one failing leaf does not waste as much parallel work.
+4. Add a durable next-agent continuation prompt near the affected pipeline code whenever this work is handed off again.
+
+## 2026-04-17: Timing Instrumentation + Timing Tab Work
+
+### Completed
+- Began instrumenting the hierarchical/subcircuit pipeline so smoke-test runtime can be explained instead of guessed.
+- Added timing breakdown fields to hierarchical round payloads in the autoexperiment flow.
+- Added timing helper utilities and round-level timing capture for:
+  - `solve_subcircuits_total`
+  - `compose_subcircuits_total`
+  - `parent_route_total`
+  - `score_round_total`
+  - `round_total`
+- Began instrumenting the leaf solve pipeline in `solve_subcircuits.py` so round payloads can capture more detailed leaf-stage timings, including placement, legality repair, routing, validation, render diagnostics, size reduction, and persistence.
+- Extended GUI persistence so round timing breakdowns can be stored in the local experiment-manager database.
+- Added timing visualizations to the analysis UI, including:
+  - a round timing breakdown chart
+  - a leaf pipeline timing chart
+  - a timing summary chart
+  - a timing summary panel highlighting render-heavy rounds
+
+### Why this mattered
+- The latest smoke-test run took far too long for a verification pass.
+- Observed CPU usage suggested the machine was not being utilized effectively.
+- The user also observed that rendering/export likely dominates a large fraction of runtime.
+- Before changing concurrency policy or smoke-test behavior, the pipeline needs enough timing visibility to show:
+  - where time is actually going
+  - whether rendering is the dominant bottleneck
+  - whether leaf solving is truly parallelizing
+  - whether parent stages or scoring are negligible compared with rendering and routing
+
+### Current limitation
+- This session focused on instrumentation and GUI surfacing, not yet on the actual smoke-test acceleration policy or concurrency redesign.
+- The timing work is in progress and should be verified carefully because it touches both pipeline payloads and GUI persistence/visualization.
+- A full completed verification run was not captured in this session after the timing changes.
+
+### Remaining follow-up
+1. Verify the timing payload shape end-to-end with a completed run.
+2. Add or refine monitor-side timing surfacing if the analysis tab alone is not sufficient.
+3. Use the new timing data to identify whether render/export is the dominant smoke-test bottleneck.
+4. Implement a faster smoke-test mode, likely by minimizing or deferring nonessential renders.
+5. Build a concrete hardware-utilization improvement pass once the timing data confirms where parallelism is being lost.
+
+## 2026-04-17: Parent-Stage Board-Path Observability Extension
+
+### Completed
+- Extended the parent-stage observability work so parent artifacts now persist and expose explicit board-path metadata alongside preview images.
+- Parent artifact metadata/debug payloads now describe the canonical parent board artifacts more directly, including:
+  - `parent_pre_freerouting.kicad_pcb`
+  - `parent_routed.kicad_pcb`
+  - parent preview image paths when present
+- The analysis-side parent inspector was extended so stamped and routed parent views can show the corresponding `.kicad_pcb` source path, not only the rendered PNG.
+- Autoexperiment round-detail payloads were extended so round artifacts can carry parent preview-path and parent board-path context, improving correlation between:
+  - optimizer logs
+  - round summaries
+  - live monitor state
+  - exact persisted parent board artifacts
+
+### Why this mattered
+- The leaf-side observability work established the board-first direction, but parent-stage review still had a gap: the GUI and round payloads could show parent previews without always making the backing KiCad board path explicit.
+- That made it harder to answer:
+  - which exact parent board produced this preview?
+  - is this the stamped parent or the routed parent?
+  - which round payload should a machine reviewer correlate with that board?
+- This change moves parent review closer to the same standard already being applied to leaf candidate rounds.
+
+### Current limitation
+- Parent-stage observability is improved, but not yet fully audited across every possible intermediate parent stage or failure path.
+- The required full verification run still did not complete within the available timeout windows in this session, so this entry records implementation progress and partial verification evidence rather than a final end-to-end success claim.
+
+### Remaining follow-up
+1. Complete a full verification run that reaches the end of the required hierarchical/subcircuit flow.
+2. Confirm final persisted round payloads and parent artifact payloads contain the expected board-path and preview-path fields after a completed run.
+3. Continue tightening parent-stage failure-path observability so rejected or failed parent stages remain as inspectable as accepted ones.
+
+## 2026-04-17: Continued Observability Work + Documentation Update
+
+### Completed
+- Continued the observability work after the first board-first leaf-round pass.
+- Extended the documentation so the project now more explicitly states that:
+  - persisted `.kicad_pcb` files are the preferred visual source of truth
+  - PNG previews are derived convenience artifacts
+  - `solved_layout.json` remains the preferred machine-readable canonical artifact
+- Updated monitoring and pipeline-design documentation to describe:
+  - round-specific leaf board snapshots
+  - canonical accepted leaf and parent board artifacts
+  - live status payloads carrying preview paths and board-source paths
+  - the intended relationship between human PCB review and machine log review
+- Updated the focused next-steps reference so future work stays aligned with the board-first observability direction.
+- Tightened `solve_subcircuits.py` fallback routing payloads so routing-exception and routing-disabled cases also carry explicit round board-path fields, keeping the round metadata shape more consistent for downstream review surfaces.
+
+### Verification status
+- Re-ran the required verification command twice with longer time budgets:
+
+  `python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+
+- Both verification attempts timed out before full completion.
+- In both runs, the captured output showed:
+  - no Python traceback before timeout
+  - active routed leaf solving through the real routed path
+  - repeated pre-route and routed render generation
+  - repeated stamping of real leaf boards under `.experiments/subcircuits/`
+- Round-specific KiCad board snapshots were confirmed on disk under a leaf artifact directory, including files such as:
+  - `round_0000_leaf_pre_freerouting.kicad_pcb`
+  - `round_0000_leaf_routed.kicad_pcb`
+- This confirms that the new board-first round snapshot persistence is functioning, even though a full end-to-end verification completion was not captured in this session.
+
+### Current limitation
+- Full required verification is still incomplete because the solve command did not finish within the available timeout windows.
+- Because the run did not complete, this session does not yet record a final successful end-to-end confirmation that:
+  - the entire hierarchical/subcircuit run completed
+  - accepted routed leaf artifacts fully persisted all new observability fields in their final post-run payloads
+  - the parent-stage path completed cleanly under the same verification run
+
+### Remaining follow-up
+1. Re-run the required verification flow with an even longer timeout or in a context where the full solve can complete.
+2. Confirm final persisted `debug.json` / round payloads contain the new board-path and log-summary fields after a completed run.
+3. Extend the same explicit board-first observability model across parent-stage artifacts and parent-stage review surfaces.
+4. Keep documentation aligned as parent-stage observability becomes more explicit.
+
+## 2026-04-17: Observability Upgrade for Human PCB Review + Machine Log Review
+
+### Completed
+- Continued the observability push so both the GUI reviewer and the optimizer/log reviewer can see more of the real pipeline state instead of inferred summaries alone.
+- Extended leaf round metadata so candidate rounds can now carry:
+  - round-specific KiCad board snapshot paths
+  - round-specific preview image paths
+  - compact machine-readable routing/log summary fields
+- Tightened the direction that meaningful visual artifacts should point back to real `.kicad_pcb` files, not only copied PNGs or ad hoc JSON-derived preview assumptions.
+- Extended analysis-page candidate-round inspection so a reviewer can see more than just score and preview images:
+  - board source paths for illegal / pre-route / routed round stages
+  - router/reason/failure/skipped state
+  - routed and failed internal-net summaries
+  - routed copper length summary
+- Extended live-status preview discovery so monitor/status payloads can expose actual KiCad board paths alongside preview images for:
+  - latest leaf round boards
+  - parent stamped board
+  - parent routed board
+- Extended the monitor page so live preview panels and top-output panels can show the `.kicad_pcb` source paths backing the currently displayed images.
+
+### Why this change mattered
+- The user explicitly wants KiCad board files to be the visual source of truth.
+- The previous state was better than before, but still too PNG-first and too dependent on nested diagnostic payload structure.
+- Human review needs to answer:
+  - what exact board file produced this image?
+  - what stage is this board from?
+  - did this round really route, fail, or get skipped?
+- Machine/log review needs to answer:
+  - which nets failed?
+  - what router outcome was recorded?
+  - what board snapshot corresponds to that outcome?
+- These additions move the pipeline toward a more inspectable and less ambiguous artifact model.
+
+### Current limitation
+- This is not yet a full artifact-rule audit across every parent and round-specific stage.
+- Leaf round observability was the first target because it most directly affects candidate-round inspection and search-trust UX.
+- Parent-stage observability still needs a similar audit so every meaningful parent stage consistently persists and exposes board-first artifacts.
+
+### Remaining follow-up
+1. Finish the parent-stage observability audit so all meaningful parent stages expose explicit `.kicad_pcb` paths and board-derived renders.
+2. Prefer round-specific board snapshots as the primary source for candidate-round previews everywhere, not only as supplemental metadata.
+3. Add richer machine-readable summaries for parent routing outcomes and composition-stage transitions so log review can correlate failures with exact board artifacts.
+4. Re-run the required hierarchical/subcircuit verification flow and record outcomes after the current code changes.
+5. If the session ends before that verification and follow-up are complete, add a focused handoff note near the affected pipeline code in addition to this changelog entry.
+
+
+## 2026-04-17: Legacy Parent Artifact Cleanup + Per-Round Preview Snapshot Fix
+
+### Completed
+- Deleted stale legacy `visible_parent/` round artifact directories under `.experiments/hierarchical_autoexperiment/round_000*/` after confirming they were leftover outputs from the removed parent path and were still misleading inspection.
+- Confirmed that the current canonical parent artifact is the parent artifact written under `.experiments/subcircuits/subcircuit__8a5edab282/`, not the deleted legacy nested `visible_parent` tree.
+- Confirmed from the canonical parent artifact debug/metadata payloads that:
+  - the current canonical parent outline is internally consistent
+  - geometry validation reports no children outside the composed board outline
+  - preserved child copper accounting is present in the canonical parent artifact
+- Fixed the per-round leaf preview snapshot persistence bug in `solve_subcircuits.py` by restoring the missing `shutil` import required for copying round-specific preview images.
+- This unblocks the new candidate-round inspection UX so per-round preview snapshot persistence can proceed without the runtime `name 'shutil' is not defined` failure.
+
+### Why this change mattered
+- The user was inspecting parent boards and seeing children outside `Edge.Cuts` and missing child traces.
+- Investigation showed those screenshots were coming from stale legacy parent artifacts that should no longer be treated as valid outputs of the current pipeline.
+- Removing those stale artifacts reduces the chance of debugging the wrong pipeline output.
+- The missing `shutil` import was also preventing the new per-round leaf preview snapshot work from functioning correctly, which weakened the visual feedback improvements.
+
+### Verification / findings
+- Canonical parent artifact inspected:
+  - `.experiments/subcircuits/subcircuit__8a5edab282/`
+- Key findings from canonical parent metadata/debug:
+  - parent geometry validation was accepted
+  - preserved child trace accounting was present
+  - one child (`BT1`) legitimately had zero traces/vias because it has no internal nets, so not every zero-trace child is a bug
+- Legacy nested parent artifacts removed:
+  - `.experiments/hierarchical_autoexperiment/round_0001/visible_parent`
+  - `.experiments/hierarchical_autoexperiment/round_0002/visible_parent`
+  - `.experiments/hierarchical_autoexperiment/round_0003/visible_parent`
+  - `.experiments/hierarchical_autoexperiment/round_0004/visible_parent`
+
+### Remaining follow-up
+- The current canonical parent artifact is still being rejected for real routed-parent DRC/shorting reasons, which is a separate active correctness issue from the stale legacy artifact confusion.
+- The next debugging step should focus on canonical parent routing correctness:
+  - why routed parent interconnect is creating shorts / solder-mask-bridge issues
+  - whether parent interconnect routing is colliding with preserved child copper
+  - whether parent validation/acceptance thresholds need refinement versus true geometry/copper defects
+
+## 2026-04-17: Leaf Candidate-Round Visual Inspection UX
+
+### Completed
+- Extended the analysis-page leaf inspection flow so accepted leaf artifacts can now expose a candidate-round inspector sourced from persisted leaf debug metadata.
+- The leaf gallery now loads per-leaf attempted round data from `debug.json` / `extra.all_rounds`, including:
+  - `round_index`
+  - `seed`
+  - `score`
+  - routed / accepted state
+  - crossover count
+  - net-distance score component
+  - compactness score component
+  - trace / via counts
+- Added a new expandable candidate-round inspector under each accepted leaf card so the user can see whether the solver actually explored multiple alternatives before choosing a winner.
+- Added winner highlighting in the candidate-round inspector so the selected best round is visually obvious.
+- Added per-round preview slots in the analysis UI for:
+  - pre-route front
+  - routed front
+  - routed copper
+- Improved explanatory text in the leaf gallery so the user understands that the new inspector is intended to make search diversity visible rather than hidden behind only the final accepted artifact.
+
+### Why this change mattered
+- After fixing the routed leaf early-exit bug, the solver began exploring multiple candidate rounds, but the GUI still mostly showed only the final accepted/best artifact.
+- That made the search look less dynamic than it really was.
+- The new inspector is intended to make the leaf search feel inspectable and trustworthy by surfacing the attempted rounds, their seeds, and their scores directly in the UI.
+
+### Current limitation
+- The analysis-side candidate-round inspector is now wired to read per-round metadata, but true per-round image persistence still needs to be completed so each attempted round can always display its own unique preview snapshots instead of relying on shared artifact-level render outputs.
+- The next follow-up should finish canonical per-round preview snapshot persistence in `solve_subcircuits.py` so the inspector can show distinct images for each attempted round with no ambiguity.
+
+## 2026-04-17: Leaf Variation Fix + Routed Exploration Tuning
+
+### Completed
+- Fixed the leaf routed-search loop in `solve_subcircuits.py` so routed leaf solving no longer stops at the first accepted routed round.
+- The leaf solver now evaluates all configured/effective routed rounds and keeps the best routed result after comparing the full candidate set.
+- Increased default routed leaf exploration so candidate placements vary more meaningfully across rounds while still respecting subcircuit grouping:
+  - lowered default leaf orderedness slightly
+  - enabled randomized group layout by default for leaf solving
+  - added round-dependent exploration mixing for routed rounds:
+    - some rounds keep grouped placement with lighter ordering
+    - some rounds switch to more exploratory random scatter
+- Confirmed from live solve output that the same leaf now runs multiple distinct placement/routing attempts in one solve instead of exiting after the first routed success.
+
+### Why this change mattered
+- The user reported that leaf runs appeared visually identical, which made the search look fake or ineffective.
+- The root cause was that routed leaf solving was effectively behaving like a first-success search rather than a multi-round optimization search.
+- With the early exit removed and exploration increased, the leaf pipeline now has a real chance to discover better routed placements instead of repeatedly accepting the first viable one.
+
+### Verification
+- Re-ran syntax verification for `solve_subcircuits.py`.
+- Re-ran the required pipeline verification command:
+
+`python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+
+Observed from captured output:
+- repeated placement/routing attempts were visible for the same leaf within a single solve
+- per-attempt placement scores differed across those rounds
+- routed leaf artifacts continued to be written under `.experiments/subcircuits/`
+- no traceback was visible in the captured output
+- the command output was truncated by the session capture before the final tail
+
+### Remaining follow-up
+- The next useful UX improvement would be to expose per-leaf attempted rounds more clearly in the GUI so the user can inspect variation directly instead of only seeing the final accepted/best artifact.
+- If more diversity is still desired after visual inspection, the next tuning levers are:
+  - stronger round-to-round exploration scheduling
+  - broader scatter-mode variation
+  - explicit persistence of candidate preview snapshots per leaf round
+
+## 2026-04-17: Continued Old-Router Purge Debug Pass + Verification Follow-Through
+
+### Completed
+- Continued the post-purge scan for stale whole-board/top-down router terminology and compatibility assumptions after the first deletion pass.
+- Fixed a remaining scoring rename bug in `autoexperiment.py` where `absolute_score` still referenced the removed `top_level_score` name instead of `parent_routed_score`.
+- Cleaned additional active GUI wording so the user-facing language now better matches the canonical parent-routing pipeline:
+  - setup page now describes canonical parent routing instead of a visible top-level stage
+  - monitor now labels the parent status card as `Parent Routing`
+  - analysis summary/convergence labels now say `Parent Routed`
+- Removed additional stale mode-color assumptions from the progression viewer that still referenced old router-era modes.
+- Re-ran targeted scans over active GUI and hierarchical script code and confirmed no remaining matches for removed router-era names in active code, including:
+  - `skip_visible`
+  - `top_level_ready`
+  - `visible_output_dir`
+  - `visible_parent`
+  - `parent_preloaded`
+  - `parent_freerouted`
+  - `demo_metadata`
+  - `hierarchical_parent_smoke`
+  - `visible_top_level`
+  - `FullPipeline`
+  - `PlacementEngine`
+  - `RoutingEngine`
+
+### Verification
+- Re-ran Python compile checks for the edited GUI and hierarchical orchestration files.
+- Re-ran the required subcircuit pipeline verification command:
+
+`python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+
+Observed outcome from captured output:
+- routed leaf solve activity executed
+- accepted/routed subcircuit artifacts were written under `.experiments/subcircuits/`
+- no traceback was visible in the captured output
+- the command output was truncated before the final tail, so final completion text was not fully visible in this session capture
+
+### Remaining follow-up
+- The active code has been purged of the removed router-era names that were found during this pass, but historical notes and previously written artifacts may still contain old terminology.
+- The next cleanup target should be persistence/runtime hardening:
+  - verify the SQLite schema and existing local rows behave cleanly after the field renames
+  - decide whether to migrate or reset historical DB columns that still reflect removed names
+  - continue checking GUI runtime behavior against mixed old/new imported experiment data
+
+## 2026-04-17: Old Router Purge + Canonical Subcircuit-Only Cleanup
+
+### Completed
+- Deleted the old whole-board/top-down router entrypoints:
+  - `.claude/skills/kicad-helper/scripts/autopipeline.py`
+  - `.claude/skills/kicad-helper/scripts/autoplace.py`
+  - `.claude/skills/kicad-helper/scripts/autoroute.py`
+  - `.claude/skills/kicad-helper/scripts/demo_hierarchical_freerouting.py`
+  - `.claude/skills/kicad-helper/scripts/autoplacer/pipeline.py`
+- Removed the old router compatibility switch from the GUI/runner path so the experiment manager no longer offers or forwards a “skip visible stage” mode.
+- Continued renaming active hierarchical fields away from stale top-down/demo terminology:
+  - `top_level_ready` → `parent_routed`
+  - `visible_output_dir` → `parent_output_json`
+- Removed old parent-preview compatibility assumptions from active GUI paths, including support for:
+  - `visible_parent/`
+  - `parent_preloaded.png`
+  - `parent_freerouted.png`
+  - `demo_metadata.json`
+  - `hierarchical_parent_smoke`
+- Tightened monitor, analysis, and progression-viewer preview discovery so they now target canonical parent outputs from the current subcircuit pipeline only.
+- Updated score/chart/table/state terminology so the UI now reflects canonical parent-routing semantics instead of old “top-level ready” wording.
+
+### Why this change mattered
+- The project direction is now explicitly subcircuit leaf layout first, then canonical parent composition/routing from those routed leaves.
+- Keeping the old whole-board router and its compatibility branches around increases maintenance cost, creates misleading UI/state semantics, and risks accidental fallback to a non-scaling architecture.
+- This cleanup makes the codebase more honest: one supported routing architecture, one parent pipeline, no legacy whole-board fallback.
+
+### Verification target
+- GUI and active hierarchical scripts should still compile after the purge.
+- Because this cleanup touches the hierarchical subcircuits/autoplacer pipeline and its orchestration, the required verification command remains:
+
+`python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+
+### Known limitations / next follow-up
+- Some historical changelog and handoff notes still mention removed names such as `skip_visible`, `top_level_ready`, and old demo-era parent preview layouts. Those notes are historical, but the active code should continue being cleaned until only canonical terminology remains.
+- Any local SQLite rows or imported historical artifacts that still use removed field names may need one more migration/cleanup pass if strict canonical naming is required everywhere.
+- The active code should still be audited once more for any remaining comments, labels, or stage-order mappings that mention removed top-down/router-era concepts.
+
+## 2026-04-17: Status Normalization + Nested Parent Preview Compatibility
+
+### Completed
+- Updated monitor status rendering so terminal states read sensibly even when the last persisted live-status payload is stale or internally inconsistent.
+- Normalized terminal monitor presentation so a finished run no longer appears as:
+  - `phase=done` while still showing `Route Parent`
+  - `routing_top_level` after the run is already complete
+  - active run workers after the run has already ended
+- Added compatibility fallback for parent preview discovery so GUI panels can find parent images in nested legacy/current layouts such as:
+  - `visible_parent/visible_parent/parent_preloaded.png`
+  - `visible_parent/visible_parent/parent_freerouted.png`
+- Extended monitor fallback preview discovery to look in recent autoexperiment round directories for parent previews when status-driven preview paths are missing or stale.
+- Extended analysis-page parent preview discovery to search:
+  - the base parent directory
+  - nested `visible_parent/`
+  - nested `renders/`
+
+### Why this change mattered
+- The previous monitor pass improved visibility, but stale terminal status could still make the UI look contradictory and untrustworthy.
+- Parent preview images were present on disk in some runs, but the analysis page could miss them because it only checked one directory depth.
+- These fixes make the GUI more robust against both stale status payloads and artifact-layout compatibility issues.
+
+### Verification target
+- GUI-side code should still be compile-checked after these monitor/analysis compatibility fixes.
+- Because this branch continues to touch hierarchical orchestration visibility around the subcircuits pipeline, the required verification command remains:
+
+`python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+
+### Known limitations / next follow-up
+- The root cause of stale terminal status is still in status production/persistence, not only in monitor rendering. A future pass should make the final emitted status payload fully self-consistent so the UI does not need to normalize it defensively.
+- Parent preview discovery now handles nested compatibility layouts better, but the long-term goal should still be one canonical parent artifact layout and one canonical preview naming scheme.
+
+## 2026-04-17: Realtime Monitor Preview-Path Source-of-Truth + Live Stage Visibility
+
+### Completed
+- Updated `gui/pages/monitor.py` so the live monitor now prefers status-emitted `preview_paths` as the primary source of truth for preview rendering.
+- Removed hardcoded parent artifact slug assumptions from the monitor’s current-run preview selection path.
+- Updated parent output discovery in the monitor to use `preview_paths.parent_artifact_dir` when available instead of assuming one fixed parent artifact directory.
+- Improved the live preview panel so it distinguishes:
+  - leaf preview
+  - stamped parent preview
+  - routed parent preview
+  - status-driven vs fallback preview source
+  - current-stage relevance vs fallback reuse
+- Added clearer empty-state messaging for long-running stages so the UI can explain:
+  - no new preview yet for this stage
+  - using a previous preview while the current stage runs
+  - current action / current command when no fresh image is available
+- Improved monitor status/event presentation so the page reads more like a live operator console:
+  - stage labels are normalized
+  - current action is surfaced more prominently
+  - latest event text now includes action context
+  - the event panel includes a synthesized live status card with stage/action/command context
+
+### Why this change mattered
+- The previous monitor improvements were useful, but preview selection still depended too much on filesystem guessing and stale artifact-layout assumptions.
+- That made the monitor vulnerable to showing stale or misleading images during long hierarchical runs.
+- The cleaner architecture is for the pipeline to emit the current preview paths and for the monitor to render those exact paths first, with filesystem discovery retained only as backward-compatible fallback behavior.
+
+### Verification target
+- GUI-side code should still be compile-checked after these monitor changes.
+- Because this branch continues to touch hierarchical orchestration/visibility around the subcircuits pipeline, the required verification command remains:
+
+`python3 .claude/skills/kicad-helper/scripts/solve_subcircuits.py LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+
+### Known limitations / next follow-up
+- The monitor event stream is improved, but it still synthesizes part of the operator-console view from current status rather than from a dedicated stage-transition event log.
+- Additional cleanup is still desirable around semantically stale orchestration names such as `visible_output_dir`, `skip_visible`, and `top_level_ready`.
+- A future pass should consider adding an explicit preview timestamp / last-preview-update indicator and possibly a dedicated command-console panel for long-running subprocess visibility.
+
 ## 2026-04-17: Packed Parent Composition + Preview Clarity + Hierarchical Render Readability
 
 ### Completed

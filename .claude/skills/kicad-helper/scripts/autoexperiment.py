@@ -15,20 +15,21 @@ Design goals:
 High-level flow per round:
 1. solve routed leaf subcircuits with `solve_subcircuits.py`
 2. inspect accepted leaf artifacts under `.experiments/subcircuits/`
-3. compose a parent/top-level snapshot with `compose_subcircuits.py`
-4. optionally run the visible hierarchical pipeline runner
-5. score the round from accepted artifact quality and hierarchy coverage
-6. keep the best round and publish live status / JSONL events / frame metadata
+3. compose and route the parent/top-level board with `compose_subcircuits.py`
+4. score the round from accepted artifact quality and hierarchy coverage
+5. keep the best round and publish live status / JSONL events / frame metadata
 
-This file intentionally does not import or use the old `FullPipeline`
-whole-board experiment machinery.
+This file intentionally drives only the hierarchical subcircuit
+leaf-first composition and routing pipeline.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
+import re
 import shutil
 import signal
 import subprocess
@@ -56,14 +57,14 @@ class HierarchyRound:
     leaf_total: int = 0
     leaf_accepted: int = 0
     parent_composed: bool = False
-    top_level_ready: bool = False
+    parent_routed: bool = False
     accepted_trace_count: int = 0
     accepted_via_count: int = 0
     latest_stage: str = ""
     details: str = ""
     artifact_root: str = ""
     composition_json: str = ""
-    visible_output_dir: str = ""
+    parent_output_json: str = ""
     leaf_names: list[str] = field(default_factory=list)
     accepted_leaf_names: list[str] = field(default_factory=list)
     score_breakdown: dict[str, float] = field(default_factory=dict)
@@ -78,6 +79,8 @@ class HierarchyRound:
     improvement_vs_baseline: float = 0.0
     improvement_vs_recent: float = 0.0
     plateau_count: int = 0
+    timing_breakdown: dict[str, float] = field(default_factory=dict)
+    leaf_timing_summary: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), sort_keys=False)
@@ -108,6 +111,27 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
         f.write("\n")
+
+
+def _timing_now() -> float:
+    return time.monotonic()
+
+
+def _record_timing(
+    timing_breakdown: dict[str, float],
+    key: str,
+    start_ts: float,
+) -> float:
+    elapsed_s = round(max(0.0, time.monotonic() - start_ts), 3)
+    timing_breakdown[key] = elapsed_s
+    return elapsed_s
+
+
+def _format_timing_breakdown(timing_breakdown: dict[str, float]) -> str:
+    if not timing_breakdown:
+        return "timing=unavailable"
+    ordered_items = sorted(timing_breakdown.items())
+    return "timing=" + ", ".join(f"{key}={value:.3f}s" for key, value in ordered_items)
 
 
 def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
@@ -214,11 +238,12 @@ def _score_round(
     accepted_leafs: list[dict[str, Any]],
     all_leafs: list[dict[str, Any]],
     composition_ok: bool,
-    visible_ok: bool,
+    parent_routed: bool,
     parent_copper_accounting: dict[str, int] | None,
     baseline_score: float | None,
     recent_scores: list[float],
     plateau_count: int,
+    timing_breakdown: dict[str, float] | None = None,
 ) -> tuple[float, dict[str, float], list[str], dict[str, float]]:
     leaf_total = len(all_leafs)
     leaf_accepted = len(accepted_leafs)
@@ -274,7 +299,7 @@ def _score_round(
         trace_coverage_ratio * 12.0 + via_coverage_ratio * 4.0,
     )
     parent_composition_score = 8.0 if composition_ok else 0.0
-    top_level_score = 8.0 if visible_ok else 0.0
+    parent_routed_score = 15.0 if parent_routed else 0.0
 
     parent_quality_score = min(
         14.0,
@@ -288,7 +313,7 @@ def _score_round(
         leaf_acceptance_score
         + routed_copper_score
         + parent_composition_score
-        + top_level_score
+        + parent_routed_score
         + parent_quality_score,
         3,
     )
@@ -319,7 +344,7 @@ def _score_round(
         "absolute_leaf_acceptance": round(leaf_acceptance_score, 3),
         "absolute_routed_copper": round(routed_copper_score, 3),
         "absolute_parent_composition": round(parent_composition_score, 3),
-        "absolute_top_level_ready": round(top_level_score, 3),
+        "absolute_parent_routed": round(parent_routed_score, 3),
         "absolute_parent_quality": round(parent_quality_score, 3),
         "improvement_vs_baseline": round(baseline_improvement_score, 3),
         "improvement_vs_recent": round(recent_improvement_score, 3),
@@ -338,7 +363,7 @@ def _score_round(
         f"accepted_traces={accepted_trace_count}/{all_trace_count}",
         f"accepted_vias={accepted_via_count}/{all_via_count}",
         f"composition_ok={composition_ok}",
-        f"top_level_ready={visible_ok}",
+        f"parent_routed={parent_routed}",
         f"preserved_child_trace_ratio={preserved_trace_ratio:.3f}",
         f"preserved_child_via_ratio={preserved_via_ratio:.3f}",
         f"parent_added_copper_present={parent_added_copper_present:.3f}",
@@ -353,6 +378,10 @@ def _score_round(
         "board_size_reduction_plan=after_best_layout_run_iterative_outline_shrink_loop_at_leaf_and_parent_levels",
         "board_size_reduction_loop=shrink_outline_then_revalidate_route_then_accept_smallest_passing_size",
     ]
+    if timing_breakdown:
+        score_notes.append(_format_timing_breakdown(timing_breakdown))
+        for key, value in sorted(timing_breakdown.items()):
+            score_notes.append(f"timing_{key}={value:.3f}s")
     score_context = {
         "absolute_score": absolute_score,
         "improvement_score": improvement_score,
@@ -364,6 +393,367 @@ def _score_round(
         "improvement_vs_recent": round(improvement_vs_recent, 3),
     }
     return score, score_breakdown, score_notes, score_context
+
+
+def _extract_leaf_timing_summary(solve_payload: dict[str, Any]) -> dict[str, Any]:
+    results = solve_payload.get("results", [])
+    if not isinstance(results, list):
+        results = []
+
+    leaf_rows: list[dict[str, Any]] = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        solved = item.get("solved", {})
+        if not isinstance(solved, dict):
+            solved = {}
+        best_round = solved.get("best_round", {})
+        if not isinstance(best_round, dict):
+            best_round = {}
+        rounds_payload = solved.get("rounds", [])
+        if not isinstance(rounds_payload, list):
+            rounds_payload = []
+        timing = {}
+        for round_payload in rounds_payload:
+            if not isinstance(round_payload, dict):
+                continue
+            round_timing = round_payload.get("timing_breakdown", {})
+            if not isinstance(round_timing, dict):
+                continue
+            candidate_leaf_total = float(round_timing.get("leaf_total_s", 0.0) or 0.0)
+            current_leaf_total = float(timing.get("leaf_total_s", 0.0) or 0.0)
+            if candidate_leaf_total >= current_leaf_total:
+                timing = dict(round_timing)
+        if not timing:
+            timing = best_round.get("timing_breakdown", {})
+            if not isinstance(timing, dict):
+                timing = {}
+
+        scheduling_metadata = solved.get("scheduling_metadata", {})
+        if not isinstance(scheduling_metadata, dict):
+            scheduling_metadata = {}
+        failure_summary = solved.get("failure_summary", {})
+        if not isinstance(failure_summary, dict):
+            failure_summary = {}
+
+        sheet_name = str(solved.get("sheet_name", "") or "")
+        instance_path = str(solved.get("instance_path", "") or "")
+        leaf_total_s = float(timing.get("leaf_total_s", 0.0) or 0.0)
+        route_total_s = float(timing.get("route_local_subcircuit_total_s", 0.0) or 0.0)
+        freerouting_s = float(timing.get("freerouting_s", 0.0) or 0.0)
+        render_total_s = float(
+            (timing.get("pre_route_render_diagnostics_s", 0.0) or 0.0)
+            + (timing.get("routed_render_diagnostics_s", 0.0) or 0.0)
+        )
+        placement_total_s = float(
+            (timing.get("placement_solve_s", 0.0) or 0.0)
+            + (timing.get("passive_ordering_s", 0.0) or 0.0)
+            + (timing.get("post_ordering_legality_repair_s", 0.0) or 0.0)
+            + (timing.get("placement_scoring_s", 0.0) or 0.0)
+        )
+        trace_count = int(
+            scheduling_metadata.get("trace_count", item.get("trace_count", 0)) or 0
+        )
+        via_count = int(
+            scheduling_metadata.get("via_count", item.get("via_count", 0)) or 0
+        )
+        internal_net_count = int(scheduling_metadata.get("internal_net_count", 0) or 0)
+        failed_round_count = int(failure_summary.get("failed_round_count", 0) or 0)
+        accepted_round_count = int(failure_summary.get("accepted_round_count", 0) or 0)
+        had_failures = bool(failure_summary.get("had_failures", False))
+        historically_trivial_candidate = bool(
+            scheduling_metadata.get("historically_trivial_candidate", False)
+        )
+        unique_failure_reasons = list(failure_summary.get("unique_reasons", []) or [])
+        long_pole_candidate = leaf_total_s > 0.0
+
+        leaf_rows.append(
+            {
+                "sheet_name": sheet_name,
+                "instance_path": instance_path,
+                "leaf_total_s": round(leaf_total_s, 3),
+                "route_total_s": round(route_total_s, 3),
+                "freerouting_s": round(freerouting_s, 3),
+                "render_total_s": round(render_total_s, 3),
+                "placement_total_s": round(placement_total_s, 3),
+                "trace_count": trace_count,
+                "via_count": via_count,
+                "internal_net_count": internal_net_count,
+                "failed_round_count": failed_round_count,
+                "accepted_round_count": accepted_round_count,
+                "had_failures": had_failures,
+                "historically_trivial_candidate": historically_trivial_candidate,
+                "long_pole_candidate": long_pole_candidate,
+                "unique_failure_reasons": unique_failure_reasons,
+                "timing_breakdown": dict(timing),
+                "scheduling_metadata": dict(scheduling_metadata),
+                "failure_summary": dict(failure_summary),
+            }
+        )
+
+    sorted_by_total = sorted(
+        leaf_rows,
+        key=lambda row: float(row.get("leaf_total_s", 0.0) or 0.0),
+        reverse=True,
+    )
+    long_poles = sorted_by_total[:3]
+    long_pole_paths = {
+        str(row.get("instance_path", "") or "")
+        for row in long_poles
+        if str(row.get("instance_path", "") or "")
+    }
+    for row in leaf_rows:
+        row["long_pole_candidate"] = (
+            str(row.get("instance_path", "") or "") in long_pole_paths
+        )
+
+    total_leaf_time = round(
+        sum(float(row.get("leaf_total_s", 0.0) or 0.0) for row in leaf_rows),
+        3,
+    )
+    max_leaf_time = round(
+        max([float(row.get("leaf_total_s", 0.0) or 0.0) for row in leaf_rows] or [0.0]),
+        3,
+    )
+    avg_leaf_time = round(
+        total_leaf_time / max(1, len(leaf_rows)),
+        3,
+    )
+    imbalance_ratio = round(
+        max_leaf_time / max(avg_leaf_time, 0.001),
+        3,
+    )
+
+    return {
+        "leaf_count": len(leaf_rows),
+        "total_leaf_time_s": total_leaf_time,
+        "avg_leaf_time_s": avg_leaf_time,
+        "max_leaf_time_s": max_leaf_time,
+        "imbalance_ratio": imbalance_ratio,
+        "long_pole_leafs": long_poles,
+        "leafs": leaf_rows,
+    }
+
+
+def _extract_solve_json_payload(stdout_text: str) -> dict[str, Any]:
+    text = str(stdout_text or "").strip()
+    if not text:
+        return {}
+
+    try:
+        payload = json.loads(text)
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        pass
+
+    marker_patterns = [
+        r"===SOLVE_SUBCIRCUITS_JSON_START===\s*(\{[\s\S]*?\})\s*===SOLVE_SUBCIRCUITS_JSON_END===",
+        r"---SOLVE_SUBCIRCUITS_JSON_START---\s*(\{[\s\S]*?\})\s*---SOLVE_SUBCIRCUITS_JSON_END---",
+    ]
+    for pattern in marker_patterns:
+        match = re.search(pattern, text)
+        if not match:
+            continue
+        try:
+            payload = json.loads(match.group(1))
+            if isinstance(payload, dict):
+                return payload
+        except Exception:
+            continue
+
+    decoder = json.JSONDecoder()
+    last_payload: dict[str, Any] = {}
+    for match in re.finditer(r"\{", text):
+        start = match.start()
+        try:
+            payload, end = decoder.raw_decode(text[start:])
+        except Exception:
+            continue
+        if isinstance(payload, dict) and isinstance(end, int) and end > 0:
+            if "leaf_subcircuits" in payload or "results" in payload:
+                return payload
+            last_payload = payload
+
+    if last_payload:
+        return last_payload
+
+    match = re.search(r"(\{[\s\S]*\})\s*$", text)
+    if not match:
+        return {}
+
+    try:
+        payload = json.loads(match.group(1))
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def _leaf_schedule_order(
+    leaf_artifacts: list[dict[str, Any]],
+    leaf_timing_summary: dict[str, Any] | None,
+) -> list[str]:
+    timing = dict(leaf_timing_summary or {})
+    timed_leafs = timing.get("leafs", [])
+    if not isinstance(timed_leafs, list):
+        timed_leafs = []
+
+    metrics_by_name: dict[str, dict[str, Any]] = {}
+    metrics_by_path: dict[str, dict[str, Any]] = {}
+
+    def _merge_metrics(target: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
+        merged = dict(target)
+        merged["leaf_total_s"] = max(
+            float(merged.get("leaf_total_s", 0.0) or 0.0),
+            float(row.get("leaf_total_s", 0.0) or 0.0),
+        )
+        merged["route_total_s"] = max(
+            float(merged.get("route_total_s", 0.0) or 0.0),
+            float(row.get("route_total_s", 0.0) or 0.0),
+        )
+        merged["freerouting_s"] = max(
+            float(merged.get("freerouting_s", 0.0) or 0.0),
+            float(row.get("freerouting_s", 0.0) or 0.0),
+        )
+        merged["trace_count"] = max(
+            int(merged.get("trace_count", 0) or 0),
+            int(row.get("trace_count", 0) or 0),
+        )
+        merged["via_count"] = max(
+            int(merged.get("via_count", 0) or 0),
+            int(row.get("via_count", 0) or 0),
+        )
+        merged["internal_net_count"] = max(
+            int(merged.get("internal_net_count", 0) or 0),
+            int(row.get("internal_net_count", 0) or 0),
+        )
+        merged["failed_round_count"] = max(
+            int(merged.get("failed_round_count", 0) or 0),
+            int(row.get("failed_round_count", 0) or 0),
+        )
+        merged["accepted_round_count"] = max(
+            int(merged.get("accepted_round_count", 0) or 0),
+            int(row.get("accepted_round_count", 0) or 0),
+        )
+        merged["had_failures"] = bool(
+            merged.get("had_failures", False) or row.get("had_failures", False)
+        )
+        merged["historically_trivial_candidate"] = bool(
+            merged.get("historically_trivial_candidate", False)
+            or row.get("historically_trivial_candidate", False)
+        )
+        merged["long_pole_candidate"] = bool(
+            merged.get("long_pole_candidate", False)
+            or row.get("long_pole_candidate", False)
+        )
+        return merged
+
+    for row in timed_leafs:
+        if not isinstance(row, dict):
+            continue
+        sheet_name = str(row.get("sheet_name", "") or "")
+        instance_path = str(row.get("instance_path", "") or "")
+        if sheet_name:
+            metrics_by_name[sheet_name] = _merge_metrics(
+                metrics_by_name.get(sheet_name, {}),
+                row,
+            )
+        if instance_path:
+            metrics_by_path[instance_path] = _merge_metrics(
+                metrics_by_path.get(instance_path, {}),
+                row,
+            )
+
+    scheduling_rows: list[dict[str, Any]] = []
+    for item in leaf_artifacts:
+        if not isinstance(item, dict):
+            continue
+        sheet_name = str(item.get("sheet_name", "") or "")
+        instance_path = str(item.get("instance_path", "") or "")
+        metrics = {}
+        if sheet_name:
+            metrics = _merge_metrics(metrics, metrics_by_name.get(sheet_name, {}))
+        if instance_path:
+            metrics = _merge_metrics(metrics, metrics_by_path.get(instance_path, {}))
+
+        trace_count = max(
+            int(item.get("trace_count", 0) or 0),
+            int(metrics.get("trace_count", 0) or 0),
+        )
+        via_count = max(
+            int(item.get("via_count", 0) or 0),
+            int(metrics.get("via_count", 0) or 0),
+        )
+        internal_net_count = int(metrics.get("internal_net_count", 0) or 0)
+        leaf_total_s = float(metrics.get("leaf_total_s", 0.0) or 0.0)
+        route_total_s = float(metrics.get("route_total_s", 0.0) or 0.0)
+        freerouting_s = float(metrics.get("freerouting_s", 0.0) or 0.0)
+        failed_round_count = int(metrics.get("failed_round_count", 0) or 0)
+        accepted_round_count = int(metrics.get("accepted_round_count", 0) or 0)
+        had_failures = bool(metrics.get("had_failures", False))
+        historically_trivial_candidate = bool(
+            metrics.get("historically_trivial_candidate", False)
+        )
+        long_pole_candidate = bool(metrics.get("long_pole_candidate", False))
+
+        failure_pressure = 0.0
+        if had_failures:
+            failure_pressure += 40.0
+        failure_pressure += min(25.0, failed_round_count * 8.0)
+        if accepted_round_count <= 0 and had_failures:
+            failure_pressure += 15.0
+
+        routing_pressure = (
+            leaf_total_s * 1.0 + route_total_s * 1.35 + freerouting_s * 1.75
+        )
+        topology_pressure = (
+            trace_count * 0.35 + via_count * 0.8 + internal_net_count * 1.5
+        )
+        long_pole_bonus = 18.0 if long_pole_candidate else 0.0
+        trivial_penalty = (
+            30.0 if historically_trivial_candidate or internal_net_count <= 0 else 0.0
+        )
+
+        scheduling_score = round(
+            routing_pressure
+            + topology_pressure
+            + failure_pressure
+            + long_pole_bonus
+            - trivial_penalty,
+            3,
+        )
+
+        scheduling_rows.append(
+            {
+                "sheet_name": sheet_name,
+                "instance_path": instance_path,
+                "trace_count": trace_count,
+                "via_count": via_count,
+                "internal_net_count": internal_net_count,
+                "leaf_total_s": round(leaf_total_s, 3),
+                "route_total_s": round(route_total_s, 3),
+                "freerouting_s": round(freerouting_s, 3),
+                "failed_round_count": failed_round_count,
+                "accepted_round_count": accepted_round_count,
+                "had_failures": had_failures,
+                "historically_trivial_candidate": historically_trivial_candidate,
+                "long_pole_candidate": long_pole_candidate,
+                "scheduling_score": scheduling_score,
+            }
+        )
+
+    ordered = sorted(
+        scheduling_rows,
+        key=lambda item: (
+            -float(item.get("scheduling_score", 0.0) or 0.0),
+            -float(item.get("freerouting_s", 0.0) or 0.0),
+            -float(item.get("route_total_s", 0.0) or 0.0),
+            -float(item.get("leaf_total_s", 0.0) or 0.0),
+            -int(item.get("trace_count", 0) or 0),
+            -int(item.get("via_count", 0) or 0),
+            str(item.get("sheet_name", "") or ""),
+        ),
+    )
+    return [str(item.get("sheet_name", "") or "") for item in ordered]
 
 
 def _extract_parent_copper_accounting(project_dir: Path) -> dict[str, int]:
@@ -503,6 +893,13 @@ def _discover_live_preview_paths(project_dir: Path) -> dict[str, str]:
             renders_dir / "routed.png",
             renders_dir / "board_routed.png",
         ]
+        stamped_board_candidates = [
+            latest_parent_dir / "parent_pre_freerouting.kicad_pcb",
+            latest_parent_dir / "parent_stamped.kicad_pcb",
+        ]
+        routed_board_candidates = [
+            latest_parent_dir / "parent_routed.kicad_pcb",
+        ]
         for candidate in stamped_candidates:
             if candidate.exists():
                 previews["parent_stamped_preview"] = str(candidate)
@@ -511,16 +908,26 @@ def _discover_live_preview_paths(project_dir: Path) -> dict[str, str]:
             if candidate.exists():
                 previews["parent_routed_preview"] = str(candidate)
                 break
+        for candidate in stamped_board_candidates:
+            if candidate.exists():
+                previews["parent_stamped_board"] = str(candidate)
+                break
+        for candidate in routed_board_candidates:
+            if candidate.exists():
+                previews["parent_routed_board"] = str(candidate)
+                break
         previews["parent_artifact_dir"] = str(latest_parent_dir)
 
     sub_root = project_dir / ".experiments" / "subcircuits"
     latest_leaf: tuple[float, Path] | None = None
+    latest_leaf_payload: dict[str, Any] = {}
     if sub_root.exists():
         for child in sub_root.iterdir():
             if not child.is_dir():
                 continue
             solved_path = child / "solved_layout.json"
             metadata_path = child / "metadata.json"
+            debug_path = child / "debug.json"
             if not solved_path.exists():
                 continue
             try:
@@ -530,11 +937,18 @@ def _discover_live_preview_paths(project_dir: Path) -> dict[str, str]:
             if isinstance(payload, dict) and payload.get("parent_composition") is True:
                 continue
             try:
+                debug_payload = _load_json(debug_path) if debug_path.exists() else {}
+            except Exception:
+                debug_payload = {}
+            try:
                 mtime = solved_path.stat().st_mtime
             except OSError:
                 continue
             if latest_leaf is None or mtime > latest_leaf[0]:
                 latest_leaf = (mtime, child)
+                latest_leaf_payload = (
+                    debug_payload if isinstance(debug_payload, dict) else {}
+                )
 
     if latest_leaf is not None:
         leaf_dir = latest_leaf[1]
@@ -548,6 +962,38 @@ def _discover_live_preview_paths(project_dir: Path) -> dict[str, str]:
             if candidate.exists():
                 previews["leaf_preview"] = str(candidate)
                 break
+
+        latest_round = {}
+        extra = latest_leaf_payload.get("extra", {})
+        if isinstance(extra, dict):
+            all_rounds = extra.get("all_rounds", [])
+            if isinstance(all_rounds, list) and all_rounds:
+                latest_round = (
+                    all_rounds[-1] if isinstance(all_rounds[-1], dict) else {}
+                )
+
+        preview_paths = latest_round.get("preview_paths", {})
+        if isinstance(preview_paths, dict):
+            for source_key, target_key in [
+                ("pre_route_front", "leaf_round_pre_route_preview"),
+                ("routed_front", "leaf_round_routed_preview"),
+                ("routed_copper", "leaf_round_routed_copper_preview"),
+            ]:
+                value = preview_paths.get(source_key)
+                if value:
+                    previews[target_key] = str(value)
+
+        board_paths = latest_round.get("board_paths", {})
+        if isinstance(board_paths, dict):
+            for source_key, target_key in [
+                ("illegal_pre_stamp", "leaf_round_illegal_board"),
+                ("pre_route", "leaf_round_pre_route_board"),
+                ("routed", "leaf_round_routed_board"),
+            ]:
+                value = board_paths.get(source_key)
+                if value:
+                    previews[target_key] = str(value)
+
         previews["leaf_artifact_dir"] = str(leaf_dir)
 
     return previews
@@ -568,7 +1014,7 @@ def _write_live_status(
     current_stage: str,
     leaf_total: int,
     leaf_accepted: int,
-    top_level_ready: bool,
+    parent_routed: bool,
     leaf_worker_count: int = 1,
     leaf_workers_active: int = 0,
     leaf_workers_queued: int = 0,
@@ -582,6 +1028,7 @@ def _write_live_status(
     current_action: str | None = None,
     current_command: str | None = None,
     preview_paths: dict[str, str] | None = None,
+    leaf_timing_summary: dict[str, Any] | None = None,
 ) -> None:
     now = time.monotonic()
     elapsed_s = now - start_ts
@@ -601,7 +1048,7 @@ def _write_live_status(
     hierarchy_top_level_status = (
         top_level_status
         if top_level_status is not None
-        else ("ready" if top_level_ready else "not_ready")
+        else ("ready" if parent_routed else "not_ready")
     )
     hierarchy_composition_status = (
         composition_status if composition_status is not None else current_stage
@@ -638,7 +1085,7 @@ def _write_live_status(
             "current_stage": current_stage,
             "leaf_total": leaf_total,
             "leaf_accepted": leaf_accepted,
-            "top_level_ready": top_level_ready,
+            "parent_routed": parent_routed,
             "leaf_parallelism_enabled": normalized_leaf_worker_count > 1,
             "leaf_worker_count": normalized_leaf_worker_count,
             "leaf_workers": {
@@ -659,6 +1106,7 @@ def _write_live_status(
             "top_level_status": hierarchy_top_level_status,
             "composition_status": hierarchy_composition_status,
             "copper_accounting": copper,
+            "leaf_timing_summary": dict(leaf_timing_summary or {}),
         },
         "timestamp_epoch_s": time.time(),
     }
@@ -690,7 +1138,7 @@ def _write_live_status(
         ),
         f"composition_status: {hierarchy_composition_status}",
         f"top_level_status: {hierarchy_top_level_status}",
-        f"top_level_ready: {top_level_ready}",
+        f"parent_routed: {parent_routed}",
     ]
     if copper:
         lines.extend(
@@ -716,6 +1164,23 @@ def _write_live_status(
         lines.append("preview_paths:")
         for key, value in sorted(preview_paths.items()):
             lines.append(f"  {key}: {value}")
+
+        board_path_keys = [
+            "leaf_round_illegal_board",
+            "leaf_round_pre_route_board",
+            "leaf_round_routed_board",
+            "parent_stamped_board",
+            "parent_routed_board",
+        ]
+        board_path_items = [
+            (key, preview_paths.get(key, ""))
+            for key in board_path_keys
+            if preview_paths.get(key)
+        ]
+        if board_path_items:
+            lines.append("kicad_board_paths:")
+            for key, value in board_path_items:
+                lines.append(f"  {key}: {value}")
     status_txt_path.parent.mkdir(parents=True, exist_ok=True)
     with open(status_txt_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
@@ -735,14 +1200,15 @@ def _write_round_detail(
     all_leafs: list[dict[str, Any]],
     solve_exit_code: int,
     compose_exit_code: int,
-    visible_exit_code: int | None,
+    parent_route_exit_code: int | None,
     solve_stdout: str,
     solve_stderr: str,
     compose_stdout: str,
     compose_stderr: str,
-    visible_stdout: str,
-    visible_stderr: str,
+    parent_route_stdout: str,
+    parent_route_stderr: str,
     parent_copper_accounting: dict[str, int] | None = None,
+    preview_paths: dict[str, str] | None = None,
 ) -> None:
     payload = {
         "round": round_result.round_num,
@@ -753,11 +1219,13 @@ def _write_round_detail(
         "kept": round_result.kept,
         "duration_s": round_result.duration_s,
         "latest_stage": round_result.latest_stage,
+        "timing_breakdown": dict(round_result.timing_breakdown),
+        "leaf_timing_summary": dict(round_result.leaf_timing_summary),
         "hierarchy": {
             "leaf_total": round_result.leaf_total,
             "leaf_accepted": round_result.leaf_accepted,
             "parent_composed": round_result.parent_composed,
-            "top_level_ready": round_result.top_level_ready,
+            "parent_routed": round_result.parent_routed,
             "accepted_trace_count": round_result.accepted_trace_count,
             "accepted_via_count": round_result.accepted_via_count,
             "leaf_names": round_result.leaf_names,
@@ -774,17 +1242,28 @@ def _write_round_detail(
             "improvement_vs_baseline": round_result.improvement_vs_baseline,
             "improvement_vs_recent": round_result.improvement_vs_recent,
             "plateau_count": round_result.plateau_count,
+            "timing_breakdown": dict(round_result.timing_breakdown),
+            "leaf_timing_summary": dict(round_result.leaf_timing_summary),
         },
         "artifacts": {
             "artifact_root": round_result.artifact_root,
             "composition_json": round_result.composition_json,
-            "visible_output_dir": round_result.visible_output_dir,
+            "parent_output_json": round_result.parent_output_json,
             "parent_copper_accounting": dict(parent_copper_accounting or {}),
+            "parent_board_paths": {
+                "parent_stamped_board": str(
+                    (preview_paths or {}).get("parent_stamped_board", "") or ""
+                ),
+                "parent_routed_board": str(
+                    (preview_paths or {}).get("parent_routed_board", "") or ""
+                ),
+            },
+            "preview_paths": dict(preview_paths or {}),
         },
         "commands": {
             "solve_exit_code": solve_exit_code,
             "compose_exit_code": compose_exit_code,
-            "visible_exit_code": visible_exit_code,
+            "parent_route_exit_code": parent_route_exit_code,
         },
         "accepted_leaf_artifacts": accepted_leafs,
         "all_leaf_artifacts": all_leafs,
@@ -793,8 +1272,8 @@ def _write_round_detail(
             "solve_stderr_tail": solve_stderr[-12000:],
             "compose_stdout_tail": compose_stdout[-12000:],
             "compose_stderr_tail": compose_stderr[-12000:],
-            "visible_stdout_tail": visible_stdout[-12000:],
-            "visible_stderr_tail": visible_stderr[-12000:],
+            "parent_route_stdout_tail": parent_route_stdout[-12000:],
+            "parent_route_stderr_tail": parent_route_stderr[-12000:],
         },
     }
     _write_json(rounds_dir / f"round_{round_result.round_num:04d}.json", payload)
@@ -814,7 +1293,7 @@ def _write_frame_metadata(
         "latest_stage": round_result.latest_stage,
         "leaf_total": round_result.leaf_total,
         "leaf_accepted": round_result.leaf_accepted,
-        "top_level_ready": round_result.top_level_ready,
+        "parent_routed": round_result.parent_routed,
         "parent_composed": round_result.parent_composed,
         "accepted_trace_count": round_result.accepted_trace_count,
         "accepted_via_count": round_result.accepted_via_count,
@@ -830,41 +1309,41 @@ def _write_frame_metadata(
         "improvement_vs_baseline": round_result.improvement_vs_baseline,
         "improvement_vs_recent": round_result.improvement_vs_recent,
         "plateau_count": round_result.plateau_count,
+        "timing_breakdown": dict(round_result.timing_breakdown),
+        "leaf_timing_summary": dict(round_result.leaf_timing_summary),
         "sheet_name": ", ".join(round_result.accepted_leaf_names[:3])
         if round_result.accepted_leaf_names
         else "",
-        "instance_path": round_result.visible_output_dir
+        "instance_path": round_result.parent_output_json
         or round_result.composition_json,
         "artifact_root": round_result.artifact_root,
         "composition_json": round_result.composition_json,
-        "visible_output_dir": round_result.visible_output_dir,
+        "parent_output_json": round_result.parent_output_json,
         "details": round_result.details,
     }
     _write_json(frames_dir / f"frame_{round_result.round_num:04d}.json", payload)
 
 
-def _select_preview_image(visible_output_dir: Path) -> Path | None:
+def _select_preview_image(parent_output_dir: Path) -> Path | None:
     candidates = [
-        visible_output_dir / "routed_png.png",
-        visible_output_dir / "parent_routed.png",
-        visible_output_dir / "routed.png",
-        visible_output_dir / "preloaded_png.png",
-        visible_output_dir / "parent_stamped.png",
-        visible_output_dir / "board_routed.png",
-        visible_output_dir / "board.png",
-        visible_output_dir / "snapshot.png",
+        parent_output_dir / "parent_routed.png",
+        parent_output_dir / "routed.png",
+        parent_output_dir / "parent_stamped.png",
+        parent_output_dir / "board_routed.png",
+        parent_output_dir / "board.png",
+        parent_output_dir / "snapshot.png",
     ]
     for candidate in candidates:
         if candidate.exists():
             return candidate
 
     pngs = sorted(
-        visible_output_dir.glob("*.png"),
+        parent_output_dir.glob("*.png"),
         key=lambda path: (
             0
             if "routed" in path.name.lower()
             else 1
-            if "preloaded" in path.name.lower() or "stamped" in path.name.lower()
+            if "stamped" in path.name.lower()
             else 2,
             path.name.lower(),
         ),
@@ -881,6 +1360,8 @@ def _build_solve_cmd(
     config: str | None,
     only: list[str],
     workers: int,
+    fast_smoke: bool = False,
+    leaf_order: list[str] | None = None,
 ) -> list[str]:
     cmd = [
         sys.executable,
@@ -897,10 +1378,14 @@ def _build_solve_cmd(
         "--workers",
         str(max(1, workers)),
     ]
+    if fast_smoke:
+        cmd.append("--fast-smoke")
     if config:
         cmd.extend(["--config", config])
     for selector in only:
         cmd.extend(["--only", selector])
+    for selector in leaf_order or []:
+        cmd.extend(["--leaf-order", selector])
     return cmd
 
 
@@ -996,14 +1481,23 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--workers",
         "-w",
         type=int,
-        default=1,
-        help="Reserved for GUI compatibility; hierarchical mode currently runs single-worker",
+        default=0,
+        help="Leaf solve worker count (0 = auto-select based on leaf count and CPU availability)",
+    )
+    parser.add_argument(
+        "--fast-smoke",
+        action="store_true",
+        help="Pass through fast smoke mode to leaf solving for faster routed verification rounds",
     )
     parser.add_argument(
         "--plateau",
         type=int,
         default=2,
         help="Number of non-improving rounds tolerated before plateau markers become explicit",
+    )
+    parser.add_argument(
+        "--jar",
+        help="Optional FreeRouting jar path passed through to parent routing",
     )
     parser.add_argument(
         "--seed",
@@ -1018,7 +1512,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--parent",
         default="/",
-        help="Parent selector for composition / visible top-level assembly",
+        help="Parent selector for hierarchical parent composition and routing",
     )
     parser.add_argument(
         "--only",
@@ -1032,11 +1526,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=1,
         help="Leaf solve rounds per experiment round",
     )
-    parser.add_argument(
-        "--skip-visible",
-        action="store_true",
-        help="Skip the visible top-level pipeline stage",
-    )
+
     parser.add_argument(
         "--status-file",
         default="run_status.json",
@@ -1096,6 +1586,14 @@ def main(argv: list[str] | None = None) -> int:
     master_seed = args.seed if args.seed is not None else random.randint(0, 2**31 - 1)
     rng = random.Random(master_seed)
 
+    requested_workers = int(args.workers or 0)
+    available_cpus = max(1, int(os.cpu_count() or 1))
+    if requested_workers > 0:
+        effective_workers = max(1, requested_workers)
+    else:
+        effective_workers = min(available_cpus, 6)
+    effective_workers = max(1, effective_workers)
+
     print("=== Hierarchical Autoexperiment Complete ===")
     print(f"Project:      {project_dir}")
     print(f"Schematic:    {schematic}")
@@ -1104,6 +1602,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Leaf rounds:  {args.leaf_rounds}")
     print(f"Parent:       {args.parent}")
     print(f"Master seed:  {master_seed}")
+    print(f"Workers:      {effective_workers} (requested={requested_workers})")
+    print(f"Fast smoke:   {args.fast_smoke}")
     print("Mode:         subcircuit leaf bottom-up only")
     print()
 
@@ -1129,8 +1629,8 @@ def main(argv: list[str] | None = None) -> int:
         current_stage="startup",
         leaf_total=0,
         leaf_accepted=0,
-        top_level_ready=False,
-        leaf_worker_count=max(1, args.workers),
+        parent_routed=False,
+        leaf_worker_count=effective_workers,
         leaf_workers_active=0,
         leaf_workers_queued=0,
         leaf_workers_completed=0,
@@ -1165,9 +1665,9 @@ def main(argv: list[str] | None = None) -> int:
             current_stage="solve_leafs",
             leaf_total=0,
             leaf_accepted=0,
-            top_level_ready=False,
-            leaf_worker_count=max(1, args.workers),
-            leaf_workers_active=max(1, min(args.workers, 1)),
+            parent_routed=False,
+            leaf_worker_count=effective_workers,
+            leaf_workers_active=min(effective_workers, 1),
             leaf_workers_queued=0,
             leaf_workers_completed=0,
             current_node=args.parent,
@@ -1184,13 +1684,35 @@ def main(argv: list[str] | None = None) -> int:
                     seed=round_seed,
                     config=args.config,
                     only=args.only,
-                    workers=max(1, args.workers),
+                    workers=effective_workers,
+                    fast_smoke=args.fast_smoke,
+                    leaf_order=[],
                 )
             ),
             preview_paths=_discover_live_preview_paths(project_dir),
+            leaf_timing_summary={},
         )
 
         t0 = time.monotonic()
+
+        previous_round_path = rounds_dir / f"round_{round_num - 1:04d}.json"
+        previous_leaf_order: list[str] = []
+        if previous_round_path.exists():
+            try:
+                previous_payload = _load_json(previous_round_path)
+            except Exception:
+                previous_payload = {}
+            if isinstance(previous_payload, dict):
+                previous_leaf_timing = previous_payload.get("leaf_timing_summary", {})
+                if not isinstance(previous_leaf_timing, dict):
+                    previous_leaf_timing = {}
+                previous_all_leafs = previous_payload.get("all_leaf_artifacts", [])
+                if not isinstance(previous_all_leafs, list):
+                    previous_all_leafs = []
+                previous_leaf_order = _leaf_schedule_order(
+                    previous_all_leafs,
+                    previous_leaf_timing,
+                )
 
         solve_cmd = _build_solve_cmd(
             schematic=schematic,
@@ -1199,8 +1721,11 @@ def main(argv: list[str] | None = None) -> int:
             seed=round_seed,
             config=args.config,
             only=args.only,
-            workers=max(1, args.workers),
+            workers=effective_workers,
+            fast_smoke=args.fast_smoke,
+            leaf_order=previous_leaf_order,
         )
+        leaf_timing_summary: dict[str, Any] = {}
         _write_live_status(
             status_json_path,
             status_txt_path,
@@ -1215,9 +1740,9 @@ def main(argv: list[str] | None = None) -> int:
             current_stage="solve_leafs",
             leaf_total=0,
             leaf_accepted=0,
-            top_level_ready=False,
-            leaf_worker_count=max(1, args.workers),
-            leaf_workers_active=max(1, min(args.workers, 1)),
+            parent_routed=False,
+            leaf_worker_count=effective_workers,
+            leaf_workers_active=min(effective_workers, 1),
             leaf_workers_queued=0,
             leaf_workers_completed=0,
             current_node=args.parent,
@@ -1228,18 +1753,63 @@ def main(argv: list[str] | None = None) -> int:
             current_action="running solve_subcircuits",
             current_command=" ".join(solve_cmd),
             preview_paths=_discover_live_preview_paths(project_dir),
+            leaf_timing_summary=leaf_timing_summary,
         )
+        round_timing_breakdown: dict[str, float] = {}
+        solve_start_ts = _timing_now()
         solve_rc, solve_stdout, solve_stderr = _run_command(
             solve_cmd,
             cwd=project_dir,
-            timeout_s=None,
         )
+        solve_elapsed_s = _record_timing(
+            round_timing_breakdown,
+            "solve_subcircuits_total",
+            solve_start_ts,
+        )
+        print(
+            f"[timing] round {round_num} solve_subcircuits_total={solve_elapsed_s:.3f}s"
+        )
+
+        solve_payload = _extract_solve_json_payload(solve_stdout)
+        leaf_timing_summary = _extract_leaf_timing_summary(solve_payload)
 
         all_leafs = _all_leaf_artifacts(project_dir)
         accepted_leafs = _accepted_leaf_artifacts(project_dir)
 
         leaf_names = [item.get("sheet_name", "") for item in all_leafs]
         accepted_leaf_names = [item.get("sheet_name", "") for item in accepted_leafs]
+        scheduled_leaf_names = _leaf_schedule_order(all_leafs, leaf_timing_summary)
+
+        scheduled_leaf_rows: list[dict[str, Any]] = []
+        scheduled_leaf_lookup: dict[str, dict[str, Any]] = {}
+        timed_leaf_rows = leaf_timing_summary.get("leafs", [])
+        if not isinstance(timed_leaf_rows, list):
+            timed_leaf_rows = []
+        for row in timed_leaf_rows:
+            if not isinstance(row, dict):
+                continue
+            instance_path = str(row.get("instance_path", "") or "")
+            sheet_name = str(row.get("sheet_name", "") or "")
+            if instance_path:
+                scheduled_leaf_lookup[instance_path] = dict(row)
+            if sheet_name and sheet_name not in scheduled_leaf_lookup:
+                scheduled_leaf_lookup[sheet_name] = dict(row)
+
+        for position, selector in enumerate(scheduled_leaf_names, start=1):
+            row = dict(scheduled_leaf_lookup.get(selector, {}))
+            if not row:
+                for candidate in timed_leaf_rows:
+                    if not isinstance(candidate, dict):
+                        continue
+                    if str(candidate.get("sheet_name", "") or "") == selector:
+                        row = dict(candidate)
+                        break
+            row["scheduled_position"] = position
+            row["scheduled_selector"] = selector
+            scheduled_leaf_rows.append(row)
+
+        leaf_timing_summary["scheduled_leafs"] = scheduled_leaf_rows
+        leaf_timing_summary["schedule_recommendation"] = list(scheduled_leaf_names)
 
         _write_live_status(
             status_json_path,
@@ -1255,8 +1825,8 @@ def main(argv: list[str] | None = None) -> int:
             current_stage="compose_parent",
             leaf_total=len(all_leafs),
             leaf_accepted=len(accepted_leafs),
-            top_level_ready=False,
-            leaf_worker_count=max(1, args.workers),
+            parent_routed=False,
+            leaf_worker_count=effective_workers,
             leaf_workers_active=0,
             leaf_workers_queued=0,
             leaf_workers_completed=len(accepted_leafs),
@@ -1278,6 +1848,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             ),
             preview_paths=_discover_live_preview_paths(project_dir),
+            leaf_timing_summary=leaf_timing_summary,
         )
 
         compose_cmd = _build_compose_cmd(
@@ -1300,8 +1871,8 @@ def main(argv: list[str] | None = None) -> int:
             current_stage="compose_parent",
             leaf_total=len(all_leafs),
             leaf_accepted=len(accepted_leafs),
-            top_level_ready=False,
-            leaf_worker_count=max(1, args.workers),
+            parent_routed=False,
+            leaf_worker_count=effective_workers,
             leaf_workers_active=0,
             leaf_workers_queued=0,
             leaf_workers_completed=len(accepted_leafs),
@@ -1316,20 +1887,29 @@ def main(argv: list[str] | None = None) -> int:
             current_action="running compose_subcircuits snapshot stage",
             current_command=" ".join(compose_cmd),
             preview_paths=_discover_live_preview_paths(project_dir),
+            leaf_timing_summary=leaf_timing_summary,
         )
+        compose_start_ts = _timing_now()
         compose_rc, compose_stdout, compose_stderr = _run_command(
             compose_cmd,
             cwd=project_dir,
-            timeout_s=None,
+        )
+        compose_elapsed_s = _record_timing(
+            round_timing_breakdown,
+            "compose_subcircuits_total",
+            compose_start_ts,
+        )
+        print(
+            f"[timing] round {round_num} compose_subcircuits_total={compose_elapsed_s:.3f}s"
         )
 
-        visible_rc: int | None = None
-        visible_stdout = ""
-        visible_stderr = ""
-        visible_ok = False
+        parent_route_rc: int | None = None
+        parent_route_stdout = ""
+        parent_route_stderr = ""
+        parent_routed = False
         parent_copper_accounting: dict[str, int] = {}
 
-        if not args.skip_visible:
+        if True:
             _write_live_status(
                 status_json_path,
                 status_txt_path,
@@ -1344,8 +1924,8 @@ def main(argv: list[str] | None = None) -> int:
                 current_stage="route_parent",
                 leaf_total=len(all_leafs),
                 leaf_accepted=len(accepted_leafs),
-                top_level_ready=False,
-                leaf_worker_count=max(1, args.workers),
+                parent_routed=False,
+                leaf_worker_count=effective_workers,
                 leaf_workers_active=0,
                 leaf_workers_queued=0,
                 leaf_workers_completed=len(accepted_leafs),
@@ -1357,11 +1937,12 @@ def main(argv: list[str] | None = None) -> int:
                 top_level_status="routing_top_level",
                 composition_status="routing_parent",
                 copper_accounting={},
-                current_action="parent snapshot complete; preparing routed parent run",
+                current_action="parent snapshot complete; preparing parent routing run",
                 preview_paths=_discover_live_preview_paths(project_dir),
+                leaf_timing_summary=leaf_timing_summary,
             )
 
-            visible_cmd = [
+            parent_route_cmd = [
                 sys.executable,
                 str(SCRIPT_DIR / "compose_subcircuits.py"),
                 "--project",
@@ -1379,11 +1960,11 @@ def main(argv: list[str] | None = None) -> int:
                 str(parent_output_json),
             ]
             if args.config:
-                visible_cmd.extend(["--config", args.config])
+                parent_route_cmd.extend(["--config", args.config])
             if args.jar:
-                visible_cmd.extend(["--jar", args.jar])
+                parent_route_cmd.extend(["--jar", args.jar])
             for selector in args.only:
-                visible_cmd.extend(["--only", selector])
+                parent_route_cmd.extend(["--only", selector])
 
             _write_live_status(
                 status_json_path,
@@ -1399,8 +1980,8 @@ def main(argv: list[str] | None = None) -> int:
                 current_stage="route_parent",
                 leaf_total=len(all_leafs),
                 leaf_accepted=len(accepted_leafs),
-                top_level_ready=False,
-                leaf_worker_count=max(1, args.workers),
+                parent_routed=False,
+                leaf_worker_count=effective_workers,
                 leaf_workers_active=0,
                 leaf_workers_queued=0,
                 leaf_workers_completed=len(accepted_leafs),
@@ -1413,15 +1994,24 @@ def main(argv: list[str] | None = None) -> int:
                 composition_status="routing_parent",
                 copper_accounting={},
                 current_action="running unified parent stamping/routing pipeline",
-                current_command=" ".join(visible_cmd),
+                current_command=" ".join(parent_route_cmd),
                 preview_paths=_discover_live_preview_paths(project_dir),
+                leaf_timing_summary=leaf_timing_summary,
             )
-            visible_rc, visible_stdout, visible_stderr = _run_command(
-                visible_cmd,
+            parent_route_start_ts = _timing_now()
+            parent_route_rc, parent_route_stdout, parent_route_stderr = _run_command(
+                parent_route_cmd,
                 cwd=project_dir,
-                timeout_s=None,
             )
-            visible_ok = visible_rc == 0
+            parent_route_elapsed_s = _record_timing(
+                round_timing_breakdown,
+                "parent_route_total",
+                parent_route_start_ts,
+            )
+            print(
+                f"[timing] round {round_num} parent_route_total={parent_route_elapsed_s:.3f}s"
+            )
+            parent_routed = parent_route_rc == 0
             parent_copper_accounting = _extract_parent_copper_accounting(project_dir)
             _write_live_status(
                 status_json_path,
@@ -1437,8 +2027,8 @@ def main(argv: list[str] | None = None) -> int:
                 current_stage="score_round",
                 leaf_total=len(all_leafs),
                 leaf_accepted=len(accepted_leafs),
-                top_level_ready=visible_ok,
-                leaf_worker_count=max(1, args.workers),
+                parent_routed=parent_routed,
+                leaf_worker_count=effective_workers,
                 leaf_workers_active=0,
                 leaf_workers_queued=0,
                 leaf_workers_completed=len(accepted_leafs),
@@ -1447,28 +2037,39 @@ def main(argv: list[str] | None = None) -> int:
                 current_leaf=", ".join(accepted_leaf_names[:3])
                 if accepted_leaf_names
                 else None,
-                top_level_status="ready" if visible_ok else "not_ready",
-                composition_status="parent_routed" if visible_ok else "parent_failed",
+                top_level_status="ready" if parent_routed else "not_ready",
+                composition_status="parent_routed"
+                if parent_routed
+                else "parent_failed",
                 copper_accounting=parent_copper_accounting,
                 current_action="parent routing complete; scoring round",
                 preview_paths=_discover_live_preview_paths(project_dir),
+                leaf_timing_summary=leaf_timing_summary,
             )
-        else:
-            visible_ok = compose_rc == 0
-            parent_copper_accounting = _extract_parent_copper_accounting(project_dir)
 
         composition_ok = compose_rc == 0
+        score_round_start_ts = _timing_now()
         score, score_breakdown, score_notes, score_context = _score_round(
             accepted_leafs=accepted_leafs,
             all_leafs=all_leafs,
             composition_ok=composition_ok,
-            visible_ok=visible_ok,
+            parent_routed=parent_routed,
             parent_copper_accounting=parent_copper_accounting,
             baseline_score=baseline_score,
             recent_scores=recent_scores,
             plateau_count=plateau_count,
+            timing_breakdown=dict(round_timing_breakdown),
+        )
+        score_round_elapsed_s = _record_timing(
+            round_timing_breakdown,
+            "score_round_total",
+            score_round_start_ts,
+        )
+        print(
+            f"[timing] round {round_num} score_round_total={score_round_elapsed_s:.3f}s"
         )
         duration_s = round(time.monotonic() - t0, 2)
+        round_timing_breakdown["round_total"] = round(duration_s, 3)
 
         if baseline_score is None:
             baseline_score = score_context["absolute_score"]
@@ -1486,6 +2087,30 @@ def main(argv: list[str] | None = None) -> int:
         else:
             plateau_count += 1
 
+        long_pole_leafs = leaf_timing_summary.get("long_pole_leafs", [])
+        if not isinstance(long_pole_leafs, list):
+            long_pole_leafs = []
+        long_pole_notes = [
+            (
+                f"{str(item.get('sheet_name', '') or '')}:"
+                f"{float(item.get('leaf_total_s', 0.0) or 0.0):.3f}s"
+            )
+            for item in long_pole_leafs[:3]
+            if isinstance(item, dict)
+        ]
+        scheduled_leafs = leaf_timing_summary.get("scheduled_leafs", [])
+        if not isinstance(scheduled_leafs, list):
+            scheduled_leafs = []
+        scheduled_leaf_notes = [
+            (
+                f"{int(item.get('scheduled_position', 0) or 0)}:"
+                f"{str(item.get('sheet_name', item.get('scheduled_selector', '')) or '')}"
+                f"@{float(item.get('scheduling_score', 0.0) or 0.0):.3f}"
+            )
+            for item in scheduled_leafs[:5]
+            if isinstance(item, dict)
+        ]
+
         round_result = HierarchyRound(
             round_num=round_num,
             seed=round_seed,
@@ -1496,7 +2121,7 @@ def main(argv: list[str] | None = None) -> int:
             leaf_total=len(all_leafs),
             leaf_accepted=len(accepted_leafs),
             parent_composed=composition_ok,
-            top_level_ready=visible_ok,
+            parent_routed=parent_routed,
             accepted_trace_count=sum(
                 item.get("trace_count", 0) for item in accepted_leafs
             ),
@@ -1505,17 +2130,19 @@ def main(argv: list[str] | None = None) -> int:
             details=(
                 f"leafs {len(accepted_leafs)}/{len(all_leafs)} accepted; "
                 f"compose={'ok' if composition_ok else 'fail'}; "
-                f"top={'ok' if visible_ok else 'fail'}; "
+                f"parent_route={'ok' if parent_routed else 'fail'}; "
                 f"absolute={score_context['absolute_score']:.2f}; "
                 f"parent_quality={score_context['parent_quality_score']:.2f}; "
                 f"improvement={score_context['improvement_score']:.2f}; "
                 f"escape={score_context['plateau_escape_score']:.2f}; "
                 f"improvement_vs_best={improvement_vs_best:+.2f}; "
-                f"plateau={plateau_count}"
+                f"plateau={plateau_count}; "
+                f"leaf_imbalance={float(leaf_timing_summary.get('imbalance_ratio', 0.0) or 0.0):.2f}; "
+                f"{_format_timing_breakdown(round_timing_breakdown)}"
             ),
             artifact_root=str(project_dir / ".experiments" / "subcircuits"),
             composition_json=str(composition_json),
-            visible_output_dir=str(parent_output_json),
+            parent_output_json=str(parent_output_json),
             leaf_names=leaf_names,
             accepted_leaf_names=accepted_leaf_names,
             score_breakdown=score_breakdown,
@@ -1531,6 +2158,13 @@ def main(argv: list[str] | None = None) -> int:
                 f"keep_threshold={keep_threshold:.2f}",
                 f"plateau_threshold={max(1, args.plateau)}",
                 f"meaningful_improvement={is_meaningful_improvement}",
+                f"leaf_timing_total_s={float(leaf_timing_summary.get('total_leaf_time_s', 0.0) or 0.0):.3f}",
+                f"leaf_timing_avg_s={float(leaf_timing_summary.get('avg_leaf_time_s', 0.0) or 0.0):.3f}",
+                f"leaf_timing_max_s={float(leaf_timing_summary.get('max_leaf_time_s', 0.0) or 0.0):.3f}",
+                f"leaf_timing_imbalance_ratio={float(leaf_timing_summary.get('imbalance_ratio', 0.0) or 0.0):.3f}",
+                f"leaf_schedule_recommendation={','.join(scheduled_leaf_names)}",
+                f"leaf_schedule_top5={','.join(scheduled_leaf_notes) if scheduled_leaf_notes else 'none'}",
+                f"leaf_long_poles={','.join(long_pole_notes) if long_pole_notes else 'none'}",
             ],
             absolute_score=score_context["absolute_score"],
             improvement_score=score_context["improvement_score"],
@@ -1542,6 +2176,7 @@ def main(argv: list[str] | None = None) -> int:
             improvement_vs_baseline=score_context["improvement_vs_baseline"],
             improvement_vs_recent=score_context["improvement_vs_recent"],
             plateau_count=plateau_count,
+            leaf_timing_summary=leaf_timing_summary,
         )
 
         if round_result.kept:
@@ -1561,7 +2196,7 @@ def main(argv: list[str] | None = None) -> int:
                 "rolling_score": round_result.rolling_score,
                 "details": round_result.details,
                 "composition_json": str(composition_json),
-                "visible_output_dir": str(parent_output_json),
+                "parent_output_json": str(parent_output_json),
             }
             _write_json(best_dir / "best_hierarchical_round.json", best_summary)
 
@@ -1598,42 +2233,34 @@ def main(argv: list[str] | None = None) -> int:
             all_leafs=all_leafs,
             solve_exit_code=solve_rc,
             compose_exit_code=compose_rc,
-            visible_exit_code=visible_rc,
+            parent_route_exit_code=parent_route_rc,
             solve_stdout=solve_stdout,
             solve_stderr=solve_stderr,
             compose_stdout=compose_stdout,
             compose_stderr=compose_stderr,
-            visible_stdout=visible_stdout,
-            visible_stderr=visible_stderr,
+            parent_route_stdout=parent_route_stdout,
+            parent_route_stderr=parent_route_stderr,
             parent_copper_accounting=parent_copper_accounting,
+            preview_paths=_discover_live_preview_paths(project_dir),
         )
         _write_frame_metadata(frames_dir, round_result)
 
-        latest_marker = (
-            "new best"
-            if round_result.kept
-            else (
-                "plateau"
-                if plateau_count >= max(1, args.plateau)
-                else "no meaningful improvement"
-            )
-        )
         _write_live_status(
             status_json_path,
             status_txt_path,
             phase="running",
             rounds_total=args.rounds,
             round_num=round_num,
-            best_score=max(best_score, 0.0),
+            best_score=max(best_score, score),
             kept_count=kept_count,
             latest_score=score,
-            latest_marker=latest_marker,
+            latest_marker=f"round {round_num} {'kept' if round_result.kept else 'discarded'}",
             start_ts=start_ts,
             current_stage="done",
             leaf_total=len(all_leafs),
             leaf_accepted=len(accepted_leafs),
-            top_level_ready=visible_ok,
-            leaf_worker_count=max(1, args.workers),
+            parent_routed=parent_routed,
+            leaf_worker_count=effective_workers,
             leaf_workers_active=0,
             leaf_workers_queued=0,
             leaf_workers_completed=len(accepted_leafs),
@@ -1642,11 +2269,12 @@ def main(argv: list[str] | None = None) -> int:
             current_leaf=", ".join(accepted_leaf_names[:3])
             if accepted_leaf_names
             else None,
-            top_level_status="ready" if visible_ok else "not_ready",
-            composition_status="done" if composition_ok else "failed",
+            top_level_status="ready" if parent_routed else "not_ready",
+            composition_status="complete" if parent_routed else "parent_failed",
             copper_accounting=parent_copper_accounting,
             current_action="round complete",
             preview_paths=_discover_live_preview_paths(project_dir),
+            leaf_timing_summary=leaf_timing_summary,
         )
 
         print(
@@ -1654,7 +2282,7 @@ def main(argv: list[str] | None = None) -> int:
             f"score={score:6.2f} "
             f"leafs={len(accepted_leafs)}/{len(all_leafs)} "
             f"compose={'ok' if composition_ok else 'fail'} "
-            f"top={'ok' if visible_ok else 'fail'} "
+            f"parent_route={'ok' if parent_routed else 'fail'} "
             f"[{'KEPT' if round_result.kept else 'discard'}]"
         )
 
@@ -1693,8 +2321,8 @@ def main(argv: list[str] | None = None) -> int:
         current_stage="complete",
         leaf_total=best_round.leaf_total if best_round else 0,
         leaf_accepted=best_round.leaf_accepted if best_round else 0,
-        top_level_ready=best_round.top_level_ready if best_round else False,
-        leaf_worker_count=max(1, args.workers),
+        parent_routed=best_round.parent_routed if best_round else False,
+        leaf_worker_count=effective_workers,
         leaf_workers_active=0,
         leaf_workers_queued=0,
         leaf_workers_completed=best_round.leaf_accepted if best_round else 0,
@@ -1704,7 +2332,7 @@ def main(argv: list[str] | None = None) -> int:
         if best_round
         else None,
         top_level_status=(
-            "ready" if best_round and best_round.top_level_ready else "not_ready"
+            "ready" if best_round and best_round.parent_routed else "not_ready"
         ),
         composition_status="complete",
         copper_accounting=final_parent_copper_accounting,
@@ -1727,7 +2355,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"Leafs:      {best_round.leaf_accepted}/{best_round.leaf_total} accepted"
         )
-        print(f"Top level:  {'ready' if best_round.top_level_ready else 'not ready'}")
+        print(f"Parent:     {'routed' if best_round.parent_routed else 'not routed'}")
     print(f"Log:        {log_path}")
     print(f"Status:     {status_json_path}")
 
