@@ -189,19 +189,23 @@ class PlacementScore:
     smt_opposite_tht: float = 100.0  # SMT-over-THT board space utilization
     group_coherence: float = 100.0  # functional group compactness (100 = perfect)
     aspect_ratio: float = 100.0  # 100 = square board, penalized for elongated boards
+    topology_structure: float = (
+        100.0  # 100 = topology-aware passive chains stay ordered around anchors
+    )
 
     def compute_total(self, weights: Optional[dict] = None) -> float:
         w = weights or {
-            "net_distance": 0.22,  # connected parts close together
-            "crossover_score": 0.18,  # fewer crossings = easier routing
+            "net_distance": 0.20,  # connected parts close together
+            "crossover_score": 0.17,  # fewer crossings = easier routing
             "compactness": 0.02,  # tighter layouts = smaller boards
             "edge_compliance": 0.10,
             "rotation_score": 0.01,
             "board_containment": 0.12,
             "courtyard_overlap": 0.10,
             "smt_opposite_tht": 0.10,  # SMT on opposite side of THT
-            "group_coherence": 0.10,  # functional groups stay compact
+            "group_coherence": 0.08,  # functional groups stay compact
             "aspect_ratio": 0.05,  # penalize elongated board shapes
+            "topology_structure": 0.05,  # reward topology-aware passive ordering
         }
         self.total = sum(getattr(self, k) * v for k, v in w.items())
         return self.total

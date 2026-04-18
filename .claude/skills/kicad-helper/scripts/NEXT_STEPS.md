@@ -246,6 +246,68 @@ The following parameter ranges consistently produce the best results
 
 ---
 
+## Observability Follow-up
+
+### Board-first observability direction
+
+For hierarchical and subcircuit work, KiCad board files should remain the visual source of truth.
+
+That means:
+
+- persist meaningful `.kicad_pcb` stage snapshots first
+- derive preview PNGs from those persisted boards
+- expose the board paths anywhere previews are shown
+- keep machine-readable summaries aligned with those board artifacts
+
+### Current observability expectations
+
+For accepted leaf artifacts, the preferred canonical set is:
+
+- `solved_layout.json`
+- `leaf_pre_freerouting.kicad_pcb`
+- `leaf_routed.kicad_pcb`
+
+For candidate-round observability, the preferred round-specific set is:
+
+- `round_000N_leaf_pre_freerouting.kicad_pcb`
+- `round_000N_leaf_routed.kicad_pcb`
+- round-specific preview image paths
+- machine-readable routing outcome fields such as:
+  - router
+  - reason
+  - failed / skipped
+  - routed internal nets
+  - failed internal nets
+  - routed copper summary
+
+For parent observability, the preferred canonical set is:
+
+- `parent_pre_freerouting.kicad_pcb`
+- `parent_routed.kicad_pcb`
+- `solved_layout.json`
+
+### Why this matters
+
+Human review needs to answer:
+
+- what exact board file produced this preview?
+- what stage is this board from?
+- did this round route, fail, or get skipped?
+
+Machine review needs to answer:
+
+- which nets failed?
+- what router outcome was recorded?
+- which persisted board artifact corresponds to that outcome?
+
+### Recommended next observability work
+
+1. Extend the same explicit board-path observability model across parent-stage artifacts.
+2. Ensure every meaningful parent stage persists a `.kicad_pcb` before rendering previews.
+3. Keep live status payloads and analysis views aligned with persisted board paths rather than PNG-only assumptions.
+4. Add richer machine-readable summaries for parent composition and parent routing transitions.
+5. Prefer stage-specific board snapshots over shared artifact-level previews whenever candidate-round inspection is involved.
+
 ## Roadmap
 
 ### 1. Intra-group routing awareness

@@ -1297,6 +1297,12 @@ def _persist_parent_artifact(
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
     # Write a metadata.json for the parent artifact
+    renders_dir = artifact_dir / "renders"
+    parent_pre_route_board_path = artifact_dir / "parent_pre_freerouting.kicad_pcb"
+    parent_routed_board_path = artifact_dir / "parent_routed.kicad_pcb"
+    parent_stamped_preview_path = renders_dir / "parent_stamped.png"
+    parent_routed_preview_path = renders_dir / "parent_routed.png"
+
     metadata_payload = {
         "schema_version": "parent-compose-v1",
         "subcircuit_id": {
@@ -1323,6 +1329,22 @@ def _persist_parent_artifact(
         "added_parent_via_count": state.added_parent_via_count,
         "score_total": state.score_total,
         "validation": validation,
+        "artifact_paths": {
+            "artifact_dir": str(artifact_dir),
+            "renders_dir": str(renders_dir),
+            "parent_pre_freerouting_board": str(parent_pre_route_board_path)
+            if parent_pre_route_board_path.exists()
+            else "",
+            "parent_routed_board": str(parent_routed_board_path)
+            if parent_routed_board_path.exists()
+            else "",
+            "parent_stamped_preview": str(parent_stamped_preview_path)
+            if parent_stamped_preview_path.exists()
+            else "",
+            "parent_routed_preview": str(parent_routed_preview_path)
+            if parent_routed_preview_path.exists()
+            else "",
+        },
         "notes": notes,
     }
     metadata_path = artifact_dir / "metadata.json"
@@ -1336,11 +1358,43 @@ def _persist_parent_artifact(
         "schema_version": "parent-compose-v1",
         "parent_composition": True,
         "geometry_validation": dict(state.geometry_validation),
+        "artifact_paths": {
+            "artifact_dir": str(artifact_dir),
+            "renders_dir": str(renders_dir),
+            "parent_pre_freerouting_board": str(parent_pre_route_board_path)
+            if parent_pre_route_board_path.exists()
+            else "",
+            "parent_routed_board": str(parent_routed_board_path)
+            if parent_routed_board_path.exists()
+            else "",
+            "parent_stamped_preview": str(parent_stamped_preview_path)
+            if parent_stamped_preview_path.exists()
+            else "",
+            "parent_routed_preview": str(parent_routed_preview_path)
+            if parent_routed_preview_path.exists()
+            else "",
+        },
         "routing_result": {
             "routed_board_path": routing_result.get("routed_board_path", ""),
             "trace_count": len(all_traces),
             "via_count": len(all_vias),
             "freerouting_stats": routing_result.get("freerouting_stats", {}),
+            "preview_paths": {
+                "parent_stamped_preview": str(parent_stamped_preview_path)
+                if parent_stamped_preview_path.exists()
+                else "",
+                "parent_routed_preview": str(parent_routed_preview_path)
+                if parent_routed_preview_path.exists()
+                else "",
+            },
+            "board_paths": {
+                "parent_pre_freerouting_board": str(parent_pre_route_board_path)
+                if parent_pre_route_board_path.exists()
+                else "",
+                "parent_routed_board": str(parent_routed_board_path)
+                if parent_routed_board_path.exists()
+                else "",
+            },
             "copper_accounting": {
                 "expected_preserved_child_trace_count": state.expected_preserved_child_trace_count,
                 "expected_preserved_child_via_count": state.expected_preserved_child_via_count,
@@ -1362,6 +1416,20 @@ def _persist_parent_artifact(
             "composition_status": "routed"
             if not routing_result.get("failed")
             else "failed",
+            "preview_paths": {
+                "parent_stamped_preview": str(parent_stamped_preview_path)
+                if parent_stamped_preview_path.exists()
+                else "",
+                "parent_routed_preview": str(parent_routed_preview_path)
+                if parent_routed_preview_path.exists()
+                else "",
+                "parent_stamped_board": str(parent_pre_route_board_path)
+                if parent_pre_route_board_path.exists()
+                else "",
+                "parent_routed_board": str(parent_routed_board_path)
+                if parent_routed_board_path.exists()
+                else "",
+            },
             "leaf_workers": {
                 "total": 0,
                 "active": 0,

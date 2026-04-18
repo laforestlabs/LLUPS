@@ -26,12 +26,11 @@ from __future__ import annotations
 import contextlib
 import io
 import json
-import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 _SCRIPT_DIR = Path(__file__).resolve().parents[2]
 if str(_SCRIPT_DIR) not in sys.path:
@@ -48,7 +47,7 @@ except Exception:  # pragma: no cover - best-effort import
     render_all = None
 
 
-DEFAULT_VIEWS = ("copper_both", "front_all")
+DEFAULT_VIEWS = ("front_all", "back_all", "copper_both")
 
 
 _NOISY_STDERR_PATTERNS = (
@@ -92,6 +91,8 @@ def render_leaf_board_views(
     output_dir: str | Path,
     prefix: str,
     views: tuple[str, ...] = DEFAULT_VIEWS,
+    *,
+    quiet: bool = False,
 ) -> dict[str, Any]:
     """Render a small set of board snapshots for one PCB.
 
@@ -125,7 +126,10 @@ def render_leaf_board_views(
     temp_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        with _suppress_noisy_stderr():
+        with (
+            _suppress_noisy_stderr(),
+            contextlib.redirect_stdout(io.StringIO() if quiet else sys.stdout),
+        ):
             rendered = render_all(str(pcb), str(temp_dir), list(views))
         for view_name, src_path in rendered.items():
             src = Path(src_path)
@@ -196,7 +200,7 @@ def render_leaf_drc_overlay(
 
 
 def build_leaf_contact_sheet(
-    image_paths: list[str | Path],
+    image_paths: Sequence[str | Path],
     output_path: str | Path,
     *,
     tile: str = "2x2",
@@ -274,6 +278,11 @@ def generate_stage_diagnostic_artifacts(
     artifact_dir: str | Path,
     stage: str,
     views: tuple[str, ...] = DEFAULT_VIEWS,
+    render_board_views: bool = True,
+    write_drc_json: bool = True,
+    write_drc_report: bool = True,
+    render_drc_overlay: bool = True,
+    quiet_board_render: bool = False,
 ) -> dict[str, Any]:
     """Generate render diagnostics for one board stage.
 
@@ -298,35 +307,62 @@ def generate_stage_diagnostic_artifacts(
         stage_result["errors"].append("pcb_missing")
         return stage_result
 
-    stage_result["board_views"] = render_leaf_board_views(
-        pcb_path=pcb,
-        output_dir=renders_dir,
-        prefix=prefix,
-        views=views,
-    )
+    if render_board_views:
+        stage_result["board_views"] = render_leaf_board_views(
+            pcb_path=pcb,
+            output_dir=renders_dir,
+            prefix=prefix,
+            views=views,
+            quiet=quiet_board_render,
+        )
+    else:
+        stage_result["board_views"] = {
+            "pcb_path": str(pcb),
+            "requested_views": list(views),
+            "rendered_views": [],
+            "paths": {},
+            "errors": ["board_views_skipped"],
+        }
 
     drc = dict((validation or {}).get("drc", {}) or {})
     drc_json_path = renders_dir / f"{prefix}_drc.json"
-    try:
-        stage_result["drc_json_path"] = write_leaf_drc_json(drc, drc_json_path)
-    except Exception as exc:
-        stage_result["errors"].append(f"drc_json_write_failed:{exc}")
+    if write_drc_json:
+        try:
+            stage_result["drc_json_path"] = write_leaf_drc_json(drc, drc_json_path)
+        except Exception as exc:
+            stage_result["errors"].append(f"drc_json_write_failed:{exc}")
+    else:
+        stage_result["errors"].append("drc_json_skipped")
 
     report_text_path = renders_dir / f"{prefix}_drc_report.txt"
-    try:
-        report_text = str(drc.get("report_text", "") or "")
-        report_text_path.write_text(report_text, encoding="utf-8")
-        stage_result["drc_report_text_path"] = str(report_text_path)
-    except Exception as exc:
+    if write_drc_report:
+        try:
+            report_text = str(drc.get("report_text", "") or "")
+            report_text_path.write_text(report_text, encoding="utf-8")
+            stage_result["drc_report_text_path"] = str(report_text_path)
+        except Exception as exc:
+            stage_result["drc_report_text_path"] = None
+            stage_result["errors"].append(f"drc_report_write_failed:{exc}")
+    else:
         stage_result["drc_report_text_path"] = None
-        stage_result["errors"].append(f"drc_report_write_failed:{exc}")
+        stage_result["errors"].append("drc_report_skipped")
 
     overlay_path = renders_dir / f"{prefix}_drc_overlay.png"
-    stage_result["drc_overlay"] = render_leaf_drc_overlay(
-        pcb_path=pcb,
-        drc_dict=drc,
-        output_png=overlay_path,
-    )
+    if render_drc_overlay:
+        stage_result["drc_overlay"] = render_leaf_drc_overlay(
+            pcb_path=pcb,
+            drc_dict=drc,
+            output_png=overlay_path,
+        )
+    else:
+        stage_result["drc_overlay"] = {
+            "pcb_path": str(pcb),
+            "output_png": str(overlay_path),
+            "rendered": False,
+            "violation_count": len(list(drc.get("violations", []) or [])),
+            "located_violation_count": 0,
+            "errors": ["drc_overlay_skipped"],
+        }
 
     return stage_result
 
@@ -339,6 +375,16 @@ def generate_leaf_diagnostic_artifacts(
     pre_route_validation: dict[str, Any] | None = None,
     routed_validation: dict[str, Any] | None = None,
     views: tuple[str, ...] = DEFAULT_VIEWS,
+    render_pre_route_board_views: bool = True,
+    render_routed_board_views: bool = True,
+    write_pre_route_drc_json: bool = True,
+    write_routed_drc_json: bool = True,
+    write_pre_route_drc_report: bool = True,
+    write_routed_drc_report: bool = True,
+    render_pre_route_drc_overlay: bool = True,
+    render_routed_drc_overlay: bool = True,
+    build_comparison_contact_sheet_enabled: bool = True,
+    quiet_board_render: bool = False,
 ) -> dict[str, Any]:
     """Generate the full leaf diagnostic bundle.
 
@@ -364,6 +410,11 @@ def generate_leaf_diagnostic_artifacts(
             artifact_dir=artifact_dir,
             stage="pre_route",
             views=views,
+            render_board_views=render_pre_route_board_views,
+            write_drc_json=write_pre_route_drc_json,
+            write_drc_report=write_pre_route_drc_report,
+            render_drc_overlay=render_pre_route_drc_overlay,
+            quiet_board_render=quiet_board_render,
         )
 
     if routed_board:
@@ -373,24 +424,36 @@ def generate_leaf_diagnostic_artifacts(
             artifact_dir=artifact_dir,
             stage="routed",
             views=views,
+            render_board_views=render_routed_board_views,
+            write_drc_json=write_routed_drc_json,
+            write_drc_report=write_routed_drc_report,
+            render_drc_overlay=render_routed_drc_overlay,
+            quiet_board_render=quiet_board_render,
         )
 
-    contact_inputs: list[str] = []
-    for stage_key in ("pre_route", "routed"):
-        stage_payload = result.get(stage_key) or {}
-        board_views = stage_payload.get("board_views", {})
-        paths = board_views.get("paths", {})
-        overlay = stage_payload.get("drc_overlay", {})
-        if paths.get("copper_both"):
-            contact_inputs.append(paths["copper_both"])
-        if overlay.get("rendered") and overlay.get("output_png"):
-            contact_inputs.append(overlay["output_png"])
+    if build_comparison_contact_sheet_enabled:
+        contact_inputs: list[str] = []
+        for stage_key in ("pre_route", "routed"):
+            stage_payload = result.get(stage_key) or {}
+            board_views = stage_payload.get("board_views", {})
+            paths = board_views.get("paths", {})
+            overlay = stage_payload.get("drc_overlay", {})
+            if paths.get("front_all"):
+                contact_inputs.append(paths["front_all"])
+            if paths.get("back_all"):
+                contact_inputs.append(paths["back_all"])
+            if paths.get("copper_both"):
+                contact_inputs.append(paths["copper_both"])
+            if overlay.get("rendered") and overlay.get("output_png"):
+                contact_inputs.append(overlay["output_png"])
 
-    contact_sheet_path = renders_dir / "pre_vs_routed_contact_sheet.png"
-    comparison = build_leaf_contact_sheet(contact_inputs, contact_sheet_path)
-    result["comparison"]["contact_sheet_path"] = str(contact_sheet_path)
-    result["comparison"]["created"] = bool(comparison.get("created", False))
-    result["comparison"]["errors"] = list(comparison.get("errors", []))
+        contact_sheet_path = renders_dir / "pre_vs_routed_contact_sheet.png"
+        comparison = build_leaf_contact_sheet(contact_inputs, contact_sheet_path)
+        result["comparison"]["contact_sheet_path"] = str(contact_sheet_path)
+        result["comparison"]["created"] = bool(comparison.get("created", False))
+        result["comparison"]["errors"] = list(comparison.get("errors", []))
+    else:
+        result["comparison"]["errors"] = ["contact_sheet_skipped"]
 
     summary_path = renders_dir / "diagnostics_summary.json"
     try:

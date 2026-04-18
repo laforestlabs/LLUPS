@@ -20,7 +20,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
 
 # Layer sets for different views
 VIEWS = {
@@ -28,9 +27,13 @@ VIEWS = {
         "layers": "F.Cu,F.SilkS,F.Mask,Edge.Cuts",
         "desc": "Front copper + silkscreen + mask + outline",
         "post": {
-            "contrast": 1.18,
-            "saturation": 1.10,
-            "brightness": 1.00,
+            "contrast": 1.38,
+            "saturation": 1.24,
+            "brightness": 0.90,
+            "background": "#020617",
+            "border_color": "#67e8f9",
+            "border_width": 6,
+            "padding": 52,
         },
     },
     "back_all": {
@@ -38,27 +41,39 @@ VIEWS = {
         "desc": "Back copper + silkscreen + mask + outline",
         "mirror": True,
         "post": {
-            "contrast": 1.18,
-            "saturation": 1.10,
-            "brightness": 1.00,
+            "contrast": 1.38,
+            "saturation": 1.24,
+            "brightness": 0.90,
+            "background": "#020617",
+            "border_color": "#67e8f9",
+            "border_width": 6,
+            "padding": 52,
         },
     },
     "copper_both": {
         "layers": "F.Cu,B.Cu,Edge.Cuts",
         "desc": "Both copper layers + outline",
         "post": {
-            "contrast": 1.12,
-            "saturation": 1.05,
-            "brightness": 1.00,
+            "contrast": 1.34,
+            "saturation": 1.18,
+            "brightness": 0.90,
+            "background": "#020617",
+            "border_color": "#22d3ee",
+            "border_width": 6,
+            "padding": 52,
         },
     },
     "front_copper": {
         "layers": "F.Cu,Edge.Cuts",
         "desc": "Front copper traces and pads only",
         "post": {
-            "contrast": 1.10,
-            "saturation": 1.00,
-            "brightness": 1.00,
+            "contrast": 1.30,
+            "saturation": 1.12,
+            "brightness": 0.90,
+            "background": "#020617",
+            "border_color": "#22d3ee",
+            "border_width": 6,
+            "padding": 52,
         },
     },
     "back_copper": {
@@ -66,28 +81,36 @@ VIEWS = {
         "desc": "Back copper (ground plane, traces)",
         "mirror": True,
         "post": {
-            "contrast": 1.10,
-            "saturation": 1.00,
-            "brightness": 1.00,
+            "contrast": 1.30,
+            "saturation": 1.12,
+            "brightness": 0.90,
+            "background": "#020617",
+            "border_color": "#22d3ee",
+            "border_width": 6,
+            "padding": 52,
         },
     },
     "courtyard": {
         "layers": "F.CrtYd,B.CrtYd,Edge.Cuts",
         "desc": "Component courtyards for overlap review",
         "post": {
-            "contrast": 1.20,
-            "saturation": 1.00,
-            "brightness": 1.00,
+            "contrast": 1.34,
+            "saturation": 1.02,
+            "brightness": 0.90,
+            "background": "#030712",
+            "border_color": "#c4b5fd",
+            "border_width": 6,
+            "padding": 52,
         },
     },
 }
 
-DEFAULT_DPI = 300
-DEFAULT_MAX_PX = 2200
-DEFAULT_BACKGROUND = "#1f1f23"
-DEFAULT_BORDER = "#8fd3ff"
-DEFAULT_BORDER_WIDTH = 4
-DEFAULT_PADDING = 36
+DEFAULT_DPI = 420
+DEFAULT_MAX_PX = 3200
+DEFAULT_BACKGROUND = "#020617"
+DEFAULT_BORDER = "#67e8f9"
+DEFAULT_BORDER_WIDTH = 6
+DEFAULT_PADDING = 52
 
 
 def _which_or_warn(name: str) -> str | None:
@@ -225,7 +248,7 @@ def _svg_to_png(
             [
                 "magick",
                 "-background",
-                "white",
+                "#e5e7eb",
                 "-density",
                 str(dpi),
                 svg_path,
@@ -269,7 +292,9 @@ def render_view(
         front_layers = (
             layers.replace("B.Cu,", "").replace(",B.Cu", "").replace("B.Cu", "")
         )
-        front_layers = ",".join(l for l in front_layers.split(",") if l)
+        front_layers = ",".join(
+            layer_name for layer_name in front_layers.split(",") if layer_name
+        )
         back_layers = "B.Cu,Edge.Cuts"
         return _render_composite(
             pcb_path,
@@ -314,7 +339,7 @@ def _render_composite(
     view_cfg,
     dpi,
     max_px,
-    back_opacity=0.30,
+    back_opacity=0.52,
 ):
     """Render front and back layers separately, composite with alpha."""
     svg_front = None
@@ -355,7 +380,7 @@ def _render_composite(
                 svg_front,
                 ")",
                 "-background",
-                "white",
+                "#e5e7eb",
                 "-layers",
                 "merge",
                 raw_png,

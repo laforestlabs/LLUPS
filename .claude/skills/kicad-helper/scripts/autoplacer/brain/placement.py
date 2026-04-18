@@ -295,6 +295,7 @@ class PlacementScorer:
         s.courtyard_overlap = self._score_courtyard_overlap()
         s.smt_opposite_tht = self._score_smt_opposite_tht()
         s.group_coherence = self._score_group_coherence()
+        s.topology_structure = self._score_topology_structure()
 
         # Board aspect ratio scoring
         board_w = self.state.board_width
@@ -574,6 +575,148 @@ class PlacementScorer:
         if n_groups == 0:
             return 100.0
         return total_score / n_groups
+
+    def _score_topology_structure(self) -> float:
+        """Score whether passive components form topology-aware chains around anchors.
+
+        This is intentionally generic and only uses component/net connectivity:
+        - anchors are ICs, regulators, and connectors
+        - passives are rewarded for staying close to their strongest anchor
+        - passive-passive shared-net adjacency is rewarded when arranged as
+          ordered local chains instead of scattered clouds
+
+        Returns 100 when no meaningful topology can be inferred, so projects
+        without passive-chain structure are not penalized.
+        """
+        anchors = {
+            ref: comp
+            for ref, comp in self.state.components.items()
+            if comp.kind in ("ic", "regulator", "connector")
+        }
+        passives = {
+            ref: comp
+            for ref, comp in self.state.components.items()
+            if comp.kind == "passive" and not comp.locked
+        }
+
+        if not anchors or len(passives) < 2:
+            return 100.0
+
+        nets_by_ref: dict[str, set[str]] = defaultdict(set)
+        adjacency: dict[str, dict[str, float]] = defaultdict(dict)
+
+        for net in self.state.nets.values():
+            if net.name in ("GND", "/GND"):
+                continue
+            refs = sorted(
+                {ref for ref, _ in net.pad_refs if ref in self.state.components}
+            )
+            if len(refs) < 2:
+                continue
+            weight = 3.0 if net.is_power else 1.0
+            for ref in refs:
+                nets_by_ref[ref].add(net.name)
+            for i, ref_a in enumerate(refs):
+                for ref_b in refs[i + 1 :]:
+                    adjacency[ref_a][ref_b] = adjacency[ref_a].get(ref_b, 0.0) + weight
+                    adjacency[ref_b][ref_a] = adjacency[ref_b].get(ref_a, 0.0) + weight
+
+        anchor_assignments: dict[str, str] = {}
+        for passive_ref in passives:
+            passive_nets = nets_by_ref.get(passive_ref, set())
+            best_anchor = None
+            best_key = None
+            for anchor_ref, anchor_comp in anchors.items():
+                shared_nets = len(passive_nets & nets_by_ref.get(anchor_ref, set()))
+                edge_weight = adjacency.get(passive_ref, {}).get(anchor_ref, 0.0)
+                key = (shared_nets, edge_weight, anchor_comp.area)
+                if best_key is None or key > best_key:
+                    best_key = key
+                    best_anchor = anchor_ref
+            if (
+                best_anchor is not None
+                and best_key is not None
+                and (best_key[0] > 0 or best_key[1] > 0)
+            ):
+                anchor_assignments[passive_ref] = best_anchor
+
+        if not anchor_assignments:
+            return 100.0
+
+        board_diag = math.hypot(self.state.board_width, self.state.board_height)
+        if board_diag < 1.0:
+            return 100.0
+
+        anchor_scores: list[float] = []
+        grouped_passives: dict[str, list[str]] = defaultdict(list)
+        for passive_ref, anchor_ref in anchor_assignments.items():
+            grouped_passives[anchor_ref].append(passive_ref)
+
+        for anchor_ref, passive_refs in grouped_passives.items():
+            anchor_comp = anchors.get(anchor_ref)
+            if anchor_comp is None or not passive_refs:
+                continue
+
+            anchor_pos = anchor_comp.pos
+            anchor_distances = [
+                anchor_pos.dist(passives[ref].pos)
+                for ref in passive_refs
+                if ref in passives
+            ]
+            if not anchor_distances:
+                continue
+
+            avg_anchor_dist = sum(anchor_distances) / len(anchor_distances)
+            anchor_compactness = max(
+                0.0, 100.0 * (1.0 - avg_anchor_dist / (board_diag * 0.22))
+            )
+
+            chain_scores: list[float] = []
+            for passive_ref in passive_refs:
+                neighbors = [
+                    other_ref
+                    for other_ref in passive_refs
+                    if other_ref != passive_ref
+                    and adjacency.get(passive_ref, {}).get(other_ref, 0.0) > 0.0
+                ]
+                if not neighbors:
+                    continue
+
+                comp = passives[passive_ref]
+                nearest_neighbor_dist = min(
+                    comp.pos.dist(passives[other_ref].pos) for other_ref in neighbors
+                )
+                strongest_neighbor = max(
+                    neighbors,
+                    key=lambda other_ref: (
+                        adjacency.get(passive_ref, {}).get(other_ref, 0.0),
+                        -comp.pos.dist(passives[other_ref].pos),
+                    ),
+                )
+                strongest_dist = comp.pos.dist(passives[strongest_neighbor].pos)
+
+                local_chain_score = max(
+                    0.0,
+                    100.0
+                    * (
+                        1.0
+                        - (0.65 * strongest_dist + 0.35 * nearest_neighbor_dist)
+                        / (board_diag * 0.18)
+                    ),
+                )
+                chain_scores.append(local_chain_score)
+
+            if chain_scores:
+                anchor_scores.append(
+                    0.55 * anchor_compactness
+                    + 0.45 * (sum(chain_scores) / len(chain_scores))
+                )
+            else:
+                anchor_scores.append(anchor_compactness)
+
+        if not anchor_scores:
+            return 100.0
+        return sum(anchor_scores) / len(anchor_scores)
 
 
 class PlacementSolver:
@@ -1311,7 +1454,9 @@ class PlacementSolver:
                     for j in range(i + 1, len(unlocked)):
                         a, b = comps[unlocked[i]], comps[unlocked[j]]
                         # Only swap components of similar size
-                        size_ratio = max(a.area, b.area) / max(min(a.area, b.area), 0.01)
+                        size_ratio = max(a.area, b.area) / max(
+                            min(a.area, b.area), 0.01
+                        )
                         if size_ratio > 4:
                             continue
                         # Swap positions and update pads
@@ -1323,7 +1468,10 @@ class PlacementSolver:
                             improved = True
                         else:
                             # Revert
-                            a.pos, b.pos = Point(b.pos.x, b.pos.y), Point(a.pos.x, a.pos.y)
+                            a.pos, b.pos = (
+                                Point(b.pos.x, b.pos.y),
+                                Point(a.pos.x, a.pos.y),
+                            )
                             _swap_pad_positions(a, b)
                 if improved:
                     print(f"    Swap round {swap_round}: {best_cross} crossings")
@@ -2820,7 +2968,6 @@ class PlacementSolver:
             if not moved:
                 break  # fully separated
 
-
     def legality_diagnostics(self, comps: dict[str, Component]) -> dict[str, object]:
         tl, br = self.state.board_outline
         inset = self.cfg.get("pad_inset_margin_mm", 0.3)
@@ -2840,7 +2987,15 @@ class PlacementSolver:
                 if pad.pos.y > br.y - inset:
                     violations.append("bottom")
                 if violations:
-                    pads_outside.append({"ref": ref, "pad_id": pad.pad_id, "sides": violations, "x_mm": round(pad.pos.x, 4), "y_mm": round(pad.pos.y, 4)})
+                    pads_outside.append(
+                        {
+                            "ref": ref,
+                            "pad_id": pad.pad_id,
+                            "sides": violations,
+                            "x_mm": round(pad.pos.x, 4),
+                            "y_mm": round(pad.pos.y, 4),
+                        }
+                    )
         locked_overlap_count = 0
         for i in range(len(refs)):
             a = comps[refs[i]]
@@ -2853,15 +3008,34 @@ class PlacementSolver:
                     involves_locked = a.locked or b.locked
                     if involves_locked:
                         locked_overlap_count += 1
-                    overlaps.append({"a": refs[i], "b": refs[j], "overlap_x_mm": round(ox, 4), "overlap_y_mm": round(oy, 4), "overlap_area_mm2": round(ox * oy, 4), "involves_locked": involves_locked})
-        return {"pads_outside_board": pads_outside, "overlaps": overlaps, "pad_outside_count": len(pads_outside), "overlap_count": len(overlaps), "locked_overlap_count": locked_overlap_count, "legal": not pads_outside and not overlaps}
+                    overlaps.append(
+                        {
+                            "a": refs[i],
+                            "b": refs[j],
+                            "overlap_x_mm": round(ox, 4),
+                            "overlap_y_mm": round(oy, 4),
+                            "overlap_area_mm2": round(ox * oy, 4),
+                            "involves_locked": involves_locked,
+                        }
+                    )
+        return {
+            "pads_outside_board": pads_outside,
+            "overlaps": overlaps,
+            "pad_outside_count": len(pads_outside),
+            "overlap_count": len(overlaps),
+            "locked_overlap_count": locked_overlap_count,
+            "legal": not pads_outside and not overlaps,
+        }
 
-    def legalize_components(self, comps: dict[str, Component], *, max_passes: int = 12) -> dict[str, object]:
+    def legalize_components(
+        self, comps: dict[str, Component], *, max_passes: int = 12
+    ) -> dict[str, object]:
         moved_refs: set[str] = set()
         if not hasattr(self, "_pinned_targets"):
             self._pinned_targets = {}
         best_snapshot = {ref: copy.deepcopy(comp) for ref, comp in comps.items()}
         best_diagnostics = self.legality_diagnostics(best_snapshot)
+
         def _diag_key(diag):
             locked = int(diag.get("locked_overlap_count", 0))
             free = int(diag["overlap_count"]) - locked
@@ -2871,6 +3045,7 @@ class PlacementSolver:
             # is costlier than having temporary free-free overlaps.
             weighted = locked * 3 + free + pads
             return (weighted, locked, pads)
+
         def _move_component(comp, nx, ny):
             old_pos = Point(comp.pos.x, comp.pos.y)
             if abs(nx - old_pos.x) <= 0.01 and abs(ny - old_pos.y) <= 0.01:
@@ -2879,10 +3054,15 @@ class PlacementSolver:
             comp.pos.y = ny
             _update_pad_positions(comp, old_pos, comp.rotation)
             return True
+
         def _clamp_component_to_board(comp, nx, ny):
             tl, br = self.state.board_outline
             hw, hh = _pad_half_extents(comp)
-            return (max(tl.x + hw + 1.0, min(br.x - hw - 1.0, nx)), max(tl.y + hh + 1.0, min(br.y - hh - 1.0, ny)))
+            return (
+                max(tl.x + hw + 1.0, min(br.x - hw - 1.0, nx)),
+                max(tl.y + hh + 1.0, min(br.y - hh - 1.0, ny)),
+            )
+
         def _keep_out_of_pinned_edge_connectors():
             zones = self.cfg.get("component_zones", {})
             half_gap = self.clearance / 2.0
@@ -2890,7 +3070,11 @@ class PlacementSolver:
             for ref, comp in comps.items():
                 zone_cfg = zones.get(ref, {})
                 edge = zone_cfg.get("edge")
-                if edge in {"left", "right", "top", "bottom"} and comp.locked and comp.kind == "connector":
+                if (
+                    edge in {"left", "right", "top", "bottom"}
+                    and comp.locked
+                    and comp.kind == "connector"
+                ):
                     keepout_tl, keepout_br = _effective_bbox(comp, half_gap)
                     pinned_connectors.append((ref, comp, edge, keepout_tl, keepout_br))
             if not pinned_connectors:
@@ -2906,22 +3090,41 @@ class PlacementSolver:
                     old_pos = Point(comp.pos.x, comp.pos.y)
                     candidates = []
                     if edge == "left":
-                        candidates.append((keepout_br.x + (comp_br.x - comp.pos.x) + 0.1, comp.pos.y))
+                        candidates.append(
+                            (keepout_br.x + (comp_br.x - comp.pos.x) + 0.1, comp.pos.y)
+                        )
                     elif edge == "right":
-                        candidates.append((keepout_tl.x - (comp.pos.x - comp_tl.x) - 0.1, comp.pos.y))
+                        candidates.append(
+                            (keepout_tl.x - (comp.pos.x - comp_tl.x) - 0.1, comp.pos.y)
+                        )
                     elif edge == "top":
-                        candidates.append((comp.pos.x, keepout_br.y + (comp_br.y - comp.pos.y) + 0.1))
+                        candidates.append(
+                            (comp.pos.x, keepout_br.y + (comp_br.y - comp.pos.y) + 0.1)
+                        )
                     else:
-                        candidates.append((comp.pos.x, keepout_tl.y - (comp.pos.y - comp_tl.y) - 0.1))
-                    candidates.extend([(comp.pos.x + ox + 0.1, comp.pos.y), (comp.pos.x - ox - 0.1, comp.pos.y), (comp.pos.x, comp.pos.y + oy + 0.1), (comp.pos.x, comp.pos.y - oy - 0.1)])
+                        candidates.append(
+                            (comp.pos.x, keepout_tl.y - (comp.pos.y - comp_tl.y) - 0.1)
+                        )
+                    candidates.extend(
+                        [
+                            (comp.pos.x + ox + 0.1, comp.pos.y),
+                            (comp.pos.x - ox - 0.1, comp.pos.y),
+                            (comp.pos.x, comp.pos.y + oy + 0.1),
+                            (comp.pos.x, comp.pos.y - oy - 0.1),
+                        ]
+                    )
                     best_key = None
                     best_move = (comp.pos.x, comp.pos.y)
                     for nx, ny in candidates:
                         nx, ny = _clamp_component_to_board(comp, nx, ny)
                         moved = _move_component(comp, nx, ny)
                         trial_tl, trial_br = _effective_bbox(comp, half_gap)
-                        trial_ox, trial_oy = _bbox_overlap_xy(keepout_tl, keepout_br, trial_tl, trial_br)
-                        still_overlapping = 1 if trial_ox > 0.0 and trial_oy > 0.0 else 0
+                        trial_ox, trial_oy = _bbox_overlap_xy(
+                            keepout_tl, keepout_br, trial_tl, trial_br
+                        )
+                        still_overlapping = (
+                            1 if trial_ox > 0.0 and trial_oy > 0.0 else 0
+                        )
                         travel = old_pos.dist(Point(nx, ny))
                         key = (still_overlapping, travel)
                         if best_key is None or key < best_key:
@@ -2946,17 +3149,29 @@ class PlacementSolver:
             self._clamp_pads_to_board(comps)
             diagnostics = self.legality_diagnostics(comps)
             if _diag_key(diagnostics) < _diag_key(best_diagnostics):
-                best_snapshot = {ref: copy.deepcopy(comp) for ref, comp in comps.items()}
+                best_snapshot = {
+                    ref: copy.deepcopy(comp) for ref, comp in comps.items()
+                }
                 best_diagnostics = diagnostics
             for ref, comp in comps.items():
                 old_x, old_y = before[ref]
                 if abs(comp.pos.x - old_x) > 0.01 or abs(comp.pos.y - old_y) > 0.01:
                     moved_refs.add(ref)
             if diagnostics["legal"]:
-                return {"resolved": True, "passes": _ + 1, "moved_refs": sorted(moved_refs), "diagnostics": diagnostics}
+                return {
+                    "resolved": True,
+                    "passes": _ + 1,
+                    "moved_refs": sorted(moved_refs),
+                    "diagnostics": diagnostics,
+                }
         for ref in list(comps.keys()):
             comps[ref] = copy.deepcopy(best_snapshot[ref])
-        return {"resolved": best_diagnostics.get("legal", False), "passes": max_passes, "moved_refs": sorted(moved_refs), "diagnostics": best_diagnostics}
+        return {
+            "resolved": best_diagnostics.get("legal", False),
+            "passes": max_passes,
+            "moved_refs": sorted(moved_refs),
+            "diagnostics": best_diagnostics,
+        }
 
     def _re_snap_aligned_pairs(self, comps: dict[str, Component]):
         """Re-snap aligned pairs to shared coordinate after pipeline steps.
