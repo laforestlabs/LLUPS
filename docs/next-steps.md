@@ -318,6 +318,117 @@ kicad-cli pcb export gerbers -o gerber/ LLUPS_best.kicad_pcb
 kicad-cli pcb export drill -o gerber/ LLUPS_best.kicad_pcb
 ```
 
+### 11. Intra-group routing awareness
+
+The current intra-group placer (solve_group()) optimizes component
+positions within each group using a force-directed simulation, but it
+has no knowledge of how traces will actually be routed between pads.
+
+**Potential improvements:**
+
+- After intra-group placement, run a lightweight channel/escape router
+  within each group's bounding box to estimate trace congestion.
+- Use congestion feedback to adjust component spacing or rotation
+  before the group is "frozen" as a rigid block.
+- Score intra-group routability (e.g., estimated via count, trace
+  crossings within the group) and feed it back into group placement
+  quality metrics.
+
+### 12. Smarter inter-group placement
+
+The current GroupPlacer uses a simple force-directed approach at the
+group level. Possible refinements:
+
+- **Simulated annealing** at the group level -- the small entity count
+  (5-10 groups) makes SA feasible with full evaluation per step.
+- **Rotation of group blocks** -- currently groups are always placed
+  axis-aligned. Allowing 90-degree group rotation could improve
+  packing on asymmetric boards.
+- **Multi-objective optimization** -- balance signal flow order, edge
+  constraints, thermal separation, and inter-group net length
+  simultaneously using Pareto ranking.
+
+### 13. Group-aware swap optimization
+
+The flat solver's swap optimizer (solve() step 7) freely swaps any
+two similarly-sized components to minimize crossover count. This is
+group-blind -- it can scatter group members.
+
+**Fix:** restrict swaps to within-group or between-group as a unit.
+When evaluating a swap, also check that group coherence doesn't
+degrade.
+
+### 14. Dynamic group sizing
+
+Currently, the virtual board size for intra-group placement uses a
+fixed formula: overhead = max(2.0, 3.5 - 0.15 * n). This could be
+made adaptive:
+
+- Start with a tight bounding box and expand if overlap resolution
+  fails to converge within a budget.
+- Use the group's net density (number of inter-component connections
+  per mm squared) to estimate required routing clearance.
+
+### 15. Schematic-driven pin assignment
+
+For groups with connectors, the schematic provides signal ordering on
+the connector pins. This ordering could be used to:
+
+- Place passives in the same order as their connected connector pins
+  (reduces trace crossings).
+- Orient ICs so that their pin-1 side faces the signal input direction.
+
+### 16. Thermal group separation
+
+Groups containing thermal components (e.g., voltage regulators, power
+MOSFETs) should maintain minimum distance from heat-sensitive groups.
+Currently thermal_refs is defined in config but only affects
+individual component spacing, not group-level separation.
+
+### 17. Board shape support
+
+The current system assumes rectangular boards. Extending to support
+non-rectangular board outlines (L-shapes, circles, cutouts) would
+require:
+
+- Group placement feasibility checking against arbitrary polygons.
+- Modified clamping logic for non-rectangular bounds.
+- Edge classification for non-rectangular edges (curved, angled).
+
+### 18. Autoplacer test coverage
+
+- Unit tests for brain/groups.py S-expression parser with edge cases
+  (escaped quotes, deeply nested structures, malformed files).
+- Unit tests for brain/group_placer.py with synthetic group
+  configurations (2 groups, 10 groups, groups larger than board).
+- Integration test: round-trip schematic -> groups -> placement -> score
+  with a minimal test project (3 components, 2 groups).
+
+### 19. Clearance violation elimination
+
+Address the persistent 14 clearance violations:
+
+- Investigate per-violation geometry (smd-to-trace vs trace-to-trace).
+- Widen DSN clearance classes to give FreeRouting more margin.
+- Implement post-routing nudge pass: parse DRC violations, shift
+  offending trace segments by the minimum required clearance delta.
+
+### 20. Adaptive scoring weights
+
+The current scoring weights are fixed. An adaptive scheme could:
+
+- Increase route_completion weight early (find routable layouts first).
+- Shift weight toward drc and area once 100% routing is achieved.
+- Use Bayesian optimization to tune weights based on historical data.
+
+### 21. Observability improvements
+
+- Extend board-path observability model across parent-stage artifacts.
+- Ensure every meaningful parent stage persists a .kicad_pcb before rendering previews.
+- Keep live status payloads aligned with persisted board paths rather than PNG-only assumptions.
+- Add richer machine-readable summaries for parent composition and routing transitions.
+- Prefer stage-specific board snapshots over shared artifact-level previews for candidate-round inspection.
+
 ---
 
 ## Completed (reverse chronological)
