@@ -66,6 +66,16 @@ renders/
 .experiments/experiments_dashboard.png
 .experiments/experiments.png
 
+# Hierarchical experiment artifacts
+.experiments/experiments.jsonl
+.experiments/hierarchical_summary.json
+.experiments/best/
+.experiments/best_preview.png
+.experiments/hierarchical_autoexperiment/
+.experiments/hierarchical_parent_smoke/
+.experiments/hierarchical_pipeline/
+.experiments/subcircuits/
+
 # Catch-all for old/one-off experiment data
 .experiments/baseline_*
 .experiments/post_*
