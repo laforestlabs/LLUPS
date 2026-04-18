@@ -1,4 +1,4 @@
-# KiCad
+# === KiCad ===
 *.kicad_prl
 fp-info-cache
 *-backups/
@@ -9,82 +9,42 @@ _autosave-*
 *.sch-bak
 *.kicad_sch.bak
 
-# Gerber / fabrication output
+# === Gerber / fabrication ===
 gerber/
 fabrication/
 *.gbr
 *.drl
 *.gbrjob
 
-# Lock files
-.~lock.*
-~*.lck
+# === Generated outputs ===
+report.html
+BOM.xlsx
+LLUPS_best.kicad_pcb
+renders/
 
-# Python
+# === Python ===
 __pycache__/
 *.pyc
 *.pyo
+*.bak
 .venv/
+.pytest_cache/
 
-# Generated reports and snapshots (large, regenerable)
-report.html
-LLUPS_best.kicad_pcb
-BOM.xlsx
+# === ALL experiment artifacts (regenerable by pipeline) ===
+.experiments/
 
-# Scoring results and renders (regenerated per run)
+# === Scoring results ===
 .claude/skills/kicad-helper/scripts/results/
 
-# Archived experiment data from old router
-.experiments_old_broken_routing/
-renders/
+# === Logs ===
+logs/
 
-# Experiment temp files
-.experiments/experiment.kicad_pcb
-.experiments/experiment.kicad_pro
-.experiments/experiment_best.kicad_pcb
-.experiments/.experiments/
-.experiments/experiment.pid
-.experiments/run.log
-.experiments/run_status.json
-.experiments/run_status.txt
-.experiments/frames/
-.experiments/rounds/
-.experiments/workers/
-.experiments/baseline.kicad_pcb
-.experiments/baseline.kicad_pro
-
-# SQLite database and WAL-mode temp files
-.experiments/llups.db
-.experiments/llups.db-shm
-.experiments/llups.db-wal
-
-# Generated experiment reports and renders
-.experiments/report.html
-.experiments/round_renders/
-.experiments/failure_heatmap.png
-.experiments/progress.gif
-.experiments/experiments_dashboard.png
-.experiments/experiments.png
-
-# Hierarchical experiment artifacts
-.experiments/experiments.jsonl
-.experiments/hierarchical_summary.json
-.experiments/best/
-.experiments/best_preview.png
-.experiments/hierarchical_autoexperiment/
-.experiments/hierarchical_parent_smoke/
-.experiments/hierarchical_pipeline/
-.experiments/subcircuits/
-
-# Catch-all for old/one-off experiment data
-.experiments/baseline_*
-.experiments/post_*
-.experiments/test_fixes*
-
-# Claude local settings
+# === Claude local settings ===
 .claude/settings.local.json
 
-# OS
+# === OS ===
 .DS_Store
 Thumbs.db
 desktop.ini
+.~lock.*
+~*.lck
