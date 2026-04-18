@@ -110,12 +110,18 @@ def main():
     parser.add_argument("--remove-crossings", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--in-place", action="store_true")
+    parser.add_argument("--thermal-refs", default=None,
+                        help="Comma-separated component refs for thermal via exclusion zones "
+                             "(e.g. U2,U4). Defaults to empty list if not provided.")
     args = parser.parse_args()
+
+    # Parse thermal refs from CLI or default to empty
+    thermal_refs = [r.strip() for r in args.thermal_refs.split(",") if r.strip()] if args.thermal_refs else []
 
     board = pcbnew.LoadBoard(args.pcb)
 
     # Dangling vias (preserve thermal vias near power ICs)
-    dangling = find_dangling_vias(board, thermal_refs=["U2", "U4"], thermal_radius_mm=3.0)
+    dangling = find_dangling_vias(board, thermal_refs=thermal_refs, thermal_radius_mm=3.0)
     print(f"Dangling vias: {len(dangling)}")
     for v in dangling[:10]:
         pos = v.GetPosition()

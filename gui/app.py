@@ -43,7 +43,7 @@ def _import_hierarchical_best_preset() -> None:
             "workers": state.strategy.get("workers", 0),
             "plateau_threshold": state.strategy.get("plateau_threshold", 1),
             "seed": summary.get("seed", 0),
-            "pcb_file": state.strategy.get("pcb_file", "LLUPS.kicad_pcb"),
+            "pcb_file": state.strategy["pcb_file"],
         },
         "_hierarchical_best": summary,
     }
@@ -87,7 +87,7 @@ def index() -> None:
     )
 
     with ui.header().classes("items-center justify-between px-6"):
-        ui.label("LLUPS Experiment Manager").classes("text-xl font-bold tracking-wide")
+        ui.label(f"{state.project_name} Experiment Manager" if state.project_name != "project" else "KiCad Experiment Manager").classes("text-xl font-bold tracking-wide")
         with ui.row().classes("items-center gap-3"):
             ui.label(f"Project: {state.project_root.name}").classes(
                 "text-sm text-gray-400"

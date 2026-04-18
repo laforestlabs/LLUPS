@@ -69,7 +69,7 @@ def _experiment_data_panel(state) -> None:
 
         exp = state.db.create_experiment(
             name=f"Hierarchical Run {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-            pcb_file=state.strategy.get("pcb_file", "LLUPS.kicad_pcb"),
+            pcb_file=state.strategy["pcb_file"],
             total_rounds=total_rounds,
             config=state.to_config_dict(),
         )

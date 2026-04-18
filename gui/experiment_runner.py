@@ -75,9 +75,11 @@ class ExperimentRunner:
 
         autoexp = self.scripts_dir / "autoexperiment.py"
         pcb_path = self.project_root / pcb_file
-        schematic_file = "LLUPS.kicad_sch"
         if extra_config and extra_config.get("schematic_file"):
             schematic_file = str(extra_config["schematic_file"])
+        else:
+            # Derive schematic from pcb_file by swapping the extension
+            schematic_file = pcb_file.replace(".kicad_pcb", ".kicad_sch")
         schematic_path = self.project_root / schematic_file
 
         hierarchical_workers = workers

@@ -100,13 +100,13 @@ def _strategy_panel(state):
     with ui.grid(columns=2).classes("w-full gap-4"):
         ui.input(
             "PCB file",
-            value=state.strategy.get("pcb_file", "LLUPS.kicad_pcb"),
+            value=state.strategy.get("pcb_file", ""),
             on_change=lambda e: state.strategy.update({"pcb_file": e.value.strip()}),
         ).classes("w-full").tooltip("Top-level PCB used as the project anchor.")
 
         ui.input(
             "Schematic file",
-            value=state.strategy.get("schematic_file", "LLUPS.kicad_sch"),
+            value=state.strategy.get("schematic_file", ""),
             on_change=lambda e: state.strategy.update(
                 {"schematic_file": e.value.strip()}
             ),
@@ -223,8 +223,8 @@ def _hierarchy_panel(state):
         ui.label("Summary").classes("text-md font-bold mb-2")
         ui.markdown(
             f"""
-- **Schematic:** `{state.strategy.get("schematic_file", "LLUPS.kicad_sch")}`
-- **PCB:** `{state.strategy.get("pcb_file", "LLUPS.kicad_pcb")}`
+- **Schematic:** `{state.strategy.get("schematic_file", "")}`
+- **PCB:** `{state.strategy.get("pcb_file", "")}`
 - **Parent:** `{state.strategy.get("parent", "/")}`
 - **Leaf filters:** `{", ".join(state.strategy.get("only", [])) or "all leaves"}`
 

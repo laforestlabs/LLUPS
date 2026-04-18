@@ -201,7 +201,7 @@ class Database:
 
     @staticmethod
     def _default_path() -> Path:
-        return Path(__file__).resolve().parent.parent / ".experiments" / "llups.db"
+        return Path(__file__).resolve().parent.parent / ".experiments" / "experiments.db"
 
     def _ensure_round_columns(self) -> None:
         """Best-effort additive migration for older local DBs."""

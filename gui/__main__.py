@@ -4,8 +4,17 @@
 import gui.app  # noqa: F401 — registers @ui.page routes
 from nicegui import ui
 
+from gui.state import get_state
+
+_state = get_state()
+_title = (
+    f"{_state.project_name} Experiment Manager"
+    if _state.project_name != "project"
+    else "KiCad Experiment Manager"
+)
+
 ui.run(
-    title="LLUPS Experiment Manager",
+    title=_title,
     port=8080,
     reload=False,
     show=True,

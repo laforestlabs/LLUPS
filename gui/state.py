@@ -67,13 +67,45 @@ HIERARCHICAL_CONTROLS = [
     },
 ]
 
+def _detect_project_files(root: Path) -> tuple[str, str, str]:
+    """Auto-detect KiCad project files from the project root.
+
+    Looks for ``*.kicad_pro`` files and derives the PCB and schematic
+    filenames from the project name.
+
+    Returns:
+        (project_name, pcb_filename, schematic_filename)
+    """
+    pro_files = sorted(root.glob("*.kicad_pro"))
+    if pro_files:
+        name = pro_files[0].stem
+        return name, f"{name}.kicad_pcb", f"{name}.kicad_sch"
+    return "project", "project.kicad_pcb", "project.kicad_sch"
+
+
+def _project_root() -> Path:
+    """Find the KiCad project root.
+
+    Walk upward from the gui package directory looking for any
+    ``*.kicad_pro`` file.  Falls back to the current working directory.
+    """
+    p = Path(__file__).resolve().parent.parent
+    if list(p.glob("*.kicad_pro")):
+        return p
+    return Path.cwd()
+
+
+_PROJECT_ROOT = _project_root()
+_PROJECT_NAME, _DEFAULT_PCB, _DEFAULT_SCH = _detect_project_files(_PROJECT_ROOT)
+
+
 DEFAULT_STRATEGY = {
     "rounds": 10,
     "workers": 2,
     "plateau_threshold": 2,
     "seed": 0,
-    "pcb_file": "LLUPS.kicad_pcb",
-    "schematic_file": "LLUPS.kicad_sch",
+    "pcb_file": _DEFAULT_PCB,
+    "schematic_file": _DEFAULT_SCH,
     "parent_selector": "/",
     "only_selectors": [],
 }
@@ -98,13 +130,6 @@ DEFAULT_TOGGLES = {
 }
 
 
-def _project_root() -> Path:
-    """Find the LLUPS project root."""
-    p = Path(__file__).resolve().parent.parent
-    if (p / "LLUPS.kicad_pcb").exists():
-        return p
-    return Path.cwd()
-
 
 DEFAULT_GUI_CLEANUP = {
     "show_analysis_tab": True,
@@ -120,7 +145,8 @@ DEFAULT_GUI_CLEANUP = {
 class AppState:
     """Mutable singleton holding current GUI state."""
 
-    project_root: Path = field(default_factory=_project_root)
+    project_root: Path = field(default_factory=lambda: _PROJECT_ROOT)
+    project_name: str = field(default_factory=lambda: _PROJECT_NAME)
     db: Database | None = field(default=None)
 
     hierarchical_controls: list[dict[str, Any]] = field(

@@ -1121,9 +1121,7 @@ def monitor_page():
                 param_ranges=state.get_control_ranges(),
                 score_weights=state.score_weights,
                 extra_config={
-                    "schematic_file": state.strategy.get(
-                        "schematic_file", "LLUPS.kicad_sch"
-                    ),
+                    "schematic_file": state.strategy["schematic_file"],
                     "parent": state.strategy.get("parent", "/"),
                     "only": state.strategy.get("only", []),
                     "leaf_rounds": state.strategy.get("leaf_rounds", 1),
