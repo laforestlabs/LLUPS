@@ -1,0 +1,3 @@
+[submodule "kicad-helper"]
+	path = kicad-helper
+	url = /home/jason/Documents/kicad-helper
