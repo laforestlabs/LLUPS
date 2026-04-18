@@ -36,14 +36,25 @@ class AdjacencyGraph:
         return sum(self._adj.get(node, {}).values())
 
 
-POWER_NETS = {"VBUS", "VBAT", "5V", "3V3", "3.3V", "+5V", "+3V3", "GND", "/VBUS", "/VBAT", "/5V", "/3V3", "/VSYS", "/VSYS_BOOST", "/EN", "Net-VDD", "Net-VCC"}
+DEFAULT_POWER_NETS: set[str] = {
+    "GND", "VCC", "VDD", "5V", "3V3", "3.3V", "+5V", "+3V3", "+3.3V",
+}
 
-def build_connectivity_graph(nets: dict[str, Net]) -> AdjacencyGraph:
+def build_connectivity_graph(
+    nets: dict[str, Net],
+    power_nets: set[str] | None = None,
+) -> AdjacencyGraph:
     """Build graph: nodes=component refs, edge weight=shared net count.
 
     Power nets create stronger connections (critical for grouping).
     GND is skipped (connects everything, dominates clustering).
+
+    Args:
+        nets: Mapping of net name to Net objects.
+        power_nets: Optional set of net names to treat as power nets
+            (weighted more heavily). Falls back to DEFAULT_POWER_NETS.
     """
+    active_power_nets = power_nets if power_nets is not None else DEFAULT_POWER_NETS
     g = AdjacencyGraph()
     for net in nets.values():
         if net.name in ("GND", "/GND"):
@@ -52,7 +63,7 @@ def build_connectivity_graph(nets: dict[str, Net]) -> AdjacencyGraph:
         if len(refs) < 2:
             continue
         # Power nets = strong connection, signal nets = weak
-        weight = 3.0 if net.name in POWER_NETS else 1.0
+        weight = 3.0 if net.name in active_power_nets else 1.0
         for i in range(len(refs)):
             g.add_node(refs[i])
             for j in range(i + 1, len(refs)):

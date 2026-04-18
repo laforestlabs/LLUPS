@@ -117,7 +117,7 @@ from autoplacer.brain.subcircuit_extractor import (
     summarize_extraction,
 )
 from autoplacer.brain.subcircuit_solver import solve_leaf_placement
-from autoplacer.config import DEFAULT_CONFIG, LLUPS_CONFIG, load_project_config
+from autoplacer.config import DEFAULT_CONFIG, discover_project_config, load_project_config
 from autoplacer.hardware.adapter import KiCadAdapter
 
 
@@ -133,8 +133,14 @@ def _iter_children(node: HierarchyNode):
         yield from _iter_children(child)
 
 
-def _load_config(config_path: str | None) -> dict[str, Any]:
-    cfg: dict[str, Any] = {**DEFAULT_CONFIG, **LLUPS_CONFIG}
+def _load_config(config_path: str | None, project_dir: Path | None = None) -> dict[str, Any]:
+    cfg: dict[str, Any] = dict(DEFAULT_CONFIG)
+    # Auto-discover project config from project directory
+    if project_dir is not None:
+        proj_cfg = discover_project_config(project_dir)
+        if proj_cfg is not None:
+            cfg.update(load_project_config(str(proj_cfg)))
+    # Explicit --config overrides on top
     if config_path:
         cfg.update(load_project_config(config_path))
     return cfg
@@ -403,7 +409,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        config = _load_config(args.config)
+        config = _load_config(args.config, project_dir=top_schematic.parent)
         pcb_path = (
             Path(args.pcb).resolve() if args.pcb else _default_pcb_path(top_schematic)
         )

@@ -1,8 +1,9 @@
 """Default configuration — project-agnostic placement/routing engine defaults.
 
-Project-specific overrides (ic_groups, component_zones, etc.) should be
-passed as config dict at runtime.  See LLUPS_CONFIG below for an example,
-or load from a JSON file with load_project_config().
+Project-specific overrides (ic_groups, component_zones, etc.) live in a
+per-project JSON file (e.g. ``LLUPS_autoplacer.json``).  Use
+``discover_project_config()`` to locate it automatically, then
+``load_project_config()`` to parse it.
 """
 
 import json
@@ -154,64 +155,6 @@ DEFAULT_CONFIG = {
     # box of component positions when building a local subcircuit board.
     # Gives the solver room to rearrange components.
     "subcircuit_margin_mm": 5.0,
-}
-
-
-# ---------------------------------------------------------------------------
-# LLUPS project overrides — used when running against the LLUPS board.
-# Merge with:  cfg = {**DEFAULT_CONFIG, **LLUPS_CONFIG}
-# ---------------------------------------------------------------------------
-LLUPS_CONFIG = {
-    "power_nets": {
-        "VBUS",
-        "VBAT",
-        "5V",
-        "3V3",
-        "3.3V",
-        "+5V",
-        "+3V3",
-        "GND",
-        "/VBUS",
-        "/VBAT",
-        "/5V",
-        "/3V3",
-        "/VSYS",
-        "/VSYS_BOOST",
-        "/CELL_NEG",
-        "/EN",
-    },
-    "thermal_refs": ["U2", "U4"],
-    "ic_groups": {
-        "U1": ["C1", "R1", "R2", "F1", "J1"],
-        "U2": ["C2", "C3", "C4", "R3", "R4", "R5", "R6", "R7", "R8", "RT1", "D1", "D2"],
-        "U3": ["Q1", "U6"],
-        "U4": ["C5", "C6", "C7", "L1", "D3"],
-        "U5": ["C8", "R9", "R10", "R11", "J2", "J3"],
-        "BT1": ["BT2"],
-    },
-    "group_labels": {
-        "U1": "USB INPUT",
-        "U2": "CHARGER",
-        "U3": "BATT PROT",
-        "U4": "BOOST 5V",
-        "U5": "LDO 3.3V",
-    },
-    # Board size search enabled — autoexperiment will vary board dimensions
-    # to find smallest board that still routes cleanly.
-    "enable_board_size_search": True,
-    # Component zone constraints for the LLUPS board layout.
-    # Signal flow: USB input (left) → charger → protection → boost → LDO → output (right)
-    "component_zones": {
-        "J1": {"edge": "left"},  # USB-C input connector
-        "J2": {"edge": "right"},  # Output header
-        "J3": {"edge": "right"},  # Debug header
-        "BT1": {"zone": "bottom"},  # Battery holders — shared zone, sibling
-        "BT2": {"zone": "bottom"},  # grouping pulls them adjacent
-        "H4": {"corner": "top-left"},
-        "H86": {"corner": "bottom-right"},
-    },
-    # Signal flow left-to-right: USB → charger → protection → boost → LDO
-    "signal_flow_order": ["U1", "U2", "U3", "U4", "U5"],
 }
 
 

@@ -36,13 +36,11 @@ def _load_config(project_dir: Path) -> dict:
     """Load project configuration, merging defaults with project-specific."""
     from autoplacer.config import (
         DEFAULT_CONFIG,
-        LLUPS_CONFIG,
         discover_project_config,
         load_project_config,
     )
 
     cfg = dict(DEFAULT_CONFIG)
-    cfg.update(LLUPS_CONFIG)
     proj_cfg_path = discover_project_config(str(project_dir))
     if proj_cfg_path:
         cfg.update(load_project_config(str(proj_cfg_path)))
