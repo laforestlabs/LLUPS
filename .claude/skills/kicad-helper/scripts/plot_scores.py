@@ -100,7 +100,7 @@ def plot_dashboard(runs, session, output_path):
                     xytext=(0, 10), ha="center", fontsize=9, fontweight="bold")
 
     ax.set_ylabel("Score (0-100)", fontsize=11)
-    ax.set_title("LLUPS PCB Layout Score", fontsize=14, fontweight="bold")
+    ax.set_title("PCB Layout Score", fontsize=14, fontweight="bold")
     ax.set_ylim(0, 105)
     ax.grid(True, alpha=0.3)
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Automatic experiment artifact cleanup for the LLUPS project.
+"""Automatic experiment artifact cleanup for KiCad projects.
 
 Three modes of operation:
 
@@ -281,7 +281,7 @@ def _nuke(exp: Path, c: _Cleaner) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        description="Clean LLUPS experiment artifacts.",
+        description="Clean experiment artifacts.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"

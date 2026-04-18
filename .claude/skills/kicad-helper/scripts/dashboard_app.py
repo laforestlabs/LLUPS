@@ -33,28 +33,45 @@ app = Flask(__name__)
 
 # Configuration
 EXPERIMENTS_DIR = Path(".experiments")
-DEFAULT_PCB = "LLUPS.kicad_pcb"
 POLL_INTERVAL = 2  # seconds
 
 
-def _find_llups_root() -> Path:
-    """Find LLUPS project root directory."""
-    # Path structure: .../LLUPS/.claude/skills/kicad-helper/scripts/dashboard_app.py
+def _detect_default_pcb():
+    """Auto-detect the PCB filename from the project root."""
+    root = _find_project_root()
+    pro_files = list(root.glob("*.kicad_pro"))
+    if pro_files:
+        return f"{pro_files[0].stem}.kicad_pcb"
+    return None
+
+
+def _detect_project_name():
+    """Auto-detect project name from the .kicad_pro file, fallback to 'KiCad'."""
+    root = _find_project_root()
+    pro_files = list(root.glob("*.kicad_pro"))
+    if pro_files:
+        return pro_files[0].stem
+    return "KiCad"
+
+
+def _find_project_root() -> Path:
+    """Find KiCad project root directory by locating a *.kicad_pro file."""
+    # Path structure: .../<project>/.claude/skills/kicad-helper/scripts/dashboard_app.py
     script_dir = Path(__file__).resolve().parent
-    # Up 4 levels: scripts -> kicad-helper -> .claude -> skills -> LLUPS
+    # Up 4 levels: scripts -> kicad-helper -> skills -> .claude -> project root
     project_root = script_dir.parent.parent.parent.parent
-    if (project_root / "LLUPS.kicad_pcb").exists():
+    if list(project_root.glob("*.kicad_pro")):
         return project_root
     # Fallback: try cwd if running from project root
     cwd = Path.cwd()
-    if (cwd / "LLUPS.kicad_pcb").exists():
+    if list(cwd.glob("*.kicad_pro")):
         return cwd
     return project_root  # Last resort
 
 
 def _find_experiments_dir() -> Path:
     """Find .experiments directory - check for nested duplicate too."""
-    root = _find_llups_root()
+    root = _find_project_root()
     exp_dir = root / ".experiments"
     # Check for nested .experiments/.experiments that may have newer data
     nested = exp_dir / ".experiments"
@@ -67,13 +84,15 @@ def _find_experiments_dir() -> Path:
 
 # Global state
 experiment_process: subprocess.Popen | None = None
+DEFAULT_PCB = _detect_default_pcb()
+_PROJECT_NAME = _detect_project_name()
 current_pcb = DEFAULT_PCB
 
 
 @app.route("/")
 def index():
     """Main dashboard page."""
-    return render_template_string(DASHBOARD_HTML)
+    return render_template_string(DASHBOARD_HTML, project_name=_PROJECT_NAME)
 
 
 @app.route("/api/status")
@@ -132,7 +151,7 @@ def api_start():
     """Start an experiment run."""
     global experiment_process, current_pcb
     
-    root = _find_llups_root()
+    root = _find_project_root()
     exp_dir = root / ".experiments"
     
     # Get parameters from request
@@ -335,7 +354,7 @@ def api_nets():
 DASHBOARD_HTML = """<!DOCTYPE html>
 <html>
 <head>
-    <title>LLUPS Autoexperiment Dashboard</title>
+    <title>{{ project_name }} Autoexperiment Dashboard</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
@@ -477,7 +496,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </head>
 <body>
     <div class="header">
-        <h1>LLUPS Autoexperiment</h1>
+        <h1>{{ project_name }} Autoexperiment</h1>
         <span id="status-badge" class="status-badge status-idle">Idle</span>
     </div>
     

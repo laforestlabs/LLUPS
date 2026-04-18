@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Visible hierarchical pipeline runner for LLUPS.
+"""Visible hierarchical pipeline runner for KiCad projects.
 
 This script is intended to be the user-facing entrypoint for the subcircuits
 redesign branch. It orchestrates the current bottom-up hierarchical flow:
@@ -34,8 +34,18 @@ from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = SCRIPT_DIR.parents[4]
-DEFAULT_SCHEMATIC = PROJECT_DIR / "LLUPS.kicad_sch"
-DEFAULT_PCB = PROJECT_DIR / "LLUPS.kicad_pcb"
+
+
+def _detect_project_files(project_dir):
+    """Auto-detect KiCad project files from directory."""
+    pro_files = list(project_dir.glob("*.kicad_pro"))
+    if pro_files:
+        stem = pro_files[0].stem
+        return project_dir / f"{stem}.kicad_sch", project_dir / f"{stem}.kicad_pcb"
+    return None, None
+
+
+DEFAULT_SCHEMATIC, DEFAULT_PCB = _detect_project_files(PROJECT_DIR)
 DEFAULT_OUTPUT_DIR = PROJECT_DIR / ".experiments" / "hierarchical_pipeline"
 
 
@@ -175,13 +185,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--schematic",
-        default=str(DEFAULT_SCHEMATIC),
-        help="Top-level schematic path (default: LLUPS.kicad_sch)",
+        default=str(DEFAULT_SCHEMATIC) if DEFAULT_SCHEMATIC else None,
+        help="Top-level schematic path (auto-detected from *.kicad_pro)",
     )
     parser.add_argument(
         "--pcb",
-        default=str(DEFAULT_PCB),
-        help="Top-level PCB path (default: LLUPS.kicad_pcb)",
+        default=str(DEFAULT_PCB) if DEFAULT_PCB else None,
+        help="Top-level PCB path (auto-detected from *.kicad_pro)",
     )
     parser.add_argument(
         "--config",
