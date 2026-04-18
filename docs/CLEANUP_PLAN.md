@@ -10,7 +10,7 @@ Each phase has a checkbox for tracking. Mark phases `[x]` as they are completed.
 
 ---
 
-## Phase 1: Untrack Generated Artifacts from Git  [ ]
+## Phase 1: Untrack Generated Artifacts from Git  [x]
 
 **Problem:** 74 files under `.experiments/` are committed to git but are fully
 regenerable. This bloats the repo with ~4.4 MB of binary/JSON experiment data.
@@ -43,7 +43,7 @@ git rm --cached .claude/skills/kicad-helper/scripts/autoplacer/brain/placement.p
 
 ---
 
-## Phase 2: Update .gitignore  [ ]
+## Phase 2: Update .gitignore  [x]
 
 **Problem:** The current `.gitignore` grew organically with 80+ lines of one-off
 patterns. Many are redundant or incomplete.
@@ -107,7 +107,7 @@ Key change: single `.experiments/` entry replaces 30+ granular rules.
 
 ---
 
-## Phase 3: Delete Stale Files from Disk  [ ]
+## Phase 3: Delete Stale Files from Disk  [x]
 
 ### Handoff files to delete (7 files)
 
@@ -149,7 +149,7 @@ rm -rf .claude/skills/kicad-helper/scripts/results/
 
 ---
 
-## Phase 4: Consolidate Documentation  [ ]
+## Phase 4: Consolidate Documentation  [x]
 
 ### Problem
 
@@ -166,7 +166,7 @@ Three overlapping roadmap/next-steps documents:
 
 ---
 
-## Phase 5: Automatic Artifact Cleanup Script  [ ]
+## Phase 5: Automatic Artifact Cleanup Script  [x]
 
 ### What gets generated per run
 
@@ -208,7 +208,7 @@ Add `--clean` and `--clean-after` flags to `autoexperiment.py`.
 
 ---
 
-## Phase 6: Separate kicad-helper into Its Own Codebase  [ ]
+## Phase 6: Separate kicad-helper into Its Own Codebase  [~]
 
 ### Coupling analysis
 
@@ -282,12 +282,12 @@ kicad-helper/
 
 | Phase | Status | Commit | Notes |
 |---|---|---|---|
-| 1. Untrack artifacts | [ ] | | |
-| 2. Update .gitignore | [ ] | | |
-| 3. Delete stale files | [ ] | | |
-| 4. Consolidate docs | [ ] | | |
-| 5. Cleanup script | [ ] | | |
-| 6a. Decouple kicad-helper | [ ] | | |
+| 1. Untrack artifacts | [x] | d362c84 | 76 files untracked |
+| 2. Update .gitignore | [x] | d362c84 | 80 → 50 lines |
+| 3. Delete stale files | [x] | d362c84 | 7 handoffs + backups |
+| 4. Consolidate docs | [x] | bf73fbe | 3 docs → 1 |
+| 5. Cleanup script | [x] | bf73fbe | 3 modes working |
+| 6a. Decouple kicad-helper | [x] | 7c7df2c | All hardcodes removed |
 | 6b. Extract to new repo | [ ] | | |
 | 6c. Reintegrate | [ ] | | |
 
@@ -301,3 +301,28 @@ kicad-helper/
 | Deleting handoff files | Lose context | Content duplicated in CHANGELOG.md |
 | Blanket `.experiments/` gitignore | Might miss wanted file | Nothing in .experiments/ is source |
 | kicad-helper separation | Breaks current workflow | Phase 6a (decouple) is low-risk prep |
+
+---
+
+## Completion Log
+
+### 2025-07-11 — Phases 1-5 + 6a completed
+
+**Commits:**
+- `d362c84` — Phases 1-3: Untrack 76 generated artifacts, simplify .gitignore, delete stale files
+- `bf73fbe` — Phases 4-5: Consolidate docs, add clean_experiments.py
+- `10a4543` — Phase 6a: Remove LLUPS_CONFIG, llups_config.json, fix POWER_NETS
+- `c89bb32` — Phase 6a: Auto-detect in autoexperiment.py, run_hierarchical_pipeline.py, dashboard_app.py
+- `7c7df2c` — Phase 6a: Parameterize GUI and remaining scripts
+
+**Results:**
+- Tracked files: 196 → 114 (42% reduction)
+- Generated artifacts: removed ~129K lines from git history
+- .gitignore: 80 lines → 50 lines (clean, organized)
+- LLUPS-specific hardcodes in kicad-helper: eliminated from functional code
+- Cleanup script: working with --before-run, --after-run, --nuke modes
+- Documentation: consolidated from 3 roadmap docs to 1
+
+**Remaining:**
+- Phase 6b: Extract kicad-helper to separate repository
+- Phase 6c: Reintegrate as submodule/dependency
