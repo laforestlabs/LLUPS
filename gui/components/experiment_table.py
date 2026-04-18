@@ -106,15 +106,15 @@ def create_experiment_table(
             },
         },
         {
-            "field": "top_level_ready",
-            "headerName": "Top",
-            "width": 90,
+            "field": "parent_routed",
+            "headerName": "Parent Route",
+            "width": 120,
             "sortable": True,
             "filter": True,
-            "valueGetter": "x.data?.top_level_ready ?? x.data?.hierarchy?.top_level_ready ?? null",
+            "valueGetter": "x.data?.parent_routed ?? x.data?.hierarchy?.parent_routed ?? null",
             "cellRenderer": """
                 params => {
-                    if (params.value === true) return 'READY';
+                    if (params.value === true) return 'ROUTED';
                     if (params.value === false) return '—';
                     return '—';
                 }
@@ -134,7 +134,7 @@ def create_experiment_table(
             "cellClassRules": {
                 "text-blue-300": "x.value === 'solve_leafs'",
                 "text-amber-300": "x.value === 'compose_parent'",
-                "text-green-300": "x.value === 'visible_top_level' || x.value === 'done'",
+                "text-green-300": "x.value === 'route_parent' || x.value === 'done' || x.value === 'complete'",
             },
         },
         {
@@ -175,7 +175,7 @@ def create_experiment_table(
                     if (params.data?.kept) {
                         return {background: 'rgba(81, 207, 102, 0.08)'};
                     }
-                    if (params.data?.top_level_ready) {
+                    if (params.data?.parent_routed) {
                         return {background: 'rgba(34, 197, 94, 0.05)'};
                     }
                     return {};

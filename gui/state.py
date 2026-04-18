@@ -82,21 +82,19 @@ DEFAULT_SCORE_WEIGHTS = {
     "leaf_acceptance": 0.55,
     "leaf_routing_quality": 0.20,
     "parent_composition": 0.10,
-    "top_level_ready": 0.15,
+    "parent_routed": 0.15,
 }
 
 DEFAULT_TOGGLES = {
-    "skip_visible_top_level": False,
-    "render_top_level_png": True,
+    "render_parent_png": True,
     "preserve_existing_subcircuit_artifacts": True,
     "show_only_accepted_frames": False,
     "show_status_json": True,
     "show_leaf_artifacts": True,
-    "show_top_level_progress": True,
+    "show_parent_progress": True,
     "track_composition_outputs": True,
     "enable_progression_viewer": True,
     "prefer_kept_frames": False,
-    "show_frame_metadata": True,
 }
 
 

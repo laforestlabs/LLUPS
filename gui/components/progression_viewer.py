@@ -319,15 +319,13 @@ def _discover_leaf_gallery(experiments_dir: Path) -> list[dict[str, Any]]:
 
 
 def _discover_parent_preview_sets(experiments_dir: Path) -> list[dict[str, Any]]:
-    """Discover side-by-side parent preview pairs from known output locations."""
-    candidate_dirs = [
-        experiments_dir / "hierarchical_parent_smoke",
-    ]
+    """Discover side-by-side parent preview pairs from canonical parent output locations."""
+    candidate_dirs: list[Path] = []
 
     autoexp_root = experiments_dir / "hierarchical_autoexperiment"
     if autoexp_root.is_dir():
         for round_dir in sorted(autoexp_root.glob("round_*"), reverse=True):
-            candidate_dirs.append(round_dir / "visible_parent")
+            candidate_dirs.append(round_dir)
 
     preview_sets: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -336,11 +334,7 @@ def _discover_parent_preview_sets(experiments_dir: Path) -> list[dict[str, Any]]
         if not directory.is_dir():
             continue
 
-        preloaded_candidates = [
-            directory / "parent_preloaded.png",
-            directory / "preloaded_png.png",
-            directory / "preloaded.png",
-            directory / "board_preloaded.png",
+        stamped_candidates = [
             directory / "parent_stamped.png",
             directory / "board.png",
             directory / "snapshot.png",
@@ -349,14 +343,12 @@ def _discover_parent_preview_sets(experiments_dir: Path) -> list[dict[str, Any]]
             directory / "parent_routed.png",
             directory / "routed.png",
             directory / "board_routed.png",
-            directory / "parent_freerouted.png",
-            directory / "routed_png.png",
         ]
 
-        preloaded = next((p for p in preloaded_candidates if p.exists()), None)
+        stamped = next((p for p in stamped_candidates if p.exists()), None)
         routed = next((p for p in routed_candidates if p.exists()), None)
 
-        if preloaded is None and routed is None:
+        if stamped is None and routed is None:
             continue
 
         key = str(directory.resolve())
@@ -371,14 +363,10 @@ def _discover_parent_preview_sets(experiments_dir: Path) -> list[dict[str, Any]]
             metadata = _safe_load_json(directory / "summary.json") or {}
         if not metadata:
             metadata = _safe_load_json(directory / "parent_composition.json") or {}
-        if not metadata:
-            metadata = _safe_load_json(directory / "demo_metadata.json") or {}
 
         parent = (
             metadata.get("parent", {})
             if isinstance(metadata.get("parent"), dict)
-            else metadata.get("subcircuit_id", {})
-            if isinstance(metadata.get("subcircuit_id"), dict)
             else {}
         )
         composition = (
@@ -399,7 +387,7 @@ def _discover_parent_preview_sets(experiments_dir: Path) -> list[dict[str, Any]]
             {
                 "label": label,
                 "directory": str(directory),
-                "preloaded_path": str(preloaded) if preloaded else "",
+                "stamped_path": str(stamped) if stamped else "",
                 "routed_path": str(routed) if routed else "",
                 "parent_instance_path": str(parent.get("instance_path", "")),
                 "component_count": _coerce_int(composition.get("component_count", 0)),
@@ -425,10 +413,9 @@ def create_progression_viewer(experiments_dir: Path):
     parent_preview_sets = _discover_parent_preview_sets(experiments_dir)
 
     parent_copper_caveat = (
-        "Parent FreeRouting previews may not visually preserve all preloaded child copper "
-        "inside the FreeRouting UI, even when the stamped KiCad parent board does contain it. "
-        "Treat the stamped/preloaded parent board and its track counts as the source of truth "
-        "for child copper preservation."
+        "Parent previews come only from the canonical subcircuit parent pipeline. "
+        "Treat the stamped parent board and its track counts as the source of truth "
+        "for preserved child copper, and the routed parent board as the final parent interconnect result."
     )
 
     with ui.column().classes("w-full gap-4"):
@@ -671,8 +658,8 @@ def create_progression_viewer(experiments_dir: Path):
             f"{leaf_accepted} / {leaf_total}" if leaf_total else "—"
         )
 
-        top_ready = hierarchy.get("top_level_ready")
-        top_progress_label.set_text("READY" if top_ready else "—")
+        parent_routed = hierarchy.get("parent_routed")
+        top_progress_label.set_text("ROUTED" if parent_routed else "—")
 
         latest_event_label.set_text(str(status_meta.get("latest_marker", "—")))
 
@@ -724,12 +711,11 @@ def create_progression_viewer(experiments_dir: Path):
             "baseline": "purple",
             "leaves": "blue",
             "leaf": "blue",
-            "top": "green",
-            "top_level": "green",
             "parent": "amber",
             "composition": "orange",
-            "visible_top_level": "green",
+            "route_parent": "green",
             "done": "green",
+            "complete": "teal",
         }
         stage_label.set_text(stage.upper())
         stage_label._props["color"] = stage_colors.get(stage.lower(), "gray")
@@ -737,13 +723,8 @@ def create_progression_viewer(experiments_dir: Path):
 
         mode = str(frame.get("mode", "") or "—")
         mode_colors = {
-            "minor": "blue",
-            "major": "red",
-            "explore": "gray",
-            "elite": "amber",
             "baseline": "purple",
             "leaf": "blue",
-            "top": "green",
             "compose": "orange",
             "hierarchical": "blue",
         }

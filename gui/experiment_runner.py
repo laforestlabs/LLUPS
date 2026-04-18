@@ -117,9 +117,6 @@ class ExperimentRunner:
             if leaf_rounds is not None:
                 cmd += ["--leaf-rounds", str(leaf_rounds)]
 
-            if extra_config.get("skip_visible"):
-                cmd += ["--skip-visible"]
-
         program_path = self.scripts_dir / "program.md"
         program_data: dict[str, Any] = {
             "param_ranges": param_ranges or {},

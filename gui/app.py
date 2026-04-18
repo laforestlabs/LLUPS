@@ -8,7 +8,6 @@ from pathlib import Path
 from nicegui import ui
 
 from .pages.analysis import analysis_page
-from .pages.board import board_page
 from .pages.monitor import monitor_page
 from .pages.setup import setup_page
 from .state import get_state
@@ -26,6 +25,9 @@ def _load_json(path: Path) -> dict | None:
 def _import_hierarchical_best_preset() -> None:
     """Import the best hierarchical run summary as a preset if available."""
     state = get_state()
+    if not state.toggles.get("import_best_as_preset", True):
+        return
+
     summary_path = state.experiments_dir / "best" / "best_hierarchical_round.json"
     summary = _load_json(summary_path)
     if not summary:
@@ -65,20 +67,6 @@ def _auto_import_on_startup() -> None:
 
     _import_hierarchical_best_preset()
 
-    # Backward-compatible import for older flat-pipeline checkpoints, if present.
-    best_cfg_path = state.experiments_dir / "best_config.json"
-    if best_cfg_path.exists():
-        presets = state.db.get_presets()
-        if not any(p.name == "Best (imported)" for p in presets):
-            data = _load_json(best_cfg_path)
-            if data:
-                config = data.get("config", data)
-                notes = (
-                    "Auto-imported from best_config.json "
-                    f"(score={data.get('score', data.get('best_score', '?'))})"
-                )
-                state.db.save_preset("Best (imported)", config, notes)
-
 
 _auto_import_on_startup()
 
@@ -106,18 +94,20 @@ def index() -> None:
             )
             ui.badge("Hierarchical Subcircuits", color="green").classes("text-xs")
 
+    show_analysis_tab = bool(state.gui_cleanup.get("show_analysis_tab", True))
+
     with ui.tabs().classes("w-full") as tabs:
         setup_tab = ui.tab("Setup", icon="tune")
         monitor_tab = ui.tab("Monitor", icon="monitor")
-        analysis_tab = ui.tab("Analysis", icon="analytics")
-        board_tab = ui.tab("Board", icon="memory")
+        analysis_tab = None
+        if show_analysis_tab:
+            analysis_tab = ui.tab("Analysis", icon="analytics")
 
     with ui.tab_panels(tabs, value=setup_tab).classes("w-full px-4"):
         with ui.tab_panel(setup_tab):
             setup_page()
         with ui.tab_panel(monitor_tab):
             monitor_page()
-        with ui.tab_panel(analysis_tab):
-            analysis_page()
-        with ui.tab_panel(board_tab):
-            board_page()
+        if analysis_tab is not None:
+            with ui.tab_panel(analysis_tab):
+                analysis_page()

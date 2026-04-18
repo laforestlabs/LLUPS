@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 from nicegui import ui
 
 from ..state import get_state
@@ -15,13 +13,14 @@ def setup_page():
     ui.label("Hierarchical Experiment Setup").classes("text-2xl font-bold mb-2")
     ui.label(
         "Configure the bottom-up subcircuit experiment flow: routed leaf solving, "
-        "parent composition, and visible top-level progression."
-    ).classes("text-sm text-gray-400 mb-4")
+        "parent composition, and canonical parent routing. The defaults aim "
+        "for a balanced baseline: fast enough for routine iteration, but still "
+        "useful as a quality signal."
+    ).classes("text-sm text-gray-400 mb-6")
 
     with ui.tabs().classes("w-full") as tabs:
         strategy_tab = ui.tab("Run Strategy", icon="play_circle")
         hierarchy_tab = ui.tab("Hierarchy Scope", icon="account_tree")
-        visuals_tab = ui.tab("Visual Feedback", icon="image")
         presets_tab = ui.tab("Presets", icon="bookmark")
 
     with ui.tab_panels(tabs, value=strategy_tab).classes("w-full"):
@@ -31,9 +30,6 @@ def setup_page():
         with ui.tab_panel(hierarchy_tab):
             _hierarchy_panel(state)
 
-        with ui.tab_panel(visuals_tab):
-            _visuals_panel(state)
-
         with ui.tab_panel(presets_tab):
             _presets_panel(state)
 
@@ -42,7 +38,8 @@ def _strategy_panel(state):
     ui.label("Run Strategy").classes("text-lg font-bold mb-2")
     ui.label(
         "These settings control the outer experiment loop. Each round runs the "
-        "hierarchical pipeline from routed leaves upward."
+        "hierarchical pipeline from routed leaves upward. Start with the balanced "
+        "defaults, then widen settings only when the results justify the extra time."
     ).classes("text-sm text-gray-400 mb-4")
 
     with ui.grid(columns=2).classes("w-full gap-4"):
@@ -53,30 +50,37 @@ def _strategy_panel(state):
             max=1000,
             step=1,
             on_change=lambda e: state.strategy.update({"rounds": int(e.value)}),
-        ).tooltip("How many full hierarchical attempts to run.")
+        ).tooltip(
+            "How many full hierarchical attempts to run. A balanced default is 10 "
+            "rounds for routine comparison without turning every run into an "
+            "overnight job."
+        )
 
         ui.number(
             "Leaf solve rounds per experiment round",
-            value=state.strategy.get("leaf_rounds", 1),
+            value=state.strategy.get("leaf_rounds", 2),
             min=1,
-            max=20,
+            max=6,
             step=1,
             on_change=lambda e: state.strategy.update({"leaf_rounds": int(e.value)}),
         ).tooltip(
             "How many local solve attempts each leaf subcircuit gets inside one "
-            "experiment round."
+            "experiment round. A balanced default is 2: usually enough to improve "
+            "stability over 1, without the runtime jump of deeper search."
         )
 
         ui.number(
-            "Workers (reserved)",
-            value=state.strategy.get("workers", 1),
+            "Leaf workers",
+            value=state.strategy.get("workers", 2),
             min=1,
             max=64,
             step=1,
             on_change=lambda e: state.strategy.update({"workers": int(e.value)}),
         ).tooltip(
-            "Currently reserved for compatibility. The hierarchical runner is "
-            "executed in a single coordinated flow."
+            "Number of parallel workers used for leaf solving. This is no longer "
+            "just reserved: it directly controls leaf parallelism in hierarchical "
+            "runs. A balanced default is 2; try 1 for debugging or 4 on faster "
+            "machines if runtime matters more than log simplicity."
         )
 
         ui.number(
@@ -85,7 +89,11 @@ def _strategy_panel(state):
             min=0,
             step=1,
             on_change=lambda e: state.strategy.update({"seed": int(e.value)}),
-        ).tooltip("Master seed for reproducible hierarchical runs.")
+        ).tooltip(
+            "Master seed for reproducible hierarchical runs. Keep this fixed when "
+            "comparing nearby settings; change it when you want to test whether a "
+            "result is robust instead of lucky."
+        )
 
     ui.separator().classes("my-4")
 
@@ -127,23 +135,13 @@ def _strategy_panel(state):
     with ui.row().classes("w-full items-start gap-8"):
         with ui.column().classes("gap-2"):
             ui.switch(
-                "Run visible top-level stage",
-                value=not state.toggles.get("skip_visible", False),
-                on_change=lambda e: state.toggles.update(
-                    {"skip_visible": not bool(e.value)}
-                ),
-            ).tooltip(
-                "When enabled, the experiment also runs the visible parent/top-level "
-                "stage after leaf solving and composition."
-            )
-
-            ui.switch(
                 "Render PNG previews",
                 value=state.toggles.get("render_png", True),
                 on_change=lambda e: state.toggles.update({"render_png": bool(e.value)}),
             ).tooltip(
                 "Keep visual artifacts up to date so the monitor and analysis pages "
-                "can show progression."
+                "can show progression. This is usually worth leaving on unless you "
+                "are doing quick throughput-focused checks."
             )
 
         with ui.column().classes("gap-2"):
@@ -154,16 +152,6 @@ def _strategy_panel(state):
                     {"save_round_details": bool(e.value)}
                 ),
             ).tooltip("Preserve round JSON and related metadata for later inspection.")
-
-            ui.switch(
-                "Auto-import best hierarchical result as preset",
-                value=state.toggles.get("import_best_as_preset", True),
-                on_change=lambda e: state.toggles.update(
-                    {"import_best_as_preset": bool(e.value)}
-                ),
-            ).tooltip(
-                "Lets the GUI treat the best hierarchical run summary as a reusable preset."
-            )
 
 
 def _hierarchy_panel(state):
@@ -239,82 +227,16 @@ def _hierarchy_panel(state):
 - **PCB:** `{state.strategy.get("pcb_file", "LLUPS.kicad_pcb")}`
 - **Parent:** `{state.strategy.get("parent", "/")}`
 - **Leaf filters:** `{", ".join(state.strategy.get("only", [])) or "all leaves"}`
-- **Visible stage:** `{"enabled" if not state.toggles.get("skip_visible", False) else "disabled"}`
+
 """
         )
 
 
-def _visuals_panel(state):
-    ui.label("Visual Feedback").classes("text-lg font-bold mb-2")
-    ui.label(
-        "Tune how much visual feedback the experiment manager should expect and display."
-    ).classes("text-sm text-gray-400 mb-4")
-
-    with ui.row().classes("w-full gap-4 items-start"):
-        with ui.card().classes("p-4 flex-1"):
-            ui.label("Monitor emphasis").classes("text-md font-bold mb-2")
-            ui.switch(
-                "Highlight leaf progression",
-                value=state.toggles.get("highlight_leaf_progress", True),
-                on_change=lambda e: state.toggles.update(
-                    {"highlight_leaf_progress": bool(e.value)}
-                ),
-            )
-            ui.switch(
-                "Highlight top-level progression",
-                value=state.toggles.get("highlight_top_progress", True),
-                on_change=lambda e: state.toggles.update(
-                    {"highlight_top_progress": bool(e.value)}
-                ),
-            )
-            ui.switch(
-                "Show live status JSON",
-                value=state.toggles.get("show_status_json", True),
-                on_change=lambda e: state.toggles.update(
-                    {"show_status_json": bool(e.value)}
-                ),
-            )
-
-        with ui.card().classes("p-4 flex-1"):
-            ui.label("Analysis emphasis").classes("text-md font-bold mb-2")
-            ui.switch(
-                "Enable progression viewer",
-                value=state.toggles.get("enable_progression_viewer", True),
-                on_change=lambda e: state.toggles.update(
-                    {"enable_progression_viewer": bool(e.value)}
-                ),
-            )
-            ui.switch(
-                "Prefer accepted/kept frames",
-                value=state.toggles.get("prefer_kept_frames", False),
-                on_change=lambda e: state.toggles.update(
-                    {"prefer_kept_frames": bool(e.value)}
-                ),
-            )
-            ui.switch(
-                "Show artifact metadata in viewer",
-                value=state.toggles.get("show_frame_metadata", True),
-                on_change=lambda e: state.toggles.update(
-                    {"show_frame_metadata": bool(e.value)}
-                ),
-            )
-
-    ui.separator().classes("my-4")
-
-    with ui.card().classes("w-full p-4"):
-        ui.label("Notes").classes("text-md font-bold mb-2")
-        ui.label(
-            "The hierarchical runner writes live status, per-round JSON, accepted "
-            "leaf artifacts, and preview images. These toggles mainly control how "
-            "the GUI presents that information."
-        ).classes("text-sm text-gray-400")
-
-
 def _presets_panel(state):
     ui.label("Presets").classes("text-lg font-bold mb-2")
-    ui.label("Save and restore hierarchical experiment configurations.").classes(
-        "text-sm text-gray-400 mb-4"
-    )
+    ui.label(
+        "Save and restore focused hierarchical experiment configurations."
+    ).classes("text-sm text-gray-400 mb-4")
 
     preset_name = ui.input("Preset name", value="").classes("w-64")
     preset_notes = ui.textarea("Notes", value="").classes("w-full").props("rows=2")
@@ -348,6 +270,13 @@ def _presets_panel(state):
 
         with presets_container:
             for preset in presets:
+                if not state.gui_cleanup.get(
+                    "show_legacy_presets", False
+                ) and preset.name in {
+                    "Best (imported)",
+                    "Best Hierarchical (imported)",
+                }:
+                    continue
                 with ui.card().classes("w-full p-3"):
                     with ui.row().classes("items-center gap-3"):
                         ui.label(preset.name).classes("font-bold")
@@ -370,14 +299,6 @@ def _presets_panel(state):
                         ).props("flat dense")
                     if preset.notes:
                         ui.label(preset.notes).classes("text-xs text-gray-400 mt-1")
-                    with ui.expansion("Preview config", value=False).classes("w-full"):
-                        try:
-                            cfg = state.db.load_preset(preset.name) or {}
-                            ui.code(json.dumps(cfg, indent=2)).classes("w-full text-xs")
-                        except Exception:
-                            ui.label("Could not render preset preview").classes(
-                                "text-xs text-red-400"
-                            )
 
     def _load(name: str):
         config = state.db.load_preset(name)

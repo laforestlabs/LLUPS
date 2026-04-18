@@ -6,6 +6,7 @@ from typing import Any
 
 import plotly.graph_objects as go
 from nicegui import ui
+from plotly.subplots import make_subplots
 
 
 def create_score_chart(
@@ -46,7 +47,7 @@ def _stage_color(stage: str) -> str:
     colors = {
         "solve_leafs": "#339af0",
         "compose_parent": "#f59f00",
-        "visible_top_level": "#51cf66",
+        "route_parent": "#51cf66",
         "done": "#94d82d",
         "startup": "#868e96",
         "complete": "#20c997",
@@ -88,7 +89,7 @@ def build_score_figure(
         details = str(r.get("details", "") or "")
         leaf_total = _as_int(r.get("leaf_total", 0))
         leaf_accepted = _as_int(r.get("leaf_accepted", 0))
-        top_ready = bool(r.get("top_level_ready", False))
+        parent_routed = bool(r.get("parent_routed", False))
 
         mode_data[mode]["x"].append(round_num)
         mode_data[mode]["y"].append(score)
@@ -98,7 +99,7 @@ def build_score_figure(
             f"R{round_num} | score={score:.2f}"
             f"<br>mode={mode}"
             f"<br>leafs={leaf_accepted}/{leaf_total}"
-            f"<br>top_level={'ready' if top_ready else 'not ready'}"
+            f"<br>parent_routed={'yes' if parent_routed else 'no'}"
             + (f"<br>{details}" if details else "")
         )
 
@@ -197,7 +198,7 @@ def build_subscore_figure(
         leaf_pct = (leaf_accepted / leaf_total * 100.0) if leaf_total > 0 else 0.0
         y_leaf_accept.append(leaf_pct)
 
-        y_top_ready.append(100.0 if r.get("top_level_ready", False) else 0.0)
+        y_top_ready.append(100.0 if r.get("parent_routed", False) else 0.0)
 
         traces = _as_int(r.get("accepted_trace_count", 0))
         vias = _as_int(r.get("accepted_via_count", 0))
@@ -207,7 +208,7 @@ def build_subscore_figure(
     metrics = [
         ("Score", y_scores, "#4dabf7"),
         ("Leaf Acceptance %", y_leaf_accept, "#51cf66"),
-        ("Top-Level Ready", y_top_ready, "#f59f00"),
+        ("Parent Routed", y_top_ready, "#f59f00"),
         ("Accepted Traces (norm)", y_traces, "#e599f7"),
         ("Accepted Vias (norm)", y_vias, "#ffd43b"),
     ]
@@ -261,7 +262,7 @@ def build_stage_figure(
         "startup": 0,
         "solve_leafs": 1,
         "compose_parent": 2,
-        "visible_top_level": 3,
+        "route_parent": 3,
         "done": 4,
         "complete": 5,
     }
@@ -316,4 +317,232 @@ def build_stage_figure(
         margin=dict(l=80, r=20, t=50, b=40),
         showlegend=False,
     )
+    return fig
+
+
+def _timing_value(
+    round_data: dict[str, Any],
+    key: str,
+    default: float = 0.0,
+) -> float:
+    timing = round_data.get("timing_breakdown", {})
+    if not isinstance(timing, dict):
+        timing = {}
+    return _as_float(timing.get(key, default), default)
+
+
+def build_timing_figure(
+    rounds: list[dict[str, Any]],
+    title: str = "Round Timing Breakdown",
+) -> go.Figure:
+    """Build a stacked bar chart for per-round timing breakdown."""
+    fig = go.Figure()
+
+    if not rounds:
+        fig.update_layout(
+            title=title,
+            template="plotly_dark",
+            xaxis_title="Round",
+            yaxis_title="Seconds",
+            barmode="stack",
+        )
+        return fig
+
+    sorted_rounds = sorted(rounds, key=lambda r: _as_int(r.get("round_num", 0)))
+    x_rounds = [_as_int(r.get("round_num", 0)) for r in sorted_rounds]
+
+    timing_series = [
+        ("solve_subcircuits_total", "#4dabf7"),
+        ("compose_subcircuits_total", "#f59f00"),
+        ("parent_route_total", "#51cf66"),
+        ("score_round_total", "#e599f7"),
+    ]
+
+    for key, color in timing_series:
+        y_values = [_timing_value(r, key) for r in sorted_rounds]
+        fig.add_trace(
+            go.Bar(
+                x=x_rounds,
+                y=y_values,
+                name=key,
+                marker_color=color,
+                hovertemplate=(f"Round %{{x}}<br>{key}=%{{y:.3f}}s<extra></extra>"),
+            )
+        )
+
+    round_totals = [
+        _timing_value(r, "round_total", _as_float(r.get("duration_s", 0.0)))
+        for r in sorted_rounds
+    ]
+    fig.add_trace(
+        go.Scatter(
+            x=x_rounds,
+            y=round_totals,
+            mode="lines+markers",
+            name="round_total",
+            line=dict(color="#ffffff", width=2),
+            marker=dict(size=6),
+            hovertemplate="Round %{x}<br>round_total=%{y:.3f}s<extra></extra>",
+        )
+    )
+
+    fig.update_layout(
+        title=title,
+        template="plotly_dark",
+        xaxis_title="Round",
+        yaxis_title="Seconds",
+        barmode="stack",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+        ),
+        margin=dict(l=50, r=20, t=50, b=40),
+    )
+    return fig
+
+
+def build_leaf_timing_figure(
+    rounds: list[dict[str, Any]],
+    title: str = "Leaf Pipeline Timing Breakdown",
+) -> go.Figure:
+    """Build a multi-line chart for leaf-stage timing metrics."""
+    fig = go.Figure()
+
+    if not rounds:
+        fig.update_layout(
+            title=title,
+            template="plotly_dark",
+            xaxis_title="Round",
+            yaxis_title="Seconds",
+        )
+        return fig
+
+    sorted_rounds = sorted(rounds, key=lambda r: _as_int(r.get("round_num", 0)))
+    x_rounds = [_as_int(r.get("round_num", 0)) for r in sorted_rounds]
+
+    metrics = [
+        ("placement_solve_s", "#4dabf7"),
+        ("freerouting_s", "#51cf66"),
+        ("pre_route_render_diagnostics_s", "#f59f00"),
+        ("routed_render_diagnostics_s", "#ff922b"),
+        ("persist_solution_s", "#e599f7"),
+        ("leaf_total_s", "#ffffff"),
+    ]
+
+    for key, color in metrics:
+        fig.add_trace(
+            go.Scatter(
+                x=x_rounds,
+                y=[_timing_value(r, key) for r in sorted_rounds],
+                mode="lines+markers",
+                name=key,
+                line=dict(color=color, width=2),
+                marker=dict(size=5),
+                hovertemplate=(f"Round %{{x}}<br>{key}=%{{y:.3f}}s<extra></extra>"),
+            )
+        )
+
+    fig.update_layout(
+        title=title,
+        template="plotly_dark",
+        xaxis_title="Round",
+        yaxis_title="Seconds",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+        ),
+        margin=dict(l=50, r=20, t=50, b=40),
+    )
+    return fig
+
+
+def build_timing_summary_figure(
+    rounds: list[dict[str, Any]],
+    title: str = "Timing Summary",
+) -> go.Figure:
+    """Build a compact timing summary figure with totals and render share."""
+    fig = make_subplots(
+        rows=1,
+        cols=2,
+        specs=[[{"type": "domain"}, {"type": "xy"}]],
+        subplot_titles=("Average Time Share", "Average Stage Time"),
+    )
+
+    if not rounds:
+        fig.update_layout(
+            title=title,
+            template="plotly_dark",
+            margin=dict(l=40, r=20, t=60, b=40),
+        )
+        return fig
+
+    sorted_rounds = sorted(rounds, key=lambda r: _as_int(r.get("round_num", 0)))
+
+    avg_solve = sum(
+        _timing_value(r, "solve_subcircuits_total") for r in sorted_rounds
+    ) / max(1, len(sorted_rounds))
+    avg_compose = sum(
+        _timing_value(r, "compose_subcircuits_total") for r in sorted_rounds
+    ) / max(1, len(sorted_rounds))
+    avg_parent = sum(
+        _timing_value(r, "parent_route_total") for r in sorted_rounds
+    ) / max(1, len(sorted_rounds))
+    avg_score = sum(_timing_value(r, "score_round_total") for r in sorted_rounds) / max(
+        1, len(sorted_rounds)
+    )
+    avg_render = sum(
+        _timing_value(r, "pre_route_render_diagnostics_s")
+        + _timing_value(r, "routed_render_diagnostics_s")
+        for r in sorted_rounds
+    ) / max(1, len(sorted_rounds))
+
+    fig.add_trace(
+        go.Pie(
+            labels=[
+                "solve_subcircuits_total",
+                "compose_subcircuits_total",
+                "parent_route_total",
+                "score_round_total",
+                "leaf_render_diagnostics",
+            ],
+            values=[avg_solve, avg_compose, avg_parent, avg_score, avg_render],
+            hole=0.45,
+            textinfo="label+percent",
+            marker=dict(colors=["#4dabf7", "#f59f00", "#51cf66", "#e599f7", "#ff922b"]),
+            showlegend=False,
+        ),
+        row=1,
+        col=1,
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=[
+                "solve",
+                "compose",
+                "parent route",
+                "score",
+                "render",
+            ],
+            y=[avg_solve, avg_compose, avg_parent, avg_score, avg_render],
+            marker_color=["#4dabf7", "#f59f00", "#51cf66", "#e599f7", "#ff922b"],
+            hovertemplate="%{x}<br>%{y:.3f}s<extra></extra>",
+            showlegend=False,
+        ),
+        row=1,
+        col=2,
+    )
+
+    fig.update_layout(
+        title=title,
+        template="plotly_dark",
+        margin=dict(l=40, r=20, t=60, b=40),
+    )
+    fig.update_yaxes(title_text="Seconds", row=1, col=2)
     return fig
