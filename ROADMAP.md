@@ -1,8 +1,8 @@
 # LLUPS Roadmap
 
-> **Last updated:** 2025-07-19
-> **Current phase:** Phase 3 — Leaf Pipeline Hardening (not started)
-> **Quick status:** Tests green (94 pass). Phase 2 complete (commit 7d02220, pushed). Ready for Phase 3.
+> **Last updated:** 2025-07-19 (session 2)
+> **Current phase:** Phase 3-5 — in progress
+> **Quick status:** Tests green (94 pass). Phase 2 complete (commit 7d02220, pushed). Phase 3-5 partial (commit 939ff28, pushed). Parent validation fixed, recursive hierarchy added.
 
 ---
 
@@ -23,9 +23,9 @@ This replaces the scattered tracking previously split across NEXT_AGENT.md, docs
 | 0 | Repo cleanup and KiCraft extraction | Done | Untrack artifacts, consolidate docs, extract KiCraft submodule |
 | 1 | KiCraft dead code removal (Wave 1-3) | Done | Delete dead code, fix imports, clean GUI |
 | 2 | KiCraft code cleanup | Done | Delete dead CLIs, refactor subcircuit_instances, update docs |
-| 3 | Leaf pipeline hardening | Not started | Fix pre-route leaf legality, acceptance gates, anchor completeness |
+| 3 | Leaf pipeline hardening | In progress | Fix pre-route leaf legality, acceptance gates, anchor completeness |
 | 4 | Parent composition MVP | Not started | Compose parent from real routed leaves, parent FreeRouting |
-| 5 | Recursive hierarchy | Not started | Bottom-up N-level solve (leaves to mid-parents to root) |
+| 5 | Recursive hierarchy | In progress | Bottom-up N-level solve (leaves to mid-parents to root) |
 | 6 | Production polish | Not started | Force tuning, FreeRouting crash reduction, test coverage |
 
 ---
@@ -69,9 +69,17 @@ All complete. See docs/CLEANUP_PLAN.md for details.
 
 ---
 
-## Phase 3: Leaf Pipeline Hardening
+## Phase 3: Leaf Pipeline Hardening (in progress)
 
 The leaf pipeline works end-to-end but stamped pre-route leaf boards are sometimes illegal geometry, causing FreeRouting to fail. This phase makes leaves reliably legal.
+
+- [x] Fix root parent validation bug: was rejecting with 'missing_required_anchors' despite successful routing (commit 939ff28)
+- [x] Add leaf anchor completeness warning: _persist_solution now warns when required ports are unanchored
+- [ ] Fix stamped pre-route leaf legality for edge-pinned connectors (USB INPUT leaf)
+- [ ] Extend leaf acceptance gates (DRC, anchor completeness, render diagnostics)
+- [ ] Fix LLUPS leaf anchor completeness (USB INPUT has only VBUS port; GND is implicit, needs explicit interface port)
+- [ ] Add tests for subcircuit_instances normalize-early refactor
+- [ ] Verify full pipeline with pcbnew environment
 
 - [ ] Fix stamped pre-route leaf legality for edge-pinned connectors (USB INPUT leaf is the current blocker)
 - [ ] Extend leaf acceptance gates (DRC, anchor completeness, render diagnostics)
@@ -93,13 +101,11 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 
 ---
 
-## Phase 5: Recursive N-Level Hierarchy
+## Phase 5: Recursive N-Level Hierarchy (in progress)
 
-Currently 2 levels (leaves to root). Extend to arbitrary depth.
-
-- [ ] Bottom-up traversal: solve children, compose into parent, FreeRoute, persist, repeat up
-- [ ] Update solve-hierarchy CLI for full recursive flow
-- [ ] Verify on hierarchy deeper than 2 levels
+- [x] Bottom-up level-by-level traversal via _compute_levels() (commit 939ff28)
+- [x] Update solve-hierarchy CLI for full recursive N-level flow
+- [ ] Verify on hierarchy deeper than 2 levels (requires test schematic)
 
 ---
 
@@ -154,27 +160,30 @@ Currently 2 levels (leaves to root). Extend to arbitrary depth.
 
 ## Last Session Handoff
 
-**Date:** 2025-07-19
-**KiCraft HEAD:** 7d02220 (pushed to origin/main)
+**Date:** 2025-07-19 (session 2)
+**KiCraft HEAD:** 939ff28 (pushed to origin/main)
 
 ### Completed this session
-1. Removed layout-session / dashboard-app entry points from pyproject.toml
-2. Cleaned score_layout.py: removed --no-track flag and dead session-tracking block
-3. Refactored subcircuit_instances.py: normalize-early pattern replaces 14 paired extractors with 1 normalizer + 6 shared parsers (~90 lines removed, zero branching)
-4. Updated both SKILL.md files: removed deleted commands, fixed plot-experiments to plot-results
-5. Committed and pushed KiCraft Phase 2 (7d02220, net -1,365 lines)
-6. Updated LLUPS submodule pointer
+1. Phase 2 complete: dead CLI deletion, pyproject cleanup, score_layout cleanup, normalize-early refactor (7d02220)
+2. Fixed root parent validation bug (was rejecting valid parent with missing_required_anchors)
+3. Added leaf anchor completeness warning in _persist_solution
+4. Made solve_hierarchy.py recursive: N-level bottom-up hierarchy
+5. Committed and pushed KiCraft (7d02220, 939ff28)
 
 ### Remaining (apply next)
-1. Move to Phase 3: Leaf Pipeline Hardening
-2. Fix stamped pre-route leaf legality for edge-pinned connectors
-3. Extend leaf acceptance gates (DRC, anchor completeness, render diagnostics)
+1. Add tests for subcircuit_instances normalize-early refactor
+2. Add implicit power net interface ports (GND etc) for parent connectivity
+3. Run full pipeline with pcbnew and verify parent validation now accepts
+4. Fix edge-pinned connector legality for USB INPUT leaf
+5. Test recursive hierarchy on 3+ level schematic
 
 ### Verification state
-- pytest -x -q: 94 passed, 2 skipped (pass)
-- ruff check kicraft/: clean (pass)
-- Import smoke test: all critical imports OK (pass)
-- Full pipeline: not run this session (no pipeline code changed)
+- pytest: 94 passed, 2 skipped (pass)
+- ruff: clean (pass)
+- Full pipeline: NOT RUN (requires pcbnew)
 
-### Known issues
-- None blocking for Phase 2 (all resolved)
+### Key findings from artifact analysis
+- All 6 leaves solved and routed successfully
+- Parent was stamped, routed (95 parent traces, 12 vias), but rejected due to now-fixed validation bug
+- USB INPUT: 1 port (VBUS), GND is implicit external without anchor
+- DRC violations on USB INPUT are intrinsic to USB-C footprint (handled by existing heuristic)
