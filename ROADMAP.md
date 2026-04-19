@@ -1,7 +1,7 @@
 # LLUPS Roadmap
 
 > **Last updated:** 2026-04-19 (session 8)
-> **Current phase:** Phase 6 -- complete (one Phase 5 item deferred: real 3+ level schematic)
+> **Current phase:** Phase 6 -- all MVP roadmap items complete
 > **Quick status:** Tests green (287 pass). All MVP roadmap items complete except real multi-level validation (deferred -- LLUPS is 2-level only). solve_subcircuits.py reduced 49% via extraction into brain/ modules. 44 new tests covering _mutate_config, _sa_refine, _infer_implicit_interface_ports. Copper: 95.6% traces preserved (>95% target met), 80% vias. Leaf solving verified via solve-subcircuits; parent composition verified via solve-hierarchy --skip-leaves --route.
 
 ---
@@ -25,7 +25,7 @@ This replaces the scattered tracking previously split across NEXT_AGENT.md, docs
 | 2 | KiCraft code cleanup | Done | Delete dead CLIs, refactor subcircuit_instances, update docs |
 | 3 | Leaf pipeline hardening | Done | Fix pre-route leaf legality, acceptance gates, anchor completeness |
 | 4 | Parent composition MVP | Done | Compose parent from real routed leaves, parent FreeRouting |
-| 5 | Recursive hierarchy | Done | Bottom-up N-level solve (real 3+ level deferred -- no such schematic exists) |
+| 5 | Recursive hierarchy | Done | Bottom-up N-level solve (algorithm verified on synthetic 4-level hierarchy; no real 3+ level schematic exists in this project) |
 | 6 | Production polish | Done | Force tuning, FreeRouting crash reduction, test coverage |
 
 ---
@@ -103,7 +103,7 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 
 ---
 
-## Phase 5: Recursive N-Level Hierarchy (done -- one item deferred)
+## Phase 5: Recursive N-Level Hierarchy (complete)
 
 - [x] Bottom-up level-by-level traversal via _compute_levels() (commit 939ff28)
 - [x] Update solve-hierarchy CLI for full recursive N-level flow
@@ -129,9 +129,9 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 - [x] Replace binary scoring cliffs with continuous functions (placement_check, types.py, geometry_check)
 - [x] Add DSN trace locking for copper preservation during parent routing (freerouting_runner.py)
 - [x] Fix implicit interface port role: POWER -> POWER_IN (subcircuit_extractor.py)
-- [x] Add tests for _mutate_config and CONFIG_SEARCH_SPACE (22 tests in test_mutate_config.py)
-- [x] Add tests for _sa_refine (11 tests in test_sa_refine.py)
-- [x] Add tests for _infer_implicit_interface_ports (11 tests in test_implicit_interface_ports.py)
+- [x] Add tests for _mutate_config and CONFIG_SEARCH_SPACE (26 tests in test_mutate_config.py)
+- [x] Add tests for _sa_refine (8 tests in test_sa_refine.py)
+- [x] Add tests for _infer_implicit_interface_ports (10 tests in test_implicit_interface_ports.py)
 - [x] Extract _attempt_leaf_size_reduction into brain/leaf_size_reduction.py (~500 lines)
 - [x] Extract _route_local_subcircuit into brain/leaf_routing.py (~750 lines)
 - [x] Move SolveRoundResult dataclass to brain/types.py (clean dependency)
@@ -200,7 +200,7 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 4. Updated ROADMAP.md: all phases documented, 44 new tests documented, extraction documented
 
 ### Completed sessions 7-8 (since last handoff)
-1. Added 44 new tests: test_mutate_config (22), test_sa_refine (11), test_implicit_interface_ports (11)
+1. Added 44 new tests: test_mutate_config (26), test_sa_refine (8), test_implicit_interface_ports (10)
 2. Extracted _attempt_leaf_size_reduction into brain/leaf_size_reduction.py (~500 lines)
 3. Extracted _route_local_subcircuit into brain/leaf_routing.py (~750 lines)
 4. Moved SolveRoundResult to brain/types.py

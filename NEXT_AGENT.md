@@ -1,3 +1,5 @@
+> **STALE** -- This file is superseded by `ROADMAP.md` which is the single canonical plan document. Kept for historical reference only. Do not follow the tasks below.
+
 # Continuation Handoff — KiCraft MVP Cleanup
 
 ## Session date: 2025-07-13
