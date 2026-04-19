@@ -220,9 +220,9 @@ This makes it easier to answer:
 - did FreeRouting add meaningful copper?
 - did routing improve or worsen the board visually?
 
-### Current subcircuits blocker
+### Current status
 
-The current blocker on `feature/sub-circuits-redesign` is that at least one LLUPS leaf reaches real stamped KiCad board export and visible FreeRouting activity, but the stamped `leaf_pre_freerouting.kicad_pcb` is still illegal before routing begins. In practice, this means the next debugging target is preserving source-board edge relationships for edge-pinned parts, rather than treating routed copper as the first failure.
+The subcircuit pipeline is functional: all 6 LLUPS leaves solve, route, and pass acceptance gates. Parent composition assembles the leaves and routes interconnects via FreeRouting. The parent acceptance gate currently rejects due to geometry quality (future tuning needed), but the full pipeline runs end-to-end without errors. See `ROADMAP.md` for detailed phase status.
 
 ## License
 

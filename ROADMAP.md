@@ -2,7 +2,7 @@
 
 > **Last updated:** 2026-04-19 (session 8)
 > **Current phase:** Phase 6 -- complete (one Phase 5 item deferred: real 3+ level schematic)
-> **Quick status:** Tests green (287 pass). All MVP roadmap items complete except real multi-level validation (deferred -- LLUPS is 2-level only). solve_subcircuits.py reduced 49% via extraction into brain/ modules. 44 new tests covering _mutate_config, _sa_refine, _infer_implicit_interface_ports. Copper preservation verified at 95.6% (>95% target met). Full end-to-end pipeline verified via solve-hierarchy.
+> **Quick status:** Tests green (287 pass). All MVP roadmap items complete except real multi-level validation (deferred -- LLUPS is 2-level only). solve_subcircuits.py reduced 49% via extraction into brain/ modules. 44 new tests covering _mutate_config, _sa_refine, _infer_implicit_interface_ports. Copper: 95.6% traces preserved (>95% target met), 80% vias. Leaf solving verified via solve-subcircuits; parent composition verified via solve-hierarchy --skip-leaves --route.
 
 ---
 

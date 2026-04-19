@@ -1,5 +1,7 @@
 # LLUPS Subcircuits Pipeline Redesign
 
+> **STALE**: The "current blocker" and status references below are outdated. The pipeline now works end-to-end (all 6 leaves solve+route+accept, parent composes and routes). See `ROADMAP.md` for current state.
+
 > Status: In progress, but not yet MVP
 > Branch target: `feature/sub-circuits-redesign`
 > Scope: Major architectural redesign of the KiCad helper pipeline

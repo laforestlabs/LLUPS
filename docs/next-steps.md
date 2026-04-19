@@ -1,4 +1,6 @@
-# LLUPS — Next Steps
+# LLUPS -- Next Steps
+
+> **STALE**: This file is superseded by `ROADMAP.md` (see root). Kept for historical reference only.
 
 > Updated: 2026-04-16
 > Current best: **92.7** (seed bank). 26/26 nets routed, 0 shorts, 0 pads outside board. Placement score ~85.
