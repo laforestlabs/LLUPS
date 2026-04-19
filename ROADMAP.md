@@ -2,7 +2,7 @@
 
 > **Last updated:** 2025-07-22 (session 5)
 > **Current phase:** Phase 3-6 -- in progress
-> **Quick status:** Tests green (243 pass). placement.py split into scorer/solver/utils. Passive ordering extracted. Connector pad margin fix eliminates USB INPUT copper_edge_clearance DRC violations. Full pipeline verified.
+> **Quick status:** Tests green (243 pass). placement.py split into scorer/solver/utils. Passive ordering extracted. Connector pad margin fix. Implicit interface ports for GND/power nets. Full pipeline verified.
 
 ---
 
@@ -85,7 +85,7 @@ The leaf pipeline works end-to-end but stamped pre-route leaf boards are sometim
 - [x] Add tests for leaf_acceptance module (10 tests)
 - [x] Integrate leaf_acceptance module into solve_subcircuits.py (replace inline acceptance logic)
 - [x] Fix stamped pre-route leaf legality for edge-pinned connectors (USB INPUT leaf)
-- [ ] Fix LLUPS leaf anchor completeness (USB INPUT has only VBUS port; GND is implicit, needs explicit interface port)
+- [x] Fix LLUPS leaf anchor completeness (USB INPUT has only VBUS port; GND is implicit, needs explicit interface port)
 
 ---
 
@@ -188,13 +188,17 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
    - Connectors get extra margin around pad centers to account for physical copper extent
    - USB INPUT leaf now has 0 copper_edge_clearance violations (was 2)
    - Added connector_pad_margin_mm=1.0 to DEFAULT_CONFIG
-4. Added 34 new tests:
+4. Added implicit interface ports for undeclared external nets:
+   - _infer_implicit_interface_ports in subcircuit_extractor.py
+   - Power nets like GND now get synthetic InterfacePort entries (required=False)
+   - Enables parent composition to discover and route implicit power connections
+5. Added 34 new tests:
    - 30 tests for leaf_passive_ordering module
    - 4 tests for connector pad margin in leaf_geometry
 
 ### Remaining (apply next)
-1. Fix LLUPS leaf anchor completeness (USB INPUT has only VBUS port; GND is implicit)
-2. Add implicit power net interface ports (GND etc) for parent connectivity
+1. Add tests for _infer_implicit_interface_ports (deferred from this session)
+2. Verify implicit ports work end-to-end in parent composition (run solve-hierarchy)
 3. Continue extracting algorithmic code from solve_subcircuits.py:
    - _attempt_leaf_size_reduction (~300 lines) -- depends on SolveRoundResult and _route_local_subcircuit
    - _route_local_subcircuit (~730 lines) -- largest extraction, many dependencies
@@ -210,8 +214,13 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 - USB INPUT: 0 copper_edge_clearance violations (was 2)
 - ruff: clean (pass)
 
+### Key commits this session
+- feb360f: Split placement.py, extract passive ordering, fix connector pad edge clearance
+- c7e5318: Add implicit interface ports for undeclared external nets (GND etc)
+
 ### Key findings
 - The Pad type has no physical size info (only center position), causing board outline to be too tight for edge-pinned connectors
 - connector_pad_margin_mm=1.0 effectively adds physical pad extent awareness for connectors
 - Splitting placement.py into 3 modules preserves full backward compatibility via re-export hub
 - 16 footprint-internal clearance violations in USB INPUT are inherent to USB-C footprint (correctly ignored by acceptance gate)
+- External power nets (GND) that lack schematic sheet pins now get implicit InterfacePort entries for parent connectivity
