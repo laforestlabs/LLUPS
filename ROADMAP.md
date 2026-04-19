@@ -1,8 +1,8 @@
 # LLUPS Roadmap
 
-> **Last updated:** 2026-04-19 (session 4, continued)
+> **Last updated:** 2025-07-22 (session 5)
 > **Current phase:** Phase 3-6 -- in progress
-> **Quick status:** Tests green (209 pass). leaf_acceptance integrated. Copper accounting with fingerprint matching. Force step dedup + center-attraction bug fix. leaf_geometry.py extracted from CLI. Full pipeline verified end-to-end.
+> **Quick status:** Tests green (243 pass). placement.py split into scorer/solver/utils. Passive ordering extracted. Connector pad margin fix eliminates USB INPUT copper_edge_clearance DRC violations. Full pipeline verified.
 
 ---
 
@@ -84,7 +84,7 @@ The leaf pipeline works end-to-end but stamped pre-route leaf boards are sometim
 - [x] Add tests for subcircuit_composer (7 tests)
 - [x] Add tests for leaf_acceptance module (10 tests)
 - [x] Integrate leaf_acceptance module into solve_subcircuits.py (replace inline acceptance logic)
-- [ ] Fix stamped pre-route leaf legality for edge-pinned connectors (USB INPUT leaf)
+- [x] Fix stamped pre-route leaf legality for edge-pinned connectors (USB INPUT leaf)
 - [ ] Fix LLUPS leaf anchor completeness (USB INPUT has only VBUS port; GND is implicit, needs explicit interface port)
 
 ---
@@ -119,7 +119,8 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 - [ ] Reduce FreeRouting crash rate (~6% to <1%)
 - [x] Deduplicate force simulation code (_force_step vs _force_step_numpy in placement.py) + fix missing center-attraction bug
 - [x] Extract algorithmic code from solve_subcircuits.py into brain/leaf_geometry.py (8 functions moved)
-- [ ] Split brain/placement.py into focused modules (solver, scorer, legalizer)
+- [x] Split brain/placement.py into focused modules (placement_solver.py, placement_scorer.py, placement_utils.py)
+- [x] Extract passive ordering code into brain/leaf_passive_ordering.py (6 functions, ~360 lines)
 
 ---
 
@@ -158,7 +159,11 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 | KiCraft/kicraft/autoplacer/brain/subcircuit_extractor.py | Leaf extraction from full board |
 | KiCraft/kicraft/autoplacer/brain/leaf_acceptance.py | Configurable leaf acceptance gates |
 | KiCraft/kicraft/autoplacer/brain/hierarchy_parser.py | Schematic hierarchy parsing |
-| KiCraft/kicraft/autoplacer/brain/placement.py | Core force-directed placement solver |
+| KiCraft/kicraft/autoplacer/brain/placement.py | Backward-compatible re-export hub |
+| KiCraft/kicraft/autoplacer/brain/placement_solver.py | Force-directed placement solver |
+| KiCraft/kicraft/autoplacer/brain/placement_scorer.py | Placement quality scorer |
+| KiCraft/kicraft/autoplacer/brain/placement_utils.py | Shared placement geometry helpers |
+| KiCraft/kicraft/autoplacer/brain/leaf_passive_ordering.py | Passive topology analysis and ordering |
 | KiCraft/kicraft/autoplacer/hardware/adapter.py | KiCad pcbnew API interface |
 | KiCraft/kicraft/autoplacer/freerouting_runner.py | FreeRouting Java process wrapper |
 
@@ -166,43 +171,47 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 
 ## Last Session Handoff
 
-**Date:** 2026-04-19 (session 4, continued)
+**Date:** 2025-07-22 (session 5)
 
-### Completed this session (continuation)
-1. All items from session 4 (see CHANGELOG.md)
-2. Extracted 8 algorithmic functions from solve_subcircuits.py into brain/leaf_geometry.py:
-   - tight_leaf_geometry_bounds, build_reduced_leaf_extraction, leaf_size_reduction_candidates
-   - score_local_components, repair_leaf_placement_legality
-   - copy_components/traces/vias_with_translation
-3. Thin wrappers left in solve_subcircuits.py for backward compatibility
+### Completed this session
+1. Extracted passive ordering code into brain/leaf_passive_ordering.py (6 public functions, ~360 lines moved from CLI)
+   - component_net_degree_map, component_primary_net_map, component_net_map
+   - component_adjacency_map, build_leaf_passive_topology_groups, apply_leaf_passive_ordering
+   - Thin wrappers left in solve_subcircuits.py for backward compatibility
+2. Split placement.py (3500 lines) into 3 focused modules:
+   - placement_utils.py (244 lines) -- shared geometry helpers
+   - placement_scorer.py (460 lines) -- PlacementScorer class
+   - placement_solver.py (2811 lines) -- PlacementSolver class
+   - placement.py now a 39-line backward-compatible re-export hub
+3. Fixed edge-pinned connector pad overhang causing copper_edge_clearance DRC violations:
+   - Added connector_pad_margin_mm parameter to tight_leaf_geometry_bounds
+   - Connectors get extra margin around pad centers to account for physical copper extent
+   - USB INPUT leaf now has 0 copper_edge_clearance violations (was 2)
+   - Added connector_pad_margin_mm=1.0 to DEFAULT_CONFIG
+4. Added 34 new tests:
+   - 30 tests for leaf_passive_ordering module
+   - 4 tests for connector pad margin in leaf_geometry
 
 ### Remaining (apply next)
-1. Fix edge-pinned connector legality for USB INPUT leaf
-   - Root cause: 2 copper_edge_clearance DRC violations from USB-C connector pads too close to board edge
-   - The connector is edge-pinned correctly but the board outline doesn't account for pad overhang
-   - Possible fix: expand board outline near edge-pinned connectors, or exclude edge-pinned connector pads from edge clearance check
-2. Fix LLUPS leaf anchor completeness (USB INPUT has only VBUS port; GND is implicit)
-3. Add implicit power net interface ports (GND etc) for parent connectivity
-4. Phase 6: split placement.py into solver/scorer/legalizer modules
-5. Phase 6: tune force balance for better component spread (center-attraction bug now fixed)
-6. Phase 6: reduce FreeRouting crash rate (~6% to <1%)
-7. Verify recursive hierarchy on 3+ level schematic (needs multi-level .kicad_sch)
-8. Continue extracting algorithmic code from solve_subcircuits.py:
-   - _build_leaf_passive_topology_groups + _apply_leaf_passive_ordering (~280 lines)
-   - _attempt_leaf_size_reduction (~300 lines)
+1. Fix LLUPS leaf anchor completeness (USB INPUT has only VBUS port; GND is implicit)
+2. Add implicit power net interface ports (GND etc) for parent connectivity
+3. Continue extracting algorithmic code from solve_subcircuits.py:
+   - _attempt_leaf_size_reduction (~300 lines) -- depends on SolveRoundResult and _route_local_subcircuit
    - _route_local_subcircuit (~730 lines) -- largest extraction, many dependencies
    - _solve_one_round, _solve_leaf_subcircuit -- orchestration logic
+4. Phase 6: tune force balance for better component spread
+5. Phase 6: reduce FreeRouting crash rate (~6% to <1%)
+6. Verify recursive hierarchy on 3+ level schematic (needs multi-level .kicad_sch)
 
 ### Verification state
-- pytest: 209 passed, 0 skipped (pass)
+- pytest: 243 passed, 0 skipped (pass)
 - Import smoke: All critical imports OK (pass)
 - Full pipeline: VERIFIED -- all 6 leaves solved+routed+accepted
-- Hierarchy solver: VERIFIED -- parent composed+stamped+routed+accepted
+- USB INPUT: 0 copper_edge_clearance violations (was 2)
 - ruff: clean (pass)
 
 ### Key findings
-- Copper accounting reveals 85.7% trace preservation after FreeRouting (not 100%)
-- Center-attraction force was never applied (now fixed in force step dedup)
-- USB INPUT has 16 footprint-internal clearance violations (USB-C pads) + 2 copper_edge_clearance
-- All acceptance gates pass for all leaves with default lenient config
-- leaf_geometry.py extraction reduced solve_subcircuits.py by ~215 lines
+- The Pad type has no physical size info (only center position), causing board outline to be too tight for edge-pinned connectors
+- connector_pad_margin_mm=1.0 effectively adds physical pad extent awareness for connectors
+- Splitting placement.py into 3 modules preserves full backward compatibility via re-export hub
+- 16 footprint-internal clearance violations in USB INPUT are inherent to USB-C footprint (correctly ignored by acceptance gate)

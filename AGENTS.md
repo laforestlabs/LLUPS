@@ -90,7 +90,12 @@ When extending the pipeline, prefer work that moves verification toward that ful
 - `LLUPS_autoplacer.json` — Project-specific autoplacer configuration
 - `KiCraft/` — Git submodule: KiCad automation toolkit (pip install -e KiCraft/)
   - `kicraft/autoplacer/` — Placement and routing engine
-    - `brain/placement.py` — Core placement solver and force simulation
+    - `brain/placement.py` -- Backward-compatible re-export hub
+    - `brain/placement_solver.py` -- Force-directed placement solver
+    - `brain/placement_scorer.py` -- Placement quality scorer
+    - `brain/placement_utils.py` -- Shared placement geometry helpers
+    - `brain/leaf_passive_ordering.py` -- Passive topology ordering
+    - `brain/leaf_geometry.py` -- Leaf geometry bounds and reduction
     - `brain/types.py` — Data types and scoring weights
     - `config.py` — Default configuration + project config loader
     - `hardware/adapter.py` — KiCad pcbnew API interface
@@ -118,7 +123,7 @@ This runs in under 1 second. All tests must pass, no skips on core logic.
 ### 2. Import smoke test (fast - must always pass)
 
 ```bash
-python -c "from kicraft.autoplacer.brain.placement import PlacementSolver, PlacementScorer; from kicraft.autoplacer.brain.types import BoardState, Component, Point, SubCircuitLayout; from kicraft.autoplacer.brain.subcircuit_solver import solve_leaf_placement, route_interconnect_nets; from kicraft.autoplacer.brain.subcircuit_composer import build_parent_composition; from kicraft.autoplacer.brain.subcircuit_instances import load_solved_artifact, transform_subcircuit_instance; from kicraft.autoplacer.brain.subcircuit_extractor import extract_leaf_board_state; from kicraft.autoplacer.brain.hierarchy_parser import parse_hierarchy; from kicraft.autoplacer.config import DEFAULT_CONFIG; from kicraft.cli.solve_subcircuits import main as solve_main; from kicraft.cli.compose_subcircuits import main as compose_main; from kicraft.autoplacer.brain.leaf_acceptance import evaluate_leaf_acceptance, acceptance_config_from_dict; from kicraft.autoplacer.brain.copper_accounting import build_copper_manifest, verify_copper_preservation, CopperManifest; print('All critical imports OK')"
+python -c "from kicraft.autoplacer.brain.placement import PlacementSolver, PlacementScorer; from kicraft.autoplacer.brain.types import BoardState, Component, Point, SubCircuitLayout; from kicraft.autoplacer.brain.subcircuit_solver import solve_leaf_placement, route_interconnect_nets; from kicraft.autoplacer.brain.subcircuit_composer import build_parent_composition; from kicraft.autoplacer.brain.subcircuit_instances import load_solved_artifact, transform_subcircuit_instance; from kicraft.autoplacer.brain.subcircuit_extractor import extract_leaf_board_state; from kicraft.autoplacer.brain.hierarchy_parser import parse_hierarchy; from kicraft.autoplacer.config import DEFAULT_CONFIG; from kicraft.cli.solve_subcircuits import main as solve_main; from kicraft.cli.compose_subcircuits import main as compose_main; from kicraft.autoplacer.brain.leaf_acceptance import evaluate_leaf_acceptance, acceptance_config_from_dict; from kicraft.autoplacer.brain.copper_accounting import build_copper_manifest, verify_copper_preservation, CopperManifest; from kicraft.autoplacer.brain.leaf_passive_ordering import apply_leaf_passive_ordering, build_leaf_passive_topology_groups; from kicraft.autoplacer.brain.placement_scorer import PlacementScorer as PlacementScorer2; from kicraft.autoplacer.brain.placement_solver import PlacementSolver as PlacementSolver2; from kicraft.autoplacer.brain.leaf_geometry import tight_leaf_geometry_bounds; print('All critical imports OK')"
 ```
 
 ### 3. Full pipeline verification (slow - run after structural changes)
