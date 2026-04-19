@@ -1,6 +1,27 @@
 # LLUPS Engineering Changelog
 
 
+## 2025-07-12: KiCraft v0.1.0 — Published to GitHub + CI + Tests
+
+### Completed
+- **Published KiCraft to GitHub**: https://github.com/laforestlabs/KiCraft
+- **Updated LLUPS submodule URL** from local path to GitHub remote
+- **GitHub Actions CI**: ruff lint + pytest on Python 3.10/3.12/3.13
+- **Expanded test suite**: 96 tests (7 import, 39 config, 47 types, 10 CLI help)
+- **Lint cleanup**: ruff auto-fixed 90 issues (unused imports, f-strings); added ignore rules for E402/E702/E741
+- **Tagged v0.1.0** on KiCraft repository
+
+### Files touched
+- KiCraft: `.github/workflows/ci.yml`, `tests/test_config.py`, `tests/test_types.py`, `tests/test_cli_help.py`, `pyproject.toml`, 30 source files (lint fixes)
+- LLUPS: `.gitmodules`
+
+### Verification
+- CI green on GitHub Actions (all 3 Python versions)
+- `pytest -v` — 96 passed, 2 skipped (pcbnew-dependent)
+- `ruff check kicraft/` — all checks passed
+- Fresh clone with `--recurse-submodules` works correctly
+
+
 ## 2025-07-12: Phases 6b + 6c — KiCraft extracted to standalone package
 
 ### Completed

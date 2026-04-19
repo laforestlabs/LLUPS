@@ -17,6 +17,30 @@ A compact PCB module providing regulated 5V and 3.3V power from two 18650 Li-ion
 | LDO | AP2112K-3.3, 600mA |
 | Board | 90×58mm default (variable with `--board-size-search`), 2-layer, 1oz Cu |
 
+
+## Getting Started
+
+```bash
+# Clone with submodules
+git clone --recurse-submodules https://github.com/laforestlabs/LLUPS.git
+cd LLUPS
+
+# If already cloned without submodules
+git submodule update --init --recursive
+
+# Install KiCraft tooling (required for all CLI commands)
+pip install -e KiCraft/
+
+# Or with GUI support
+pip install -e "KiCraft/[gui]"
+```
+
+**Requirements:**
+- Python 3.10+
+- [KiCad 9](https://www.kicad.org/) with pcbnew Python bindings
+- [FreeRouting](https://github.com/freerouting/freerouting) JAR (for automated routing)
+- [KiCraft](https://github.com/laforestlabs/KiCraft) submodule (included, installed via pip above)
+
 ## Core Files
 
 ```text
@@ -26,7 +50,7 @@ LLUPS.kicad_pcb          # PCB layout
 generate_project.py      # Regenerates project artifacts
 spec.md                  # Design specification
 BOM.csv / BOM.xlsx       # Bill of materials
-KiCraft/                 # KiCraft tooling (git submodule)
+KiCraft/                 # KiCraft tooling (git submodule) — https://github.com/laforestlabs/KiCraft
 ```
 
 ## Regenerating
@@ -134,7 +158,7 @@ score-layout LLUPS.kicad_pcb
 
 ## KiCraft CLI Commands
 
-Automation commands using the KiCad 9 `pcbnew` Python API, provided by the [KiCraft](KiCraft/) submodule:
+Automation commands using the KiCad 9 `pcbnew` Python API, provided by the [KiCraft](https://github.com/laforestlabs/KiCraft) submodule:
 
 | Command | Purpose |
 |---|---|
