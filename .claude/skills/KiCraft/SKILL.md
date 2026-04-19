@@ -51,8 +51,6 @@ Run them directly from the command line.
 | `solve-subcircuits` | `solve-subcircuits <sch> --pcb <pcb> --rounds N --route` | Hierarchical subcircuit placement and routing |
 | `compose-subcircuits` | `compose-subcircuits --project .` | Assemble solved subcircuits into parent boards |
 | `solve-hierarchy` | `solve-hierarchy <sch> --pcb <pcb>` | Full hierarchical solve (leaves → parents) |
-| `export-subcircuit-artifacts` | `export-subcircuit-artifacts <sch> --pcb <pcb>` | Export subcircuit placement artifacts |
-| `run-hierarchical-pipeline` | `run-hierarchical-pipeline --project . --schematic <sch> --pcb <pcb>` | Full hierarchical pipeline run |
 
 ### Experiment Management
 
