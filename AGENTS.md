@@ -89,3 +89,38 @@ When extending the pipeline, prefer work that moves verification toward that ful
     - `solve_subcircuits.py` — Subcircuit placement and routing
     - `program.md` — Search space definition
 - `.claude/skills/KiCraft/SKILL.md` — Claude skill definition
+
+
+## Minimal Test Gate After Code Changes
+
+After any code change to KiCraft Python files, run these two checks before committing:
+
+### 1. Unit tests (fast - must always pass)
+
+```bash
+cd KiCraft && python -m pytest -x -q
+```
+
+This runs in under 1 second. All tests must pass, no skips on core logic.
+
+### 2. Import smoke test (fast - must always pass)
+
+```bash
+python -c "from kicraft.autoplacer.brain.placement import PlacementSolver, PlacementScorer; from kicraft.autoplacer.brain.types import BoardState, Component, Point, SubCircuitLayout; from kicraft.autoplacer.brain.subcircuit_solver import solve_leaf_placement, route_interconnect_nets; from kicraft.autoplacer.brain.subcircuit_composer import build_parent_composition; from kicraft.autoplacer.brain.subcircuit_instances import load_solved_artifact, transform_subcircuit_instance; from kicraft.autoplacer.brain.subcircuit_extractor import extract_leaf_board_state; from kicraft.autoplacer.brain.hierarchy_parser import parse_hierarchy; from kicraft.autoplacer.config import DEFAULT_CONFIG; from kicraft.cli.solve_subcircuits import main as solve_main; from kicraft.cli.compose_subcircuits import main as compose_main; print('All critical imports OK')"
+```
+
+### 3. Full pipeline verification (slow - run after structural changes)
+
+Only required after changes to pipeline modules listed in the Verification section above.
+
+```bash
+solve-subcircuits LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route
+```
+
+### When to run what
+
+| Change type | pytest | import smoke | pipeline |
+|------------|--------|-------------|----------|
+| Any Python file in KiCraft | Yes | Yes | - |
+| brain/*.py, cli/solve_subcircuits.py, cli/compose_subcircuits.py, freerouting_runner.py | Yes | Yes | Yes |
+| Tests, docs, comments only | Yes | - | - |

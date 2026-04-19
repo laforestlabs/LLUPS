@@ -75,10 +75,7 @@ Run them directly from the command line.
 |---------|-------|-------------|
 | `diff-rounds` | `diff-rounds <experiments_dir> <A> <B>` | Compare two experiment rounds |
 | `generate-report` | `generate-report <experiments_dir>` | Interactive HTML report |
-| `plot-experiments` | `plot-experiments [experiments.jsonl]` | Static matplotlib dashboard |
-| `plot-scores` | `plot-scores [results_dir]` | Score results dashboard |
-| `dashboard-app` | `dashboard-app [--port 5000]` | Live Flask dashboard |
-| `layout-session` | `layout-session summary` | Track layout session progress |
+| `plot-results` | `plot-results [experiments.jsonl]` | Static matplotlib dashboard |
 
 ### GUI
 
