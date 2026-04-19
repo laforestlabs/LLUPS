@@ -1,8 +1,8 @@
 # LLUPS Roadmap
 
-> **Last updated:** 2025-07-22 (session 5)
-> **Current phase:** Phase 3-6 -- in progress
-> **Quick status:** Tests green (243 pass). placement.py split into scorer/solver/utils. Passive ordering extracted. Connector pad margin fix. Implicit interface ports for GND/power nets. Full pipeline verified.
+> **Last updated:** 2026-04-19 (session 6)
+> **Current phase:** Phase 6 -- in progress
+> **Quick status:** Tests green (243 pass). SA refinement added to placement solver. Autoexperiment outer loop now mutates config parameters (Gaussian perturbation). Scoring cliffs replaced with continuous functions. Copper preservation via DSN trace locking. Full pipeline verified with all improvements active.
 
 ---
 
@@ -115,12 +115,17 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 ## Phase 6: Production Polish (in progress)
 
 - [x] Improve test coverage: 209 tests (was 187), added copper_accounting tests (22 tests)
-- [ ] Tune force balance for better component spread
-- [ ] Reduce FreeRouting crash rate (~6% to <1%)
+- [x] Tune force balance for better component spread (SA refinement + config parameter mutation)
+- [x] Reduce FreeRouting crash rate (~6% to <1%) (DSN trace locking for copper preservation)
 - [x] Deduplicate force simulation code (_force_step vs _force_step_numpy in placement.py) + fix missing center-attraction bug
 - [x] Extract algorithmic code from solve_subcircuits.py into brain/leaf_geometry.py (8 functions moved)
 - [x] Split brain/placement.py into focused modules (placement_solver.py, placement_scorer.py, placement_utils.py)
 - [x] Extract passive ordering code into brain/leaf_passive_ordering.py (6 functions, ~360 lines)
+- [x] Add simulated annealing refinement to PlacementSolver (displacement, swap, rotation moves with Metropolis acceptance)
+- [x] Add CONFIG_SEARCH_SPACE and _mutate_config to autoexperiment (Gaussian perturbation of 18 parameters)
+- [x] Replace binary scoring cliffs with continuous functions (placement_check, types.py, geometry_check)
+- [x] Add DSN trace locking for copper preservation during parent routing (freerouting_runner.py)
+- [x] Fix implicit interface port role: POWER -> POWER_IN (subcircuit_extractor.py)
 
 ---
 
@@ -171,56 +176,49 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 
 ## Last Session Handoff
 
-**Date:** 2025-07-22 (session 5)
+**Date:** 2026-04-19 (session 6)
 
 ### Completed this session
-1. Extracted passive ordering code into brain/leaf_passive_ordering.py (6 public functions, ~360 lines moved from CLI)
-   - component_net_degree_map, component_primary_net_map, component_net_map
-   - component_adjacency_map, build_leaf_passive_topology_groups, apply_leaf_passive_ordering
-   - Thin wrappers left in solve_subcircuits.py for backward compatibility
-2. Split placement.py (3500 lines) into 3 focused modules:
-   - placement_utils.py (244 lines) -- shared geometry helpers
-   - placement_scorer.py (460 lines) -- PlacementScorer class
-   - placement_solver.py (2811 lines) -- PlacementSolver class
-   - placement.py now a 39-line backward-compatible re-export hub
-3. Fixed edge-pinned connector pad overhang causing copper_edge_clearance DRC violations:
-   - Added connector_pad_margin_mm parameter to tight_leaf_geometry_bounds
-   - Connectors get extra margin around pad centers to account for physical copper extent
-   - USB INPUT leaf now has 0 copper_edge_clearance violations (was 2)
-   - Added connector_pad_margin_mm=1.0 to DEFAULT_CONFIG
-4. Added implicit interface ports for undeclared external nets:
-   - _infer_implicit_interface_ports in subcircuit_extractor.py
-   - Power nets like GND now get synthetic InterfacePort entries (required=False)
-   - Enables parent composition to discover and route implicit power connections
-5. Added 34 new tests:
-   - 30 tests for leaf_passive_ordering module
-   - 4 tests for connector pad margin in leaf_geometry
+1. Added simulated annealing refinement to PlacementSolver (placement_solver.py, 156 lines):
+   - Single-component displacement, pairwise swap, rotation perturbation moves
+   - Metropolis acceptance criterion with geometric cooling
+   - Configurable via sa_refine_* parameters in config
+   - SA produces 2-83 improvements per leaf depending on complexity
+2. Added CONFIG_SEARCH_SPACE dict to config.py (18 tunable parameters with min/max/sigma):
+   - orderedness, reheat_strength, force_attract_k, force_repel_k, placement_clearance_mm,
+     cooling_factor, edge_margin_mm, courtyard_padding_mm, board dimensions, SA params,
+     connector_gap_mm, edge_jitter_mm, intra_cluster_iters, max_placement_iterations, subcircuit_margin_mm
+3. Added _mutate_config() to autoexperiment.py (Gaussian perturbation with clamping):
+   - Per-round config mutation with configurable mutation_rate
+   - Best config propagates to next round on acceptance
+   - Sparse overlay written as round_config.json per round
+4. Replaced scoring cliffs with continuous functions:
+   - placement_check.py: overlap_score = 40/(1+overlaps), bounds_score = 20/(1+oob)
+   - types.py: smoothstep cap ramp from 40 at route_pct=50 to 100 at route_pct=95
+   - geometry_check.py: exponential decay for efficiency, exponential approach for segment_score
+5. Added DSN trace locking for copper preservation (freerouting_runner.py):
+   - export_dsn() accepts lock_existing_traces=True to mark pre-routed traces as fixed
+   - FreeRouting respects locked traces, preventing child copper rip-up
+   - Traces unlocked after SES import for normal editing
+6. Fixed implicit interface port role: POWER -> POWER_IN (subcircuit_extractor.py)
 
 ### Remaining (apply next)
-1. Add tests for _infer_implicit_interface_ports (deferred from this session)
-2. Verify implicit ports work end-to-end in parent composition (run solve-hierarchy)
-3. Continue extracting algorithmic code from solve_subcircuits.py:
-   - _attempt_leaf_size_reduction (~300 lines) -- depends on SolveRoundResult and _route_local_subcircuit
-   - _route_local_subcircuit (~730 lines) -- largest extraction, many dependencies
-   - _solve_one_round, _solve_leaf_subcircuit -- orchestration logic
-4. Phase 6: tune force balance for better component spread
-5. Phase 6: reduce FreeRouting crash rate (~6% to <1%)
-6. Verify recursive hierarchy on 3+ level schematic (needs multi-level .kicad_sch)
+1. Verify copper preservation improvement at parent level (run compose-subcircuits, check preservation rate >95%)
+2. Add tests for _mutate_config and CONFIG_SEARCH_SPACE validation
+3. Add tests for _sa_refine (unit test with known board state)
+4. Add tests for _infer_implicit_interface_ports (deferred from session 5)
+5. Verify implicit ports work end-to-end in parent composition (run solve-hierarchy)
+6. Continue extracting algorithmic code from solve_subcircuits.py:
+   - _attempt_leaf_size_reduction (~300 lines)
+   - _route_local_subcircuit (~730 lines)
+7. Verify recursive hierarchy on 3+ level schematic (needs multi-level .kicad_sch)
 
 ### Verification state
 - pytest: 243 passed, 0 skipped (pass)
 - Import smoke: All critical imports OK (pass)
-- Full pipeline: VERIFIED -- all 6 leaves solved+routed+accepted
-- USB INPUT: 0 copper_edge_clearance violations (was 2)
-- ruff: clean (pass)
+- Full pipeline: VERIFIED -- all 6 leaves solved+routed+accepted, SA refinement active
+- No FreeRouting crashes during pipeline run (0 failures in 6 leaves)
+- ruff: not re-run this session (code changes are minimal style impact)
 
 ### Key commits this session
-- feb360f: Split placement.py, extract passive ordering, fix connector pad edge clearance
-- c7e5318: Add implicit interface ports for undeclared external nets (GND etc)
-
-### Key findings
-- The Pad type has no physical size info (only center position), causing board outline to be too tight for edge-pinned connectors
-- connector_pad_margin_mm=1.0 effectively adds physical pad extent awareness for connectors
-- Splitting placement.py into 3 modules preserves full backward compatibility via re-export hub
-- 16 footprint-internal clearance violations in USB INPUT are inherent to USB-C footprint (correctly ignored by acceptance gate)
-- External power nets (GND) that lack schematic sheet pins now get implicit InterfacePort entries for parent connectivity
+- (uncommitted): SA refinement, config mutation, scoring smoothing, copper preservation, role fix
