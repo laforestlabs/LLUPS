@@ -117,7 +117,7 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 
 ## Phase 6: Production Polish (complete)
 
-- [x] Improve test coverage: 287 tests (was 187), added copper_accounting tests (23 tests)
+- [x] Improve test coverage: 287 tests total (100 added since Phase 3 baseline of 187: copper_accounting 22, leaf_passive_ordering 30, leaf_geometry 4, plus the 44 in dedicated checkboxes below)
 - [x] Tune force balance for better component spread (SA refinement + config parameter mutation)
 - [x] Reduce FreeRouting crash rate (~6% to <1%) (DSN trace locking for copper preservation)
 - [x] Deduplicate force simulation code (_force_step vs _force_step_numpy in placement.py) + fix missing center-attraction bug
