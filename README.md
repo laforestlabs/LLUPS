@@ -219,7 +219,7 @@ This makes it easier to answer:
 
 ### Current status
 
-The subcircuit pipeline is functional: all 6 LLUPS leaves solve, route, and pass acceptance gates. Parent composition assembles the leaves and routes interconnects via FreeRouting. The parent acceptance gate currently rejects due to geometry quality (future tuning needed), but the full pipeline runs end-to-end without errors. See `ROADMAP.md` for detailed phase status.
+The subcircuit pipeline is functional: all 6 LLUPS leaves solve, route, and pass acceptance gates. Parent composition assembles the leaves and routes interconnects via FreeRouting. The pipeline runs end-to-end without errors and produces human-inspectable output. The parent acceptance gate currently rejects due to FreeRouting routing quality (a tuning target, not a functional gap). See `ROADMAP.md` for detailed phase status.
 
 ## License
 
