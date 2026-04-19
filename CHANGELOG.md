@@ -1,6 +1,44 @@
 # LLUPS Engineering Changelog
 
 
+## 2026-04-19: Session 3 -- pcbnew fix, full pipeline verified, test expansion
+
+### Environment fix
+- Fixed venv: changed include-system-site-packages from false to true in .venv/pyvenv.cfg
+- pcbnew (KiCad 9.0.8) now accessible from venv at /usr/lib64/python3.13/site-packages/
+- Fixed list_footprints.py: added argparse so --help works without loading a board
+
+### Full pipeline verification
+- All 6 leaves solve, route, and get accepted (USB INPUT, CHARGER, BATT PROT, BOOST 5V, LDO 3.3V, BT1)
+- Parent composition works: 37 components, 233 child traces, 18 parent interconnect traces
+- Parent stamped, routed via FreeRouting, accepted -- Phase 4 MVP complete
+- solve-hierarchy end-to-end in 41s with --skip-leaves --route
+
+### New modules
+- brain/leaf_acceptance.py: configurable acceptance gate module (7 gates: board_exists, no_python_exception, no_shorts, no_illegal_geometry, drc_clearance, anchor_completeness, routed_board)
+
+### Test expansion (187 tests, up from 158)
+- tests/test_subcircuit_extractor.py (14 tests): extraction, net partition, envelope, translation
+- tests/test_hierarchy_levels.py (6 tests): _compute_levels for 1-4 level hierarchies
+- tests/test_subcircuit_composer.py (7 tests): composition, copper preservation, interconnects
+- tests/test_leaf_acceptance.py (10 tests): all gate paths, config from dict
+
+### Project rules
+- Added text formatting rule to AGENTS.md: no special Unicode characters (emdash, smart quotes, etc.)
+
+### Files touched
+- .venv/pyvenv.cfg (venv config)
+- AGENTS.md (new formatting rule)
+- ROADMAP.md (updated checkboxes and handoff)
+- CHANGELOG.md (this entry)
+- KiCraft/kicraft/cli/list_footprints.py (argparse fix)
+- KiCraft/kicraft/autoplacer/brain/leaf_acceptance.py (new)
+- KiCraft/tests/test_subcircuit_extractor.py (new)
+- KiCraft/tests/test_hierarchy_levels.py (new)
+- KiCraft/tests/test_subcircuit_composer.py (new)
+- KiCraft/tests/test_leaf_acceptance.py (new)
+
+
 ## 2025-07-12: KiCraft v0.1.0 — Published to GitHub + CI + Tests
 
 ### Completed

@@ -1,5 +1,17 @@
 # LLUPS Project Rules
 
+
+## Text Formatting Rule
+
+Never use special Unicode characters in code, comments, documentation, or commit messages. This includes:
+- No emdash or endash (use -- or - instead)
+- No smart quotes or curly quotes (use straight quotes and double quotes only)
+- No ellipsis character (use three dots ... instead)
+- No non-breaking spaces (use regular spaces)
+- No other fancy Unicode punctuation
+
+Stick to plain ASCII for all text content.
+
 ## Session Continuity / Handoff Rule
 
 When a work session is getting long, approaching context limits, or ending before the implementation plan is complete, write a concise continuation handoff before stopping.
