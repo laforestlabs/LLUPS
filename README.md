@@ -139,9 +139,6 @@ xdg-open report.html
 
 Full details on every artifact, the web dashboard, the HTML report sections, DRC overlays, failure heatmaps, dependencies, and troubleshooting: [`docs/monitoring-guide.md`](docs/monitoring-guide.md)
 
-![Experiment Results](.experiments/experiments_dashboard.png)
-![Layout Progress GIF](.experiments/progress.gif)
-
 ## Architecture & Scoring
 
 - [`docs/architecture.md`](docs/architecture.md) — system diagrams and layer responsibilities
