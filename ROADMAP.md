@@ -1,8 +1,8 @@
 # LLUPS Roadmap
 
-> **Last updated:** 2026-04-19 (session 3)
+> **Last updated:** 2026-04-19 (session 4)
 > **Current phase:** Phase 3-6 -- in progress
-> **Quick status:** Tests green (187 pass). pcbnew environment fixed. Full pipeline verified end-to-end (all 6 leaves solved+routed+accepted, parent composed+stamped+routed+accepted). New leaf_acceptance module, new test files for extractor/composer/hierarchy.
+> **Quick status:** Tests green (209 pass). leaf_acceptance integrated into solve_subcircuits.py. Copper accounting with fingerprint matching added. Force step dedup completed (center-attraction bug fixed). Full pipeline verified end-to-end.
 
 ---
 
@@ -83,7 +83,7 @@ The leaf pipeline works end-to-end but stamped pre-route leaf boards are sometim
 - [x] Add tests for hierarchy levels / _compute_levels (6 tests)
 - [x] Add tests for subcircuit_composer (7 tests)
 - [x] Add tests for leaf_acceptance module (10 tests)
-- [ ] Integrate leaf_acceptance module into solve_subcircuits.py (replace inline acceptance logic)
+- [x] Integrate leaf_acceptance module into solve_subcircuits.py (replace inline acceptance logic)
 - [ ] Fix stamped pre-route leaf legality for edge-pinned connectors (USB INPUT leaf)
 - [ ] Fix LLUPS leaf anchor completeness (USB INPUT has only VBUS port; GND is implicit, needs explicit interface port)
 
@@ -97,7 +97,7 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 - [x] Run parent FreeRouting without clearing child copper
 - [x] Human-inspectable output in KiCad before and after parent routing (renders generated)
 - [x] Reproducible from CLI without manual patching (solve-hierarchy --skip-leaves --route)
-- [ ] Add copper accounting verification (compare expected vs actual preserved child traces)
+- [x] Add copper accounting verification (fingerprint-based trace matching, per-child preservation reporting)
 
 **MVP success:** Full pipeline verified -- parent accepted with 6 composed leaves, 233 child traces + 95 parent interconnect traces.
 
@@ -114,10 +114,10 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 
 ## Phase 6: Production Polish (in progress)
 
-- [x] Improve test coverage: 187 tests (was 94), added extractor/composer/hierarchy/acceptance tests
+- [x] Improve test coverage: 209 tests (was 187), added copper_accounting tests (22 tests)
 - [ ] Tune force balance for better component spread
 - [ ] Reduce FreeRouting crash rate (~6% to <1%)
-- [ ] Deduplicate force simulation code (_force_step vs _force_step_numpy in placement.py)
+- [x] Deduplicate force simulation code (_force_step vs _force_step_numpy in placement.py) + fix missing center-attraction bug
 - [ ] Extract algorithmic code from solve_subcircuits.py into brain/ modules
 - [ ] Split brain/placement.py into focused modules (solver, scorer, legalizer)
 
@@ -166,43 +166,38 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 
 ## Last Session Handoff
 
-**Date:** 2026-04-19 (session 3)
+**Date:** 2026-04-19 (session 4)
 
 ### Completed this session
-1. Fixed pcbnew environment: venv had include-system-site-packages=false, changed to true
-2. Fixed list_footprints.py: added argparse so --help does not crash
-3. Verified full pipeline end-to-end with pcbnew: all 6 leaves solve+route+accept, parent composes+stamps+routes+accepts
-4. Created brain/leaf_acceptance.py: configurable acceptance gate module with 7 gates
-5. Created tests/test_subcircuit_extractor.py (14 tests)
-6. Created tests/test_hierarchy_levels.py (6 tests)
-7. Created tests/test_subcircuit_composer.py (7 tests)
-8. Created tests/test_leaf_acceptance.py (10 tests)
-9. Tests: 187 passed (up from 158 last session)
-10. Added text formatting rule to AGENTS.md (no special Unicode characters)
-11. Phase 4 MVP verified: parent composition works end-to-end from CLI
+1. Integrated leaf_acceptance module into solve_subcircuits.py: per-round acceptance now uses structured gates (evaluate_leaf_acceptance) instead of inline boolean check; persist-time acceptance includes full anchor validation
+2. Created brain/copper_accounting.py: fingerprint-based trace/via matching for real copper preservation verification (replaces fake min-based accounting)
+3. Integrated copper accounting into compose_subcircuits.py: builds CopperManifest from composed children, verifies preservation with fingerprint matching, reports per-child results
+4. Deduplicated _force_step/_force_step_numpy in placement.py: extracted 9 helper methods, single orchestrator; fixed missing center-attraction bug in numpy path (was effectively never applied since numpy is always available)
+5. Fixed inflated expected_child_trace_count: state.trace_count included parent interconnect traces; now uses manifest's accurate child-only count
+6. Created tests/test_copper_accounting.py (22 tests covering fingerprinting, manifest building, preservation verification)
+7. Tests: 209 passed (up from 187)
+8. Full pipeline verified end-to-end: all 6 leaves solved+routed+accepted, parent composed+stamped+routed+accepted
 
 ### Remaining (apply next)
-1. Integrate leaf_acceptance module into solve_subcircuits.py (replace inline acceptance logic)
-2. Fix edge-pinned connector legality for USB INPUT leaf (CHARGER also has occasional overlap failures)
+1. Fix edge-pinned connector legality for USB INPUT leaf (CHARGER also has occasional overlap failures)
+2. Fix LLUPS leaf anchor completeness (USB INPUT has only VBUS port; GND is implicit, needs explicit interface port)
 3. Add implicit power net interface ports (GND etc) for parent connectivity
 4. Phase 6: extract algorithmic code from solve_subcircuits.py into brain/ modules
 5. Phase 6: split placement.py into solver/scorer/legalizer modules
-6. Phase 6: deduplicate _force_step vs _force_step_numpy
-7. Verify recursive hierarchy on 3+ level schematic (needs multi-level .kicad_sch)
-8. Add copper accounting verification to parent composition
+6. Phase 6: tune force balance for better component spread (center-attraction bug now fixed; re-evaluate spread quality)
+7. Phase 6: reduce FreeRouting crash rate (~6% to <1%)
+8. Verify recursive hierarchy on 3+ level schematic (needs multi-level .kicad_sch)
 
 ### Verification state
-- pytest: 187 passed, 0 skipped (pass)
+- pytest: 209 passed, 0 skipped (pass)
 - Import smoke: All critical imports OK (pass)
-- Full pipeline: VERIFIED -- all 6 leaves solved+routed+accepted
-- Hierarchy solver: VERIFIED -- parent composed+stamped+routed+accepted (41s)
+- Full pipeline: VERIFIED -- all 6 leaves solved+routed+accepted (fast-smoke mode)
+- Hierarchy solver: VERIFIED -- parent composed+stamped+routed+accepted (44s)
 - ruff: clean (pass)
 
 ### Key findings from this session
-- pcbnew was always available system-wide, just hidden from the venv
-- The full hierarchical pipeline already works end-to-end once pcbnew is accessible
-- Phase 4 MVP is effectively complete -- parent composition produces accepted routed boards
-- CHARGER leaf occasionally fails legality repair (overlaps with U2), but retries succeed
-- USB INPUT has 42 pre-route DRC violations (mostly footprint-internal USB-C clearance) but routes fine
-- All leaf acceptance is True for the current run
-- Parent composition: 270x111mm board, 233 child traces + 18 parent interconnect traces, 6 interconnect nets all routed
+- The old copper accounting was fake: min(expected, actual) always reported 100% preservation. Real fingerprint matching shows 85.7% trace preservation after FreeRouting (215/251 traces survived geometrically)
+- FreeRouting rips up some child traces during parent routing (CHARGER loses 18/99 traces, LDO loses 10/38)
+- The numpy force step path was missing center-attraction force entirely -- this bug existed since the numpy variant was added
+- force_step dedup reduced ~410 lines of duplicated code to ~350 lines of clean helper methods
+- Copper manifest captures provenance before the flat merge loses child trace identity

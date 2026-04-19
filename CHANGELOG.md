@@ -1,5 +1,55 @@
 # LLUPS Engineering Changelog
 
+## 2026-04-19: Session 4 -- leaf_acceptance integration, copper accounting, force step dedup
+
+### leaf_acceptance integration (Phase 3)
+- Integrated leaf_acceptance module into solve_subcircuits.py
+- Per-round acceptance now uses structured gate evaluation (evaluate_leaf_acceptance) instead of inline boolean check
+- Added acceptance_config_from_dict for configurable gates from project config
+- Persist-time acceptance includes full anchor validation with structured results in debug payload
+- Round acceptance results stashed on routing dict as _round_acceptance for debugging
+
+### Copper accounting (Phase 4)
+- Created brain/copper_accounting.py: fingerprint-based trace/via preservation verification
+- Traces fingerprinted as (start_x, start_y, end_x, end_y, layer, width) tuples with 0.01mm precision
+- Vias fingerprinted as (x, y, drill, size) tuples with 0.01mm precision
+- build_copper_manifest captures per-child provenance before flat merge
+- verify_copper_preservation uses multiset matching to handle duplicate geometries
+- Integrated into compose_subcircuits.py: replaces fake min-based accounting
+- Fixed inflated expected_child_trace_count (was including parent interconnect traces)
+- Key finding: real preservation is 85.7% (215/251 traces), not 100% as old code reported
+- Per-child breakdown reveals CHARGER loses 18/99 traces, LDO loses 10/38
+
+### Force step dedup (Phase 6)
+- Deduplicated _force_step and _force_step_numpy into single _force_step method
+- Extracted 9 helper methods: _accumulate_attraction, _accumulate_repulsion_python, _accumulate_repulsion_numpy, _accumulate_smt_opposite_tht_force, _accumulate_boundary_force, _accumulate_center_attraction, _accumulate_alignment_force, _apply_forces, _post_step_clamp
+- Fixed bug: center_attraction was missing from numpy path (effectively never applied)
+- Removed dead len(ref_list) expression
+- Simplified call site from 4-line if/else dispatch to single call
+- ~410 lines of duplicated code reduced to ~350 lines of clean helpers
+
+### Test expansion (209 tests, up from 187)
+- tests/test_copper_accounting.py (22 tests): fingerprinting, manifest building, preservation verification, serialization
+
+### Verification
+- pytest: 209 passed, 0 skipped
+- Import smoke: all critical imports OK
+- ruff: clean
+- Full pipeline: all 6 leaves solved+routed+accepted
+- Hierarchy: parent composed+stamped+routed+accepted (44s)
+
+### Files changed (KiCraft)
+- kicraft/cli/solve_subcircuits.py (leaf_acceptance integration)
+- kicraft/cli/compose_subcircuits.py (copper accounting integration)
+- kicraft/autoplacer/brain/placement.py (force step dedup)
+- kicraft/autoplacer/brain/copper_accounting.py (new module)
+- tests/test_copper_accounting.py (new test file)
+
+### Files changed (LLUPS)
+- ROADMAP.md (updated status and handoff)
+- CHANGELOG.md (this entry)
+
+
 
 ## 2026-04-19: Session 3 -- pcbnew fix, full pipeline verified, test expansion
 
