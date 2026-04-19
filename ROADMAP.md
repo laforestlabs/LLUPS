@@ -2,7 +2,7 @@
 
 > **Last updated:** 2026-04-19 (session 8)
 > **Current phase:** Phase 6 -- all MVP roadmap items complete
-> **Quick status:** Tests green (287 pass). All MVP roadmap items complete except real multi-level validation (deferred -- LLUPS is 2-level only). solve_subcircuits.py reduced 49% via extraction into brain/ modules. 44 new tests covering _mutate_config, _sa_refine, _infer_implicit_interface_ports. Copper: 95.6% traces preserved (>95% target met), 80% vias. Leaf solving verified via solve-subcircuits; parent composition verified via solve-hierarchy --skip-leaves --route.
+> **Quick status:** Tests green (287 pass). All MVP roadmap items complete. solve_subcircuits.py reduced 49% via extraction into brain/ modules. 44 new tests covering _mutate_config, _sa_refine, _infer_implicit_interface_ports. Copper: 95.6% traces preserved (>95% target met), 80% vias. Leaf solving verified via solve-subcircuits; parent composition verified via solve-hierarchy --skip-leaves --route. Note: real >2-level validation is not applicable -- LLUPS has only a 2-level hierarchy.
 
 ---
 
@@ -111,7 +111,7 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 - [x] Synthetic 3+ level hierarchy verified in tests (TestThreeLevelHierarchy, TestDeepChain with 4 levels)
 - [x] End-to-end solve-hierarchy --skip-leaves --route verified on LLUPS (2-level: root + 6 pre-solved leaves, 47.1s)
 
-**Deferred:** Real multi-level schematic (>2 levels) validation. LLUPS has only 2 levels (root + 6 leaves). The recursive algorithm is fully implemented and tested on synthetic 4-level hierarchies. A real >2-level .kicad_sch file does not exist in this project.
+**Note:** LLUPS has only 2 levels (root + 6 leaves), so no real >2-level schematic exists in this project. The recursive algorithm was validated with synthetic 4-level tests.
 
 ---
 
