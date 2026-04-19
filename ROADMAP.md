@@ -138,7 +138,7 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 - [x] Reduce solve_subcircuits.py from 2579 to 1315 lines (49% reduction)
 - [x] Verify copper preservation at parent level: 95.6% traces (237/248), 80% vias (4/5) via solve-hierarchy --skip-leaves --route. Per-child: BOOST 100%, LDO 100%, CHARGER 94%, USB INPUT 97.2%, BATT PROT 84.6%, BT1 100%. Trace target >95% met overall; individual children vary per FreeRouting routing decisions.
 - [x] Full pipeline verification via solve-hierarchy --skip-leaves --route: parent composed from 6 pre-solved leaves and routed in 47.1s
-- [x] Verify implicit ports end-to-end: USB INPUT leaf (uses implicit GND port) was solved+routed+accepted by solve-subcircuits, then composed into parent by solve-hierarchy. Both stages complete without errors.
+- [x] Verify implicit ports end-to-end: USB INPUT leaf (uses implicit GND port) was solved+routed+accepted by solve-subcircuits, then composed into parent by solve-hierarchy. Both stages run to completion without Python exceptions.
 
 ---
 
