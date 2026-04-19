@@ -1,5 +1,29 @@
 # LLUPS Engineering Changelog
 
+## 2026-04-19: Session 4 (continued) -- leaf_geometry extraction
+
+### Code extraction (Phase 6)
+- Created brain/leaf_geometry.py: extracted 8 functions from solve_subcircuits.py
+  - tight_leaf_geometry_bounds, build_reduced_leaf_extraction, leaf_size_reduction_candidates
+  - score_local_components, repair_leaf_placement_legality
+  - copy_components/traces/vias_with_translation
+- Thin wrappers preserved in solve_subcircuits.py for backward compatibility
+- solve_subcircuits.py reduced by ~215 lines
+
+### Verification
+- pytest: 209 passed, ruff clean
+- Full pipeline: all 6 leaves + parent verified
+- USB INPUT leaf investigated: 16 footprint-internal clearance + 2 copper_edge_clearance DRC violations (pre-route, non-blocking)
+
+### Files changed (KiCraft)
+- kicraft/autoplacer/brain/leaf_geometry.py (new, 341 lines)
+- kicraft/cli/solve_subcircuits.py (8 functions extracted, thin wrappers remain)
+
+### Commits
+- KiCraft: 8caea3b (extraction), 12eb71f (session 4 main)
+- LLUPS: see below
+
+
 ## 2026-04-19: Session 4 -- leaf_acceptance integration, copper accounting, force step dedup
 
 ### leaf_acceptance integration (Phase 3)

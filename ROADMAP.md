@@ -1,8 +1,8 @@
 # LLUPS Roadmap
 
-> **Last updated:** 2026-04-19 (session 4)
+> **Last updated:** 2026-04-19 (session 4, continued)
 > **Current phase:** Phase 3-6 -- in progress
-> **Quick status:** Tests green (209 pass). leaf_acceptance integrated into solve_subcircuits.py. Copper accounting with fingerprint matching added. Force step dedup completed (center-attraction bug fixed). Full pipeline verified end-to-end.
+> **Quick status:** Tests green (209 pass). leaf_acceptance integrated. Copper accounting with fingerprint matching. Force step dedup + center-attraction bug fix. leaf_geometry.py extracted from CLI. Full pipeline verified end-to-end.
 
 ---
 
@@ -118,7 +118,7 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 - [ ] Tune force balance for better component spread
 - [ ] Reduce FreeRouting crash rate (~6% to <1%)
 - [x] Deduplicate force simulation code (_force_step vs _force_step_numpy in placement.py) + fix missing center-attraction bug
-- [ ] Extract algorithmic code from solve_subcircuits.py into brain/ modules
+- [x] Extract algorithmic code from solve_subcircuits.py into brain/leaf_geometry.py (8 functions moved)
 - [ ] Split brain/placement.py into focused modules (solver, scorer, legalizer)
 
 ---
@@ -166,38 +166,43 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 
 ## Last Session Handoff
 
-**Date:** 2026-04-19 (session 4)
+**Date:** 2026-04-19 (session 4, continued)
 
-### Completed this session
-1. Integrated leaf_acceptance module into solve_subcircuits.py: per-round acceptance now uses structured gates (evaluate_leaf_acceptance) instead of inline boolean check; persist-time acceptance includes full anchor validation
-2. Created brain/copper_accounting.py: fingerprint-based trace/via matching for real copper preservation verification (replaces fake min-based accounting)
-3. Integrated copper accounting into compose_subcircuits.py: builds CopperManifest from composed children, verifies preservation with fingerprint matching, reports per-child results
-4. Deduplicated _force_step/_force_step_numpy in placement.py: extracted 9 helper methods, single orchestrator; fixed missing center-attraction bug in numpy path (was effectively never applied since numpy is always available)
-5. Fixed inflated expected_child_trace_count: state.trace_count included parent interconnect traces; now uses manifest's accurate child-only count
-6. Created tests/test_copper_accounting.py (22 tests covering fingerprinting, manifest building, preservation verification)
-7. Tests: 209 passed (up from 187)
-8. Full pipeline verified end-to-end: all 6 leaves solved+routed+accepted, parent composed+stamped+routed+accepted
+### Completed this session (continuation)
+1. All items from session 4 (see CHANGELOG.md)
+2. Extracted 8 algorithmic functions from solve_subcircuits.py into brain/leaf_geometry.py:
+   - tight_leaf_geometry_bounds, build_reduced_leaf_extraction, leaf_size_reduction_candidates
+   - score_local_components, repair_leaf_placement_legality
+   - copy_components/traces/vias_with_translation
+3. Thin wrappers left in solve_subcircuits.py for backward compatibility
 
 ### Remaining (apply next)
-1. Fix edge-pinned connector legality for USB INPUT leaf (CHARGER also has occasional overlap failures)
-2. Fix LLUPS leaf anchor completeness (USB INPUT has only VBUS port; GND is implicit, needs explicit interface port)
+1. Fix edge-pinned connector legality for USB INPUT leaf
+   - Root cause: 2 copper_edge_clearance DRC violations from USB-C connector pads too close to board edge
+   - The connector is edge-pinned correctly but the board outline doesn't account for pad overhang
+   - Possible fix: expand board outline near edge-pinned connectors, or exclude edge-pinned connector pads from edge clearance check
+2. Fix LLUPS leaf anchor completeness (USB INPUT has only VBUS port; GND is implicit)
 3. Add implicit power net interface ports (GND etc) for parent connectivity
-4. Phase 6: extract algorithmic code from solve_subcircuits.py into brain/ modules
-5. Phase 6: split placement.py into solver/scorer/legalizer modules
-6. Phase 6: tune force balance for better component spread (center-attraction bug now fixed; re-evaluate spread quality)
-7. Phase 6: reduce FreeRouting crash rate (~6% to <1%)
-8. Verify recursive hierarchy on 3+ level schematic (needs multi-level .kicad_sch)
+4. Phase 6: split placement.py into solver/scorer/legalizer modules
+5. Phase 6: tune force balance for better component spread (center-attraction bug now fixed)
+6. Phase 6: reduce FreeRouting crash rate (~6% to <1%)
+7. Verify recursive hierarchy on 3+ level schematic (needs multi-level .kicad_sch)
+8. Continue extracting algorithmic code from solve_subcircuits.py:
+   - _build_leaf_passive_topology_groups + _apply_leaf_passive_ordering (~280 lines)
+   - _attempt_leaf_size_reduction (~300 lines)
+   - _route_local_subcircuit (~730 lines) -- largest extraction, many dependencies
+   - _solve_one_round, _solve_leaf_subcircuit -- orchestration logic
 
 ### Verification state
 - pytest: 209 passed, 0 skipped (pass)
 - Import smoke: All critical imports OK (pass)
-- Full pipeline: VERIFIED -- all 6 leaves solved+routed+accepted (fast-smoke mode)
-- Hierarchy solver: VERIFIED -- parent composed+stamped+routed+accepted (44s)
+- Full pipeline: VERIFIED -- all 6 leaves solved+routed+accepted
+- Hierarchy solver: VERIFIED -- parent composed+stamped+routed+accepted
 - ruff: clean (pass)
 
-### Key findings from this session
-- The old copper accounting was fake: min(expected, actual) always reported 100% preservation. Real fingerprint matching shows 85.7% trace preservation after FreeRouting (215/251 traces survived geometrically)
-- FreeRouting rips up some child traces during parent routing (CHARGER loses 18/99 traces, LDO loses 10/38)
-- The numpy force step path was missing center-attraction force entirely -- this bug existed since the numpy variant was added
-- force_step dedup reduced ~410 lines of duplicated code to ~350 lines of clean helper methods
-- Copper manifest captures provenance before the flat merge loses child trace identity
+### Key findings
+- Copper accounting reveals 85.7% trace preservation after FreeRouting (not 100%)
+- Center-attraction force was never applied (now fixed in force step dedup)
+- USB INPUT has 16 footprint-internal clearance violations (USB-C pads) + 2 copper_edge_clearance
+- All acceptance gates pass for all leaves with default lenient config
+- leaf_geometry.py extraction reduced solve_subcircuits.py by ~215 lines
