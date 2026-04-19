@@ -99,7 +99,7 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 - [x] Reproducible from CLI without manual patching (solve-hierarchy --skip-leaves --route)
 - [x] Add copper accounting verification (fingerprint-based trace matching, per-child preservation reporting)
 
-**MVP success:** Full pipeline verified -- parent composed and routed with 6 leaves, reproducible from CLI, human-inspectable in KiCad. The parent acceptance gate rejects due to geometry quality (a tuning concern, not a functional gap -- the MVP goal was end-to-end composition and routing for human inspection, which is achieved).
+**MVP success:** Pipeline verified -- parent composed and routed with 6 leaves (leaf solving via solve-subcircuits, parent composition via solve-hierarchy --skip-leaves --route). Output is reproducible from CLI and human-inspectable in KiCad. The parent acceptance gate rejects due to FreeRouting routing quality (a tuning concern, not a functional gap -- the MVP goal was end-to-end composition and routing for human inspection, which is achieved).
 
 ---
 
@@ -211,9 +211,9 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 9. Copper preservation: 95.6% traces (237/248), 80% vias (4/5) -- trace target >95% met
 10. Implicit ports verified: USB INPUT leaf (implicit GND) solved by solve-subcircuits, then composed into parent by solve-hierarchy
 
-### Remaining (quality optimization -- not functional gaps, not MVP-blocking)
+### Remaining (future improvements -- not required for functional MVP)
 
-These items improve output quality but do not represent missing functionality. The pipeline is functional end-to-end; these are tuning targets for future sessions.
+These items are either validation coverage gaps (no test asset exists) or output quality tuning targets. The pipeline is functional end-to-end; none of these block that claim.
 
 1. Real multi-level schematic testing (LLUPS is 2-level; algorithm verified via synthetic 4-level tests)
 2. Board size search parameter tuning (CONFIG_SEARCH_SPACE has it, needs extended autoexperiment runs)
