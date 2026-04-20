@@ -157,7 +157,7 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 
 ### Key facts
 
-- FreeRouting is the only real router. Manhattan router is a placeholder.
+- FreeRouting is the sole routing engine for both leaf and parent levels.
 - KiCraft is a git submodule at KiCraft/. Install with pip install -e KiCraft/.
 - Project config: LLUPS_autoplacer.json
 - Artifacts: .experiments/ (gitignored, regenerable)
@@ -171,7 +171,7 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 | KiCraft/kicraft/cli/solve_subcircuits.py | Leaf solve + FreeRouting orchestration (1315 lines, thin wrappers) |
 | KiCraft/kicraft/cli/compose_subcircuits.py | Parent composition + stamp + FreeRoute |
 | KiCraft/kicraft/cli/solve_hierarchy.py | Top-level recursive orchestrator |
-| KiCraft/kicraft/autoplacer/brain/subcircuit_solver.py | Leaf placement algorithm |
+| KiCraft/kicraft/autoplacer/brain/subcircuit_solver.py | Interface anchor inference + leaf silkscreen helpers |
 | KiCraft/kicraft/autoplacer/brain/subcircuit_composer.py | Parent composition logic |
 | KiCraft/kicraft/autoplacer/brain/subcircuit_instances.py | Artifact loading + transform |
 | KiCraft/kicraft/autoplacer/brain/subcircuit_extractor.py | Leaf extraction from full board |

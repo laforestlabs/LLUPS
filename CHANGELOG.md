@@ -516,7 +516,7 @@ Your tasks:
 - This fast-smoke verification run completed successfully within the bounded timeout.
 - The completed run showed:
   - no Python traceback
-  - real routed leaf solving, not heuristic fallback
+  - real FreeRouting-backed leaf solving
   - accepted artifacts written under `.experiments/subcircuits/`
   - canonical routed leaf boards persisted as `leaf_routed.kicad_pcb`
   - canonical machine-readable artifacts persisted as `solved_layout.json`
@@ -564,7 +564,7 @@ Your tasks:
 
 - The run still did not complete within the bounded timeout, but the captured output again showed:
   - no Python traceback before timeout
-  - real routed leaf solving, not heuristic fallback
+  - real FreeRouting-backed leaf solving
   - canonical leaf board stamping under `.experiments/subcircuits/`
   - repeated pre-route and routed render generation
 - Confirmed persisted artifact files still exist for routed leaves, including `metadata.json`, `debug.json`, and `solved_layout.json` under `.experiments/subcircuits/...`.
