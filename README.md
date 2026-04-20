@@ -99,7 +99,7 @@ python3 -m kicraft.gui
 
 | Tab | Purpose |
 |---|---|
-| **Setup** | Configure search dimensions, mutation strategy, score weights, feature toggles (unlock all, board size search), and save/load presets |
+| **Setup** | Configure search dimensions, mutation strategy, score weights, feature toggles (unlock all, board size search), mutation search bounds (min/max per parameter), and save/load presets |
 | **Monitor** | Start/stop experiments, live score chart, status cards, round-by-round progress |
 | **Analysis** | Browse past experiments, score trend plots, parameter sensitivity (Spearman), correlation matrix, convergence analysis, CSV export |
 | **Board** | PCB layout viewer with layer selection and component list |
