@@ -1,6 +1,17 @@
 # LLUPS Project Rules
 
 
+## Commit As You Go
+
+Commit work incrementally as logical units are completed -- do not batch all changes into a single commit at the end of a session. Each commit should represent a coherent, self-contained change (a feature, a bugfix, a refactor, a test addition, etc.).
+
+Rules:
+- After completing a logical unit of work, commit it immediately
+- For submodule repos (e.g. KiCraft/), commit inside the submodule first, then update the submodule pointer in the parent repo
+- Do not wait until the end of a session to commit everything at once
+- If multiple unrelated changes accumulate uncommitted, split them into separate commits by topic
+- Commit messages follow conventional commits style (feat:, fix:, chore:, docs:, test:, refactor:)
+
 ## Text Formatting Rule
 
 Never use special Unicode characters in code, comments, documentation, or commit messages. This includes:
