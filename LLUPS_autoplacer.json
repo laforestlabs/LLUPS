@@ -71,7 +71,8 @@
         "U2": "CHARGER",
         "U3": "BATT PROT",
         "U4": "BOOST 5V",
-        "U5": "LDO 3.3V"
+        "U5": "LDO 3.3V",
+        "BT1": "BATTERY"
     },
     "enable_board_size_search": true,
     "component_zones": {
