@@ -5,7 +5,7 @@ This document explains the active scoring paths and formulas in the current code
 ## Two Distinct Scoring Systems
 
 - `score_layout.py` (static QA scorer): reports weighted check categories for a PCB file.
-- `autoexperiment.py` + `ExperimentScore.compute()` (optimizer objective): used to accept/discard candidates and choose best board.
+- `autoexperiment.py` + `_score_round()` (optimizer objective): used to accept/discard candidates and choose best board.
 
 They are related but not identical.
 
@@ -56,38 +56,30 @@ Before routing, the pipeline applies zero-tolerance checks:
 
 If placement scores 0, the pipeline retries once with default force parameters before giving up.
 
-## Final ExperimentScore Formula (optimizer objective)
+## Subcircuit Experiment Scoring (_score_round)
 
-`ExperimentScore.compute()` currently computes:
-
-```text
-route_pct = ((total_nets - failed_nets) / total_nets) * 100
-via_score = clamp(100 - (via_count / routed_nets) * 20, 0..100)
-
-drc_score = DRCScore.from_counts(drc_dict)  # log-weighted per-category
-
-raw =
-  0.15 * placement_total +
-  0.50 * route_pct +
-  0.10 * via_score +
-  0.05 * board_containment +
-  0.20 * drc_score
-
-# Hard gates: cap score based on route completion
-if route_pct <= 50%: raw = min(raw, 40)
-if route_pct < 90%: raw = min(raw, 70)
-
-# Area bonus (when board size search active):
-area_score = 100 * exp(-board_area / (1.8 * ref_area))  # nonlinear
-final = raw * 0.85 + 0.15 * area_score
-```
-
-Then `autoexperiment.py` applies extra shorts penalty:
+The subcircuit pipeline uses `_score_round()` in `autoexperiment.py` directly
+(the former `ExperimentScore` class has been removed). The score is composed of
+bounded absolute components plus improvement bonuses:
 
 ```text
-if shorts > 0:
-  final -= min(15, shorts * 0.5)
+Score budget (absolute, max 89):
+  leaf_acceptance       = acceptance_ratio * 30        (max 30)
+  routed_copper         = trace_coverage*12 + via_coverage*4  (max 16)
+  parent_composition    = 8 if compose succeeded       (max 8)
+  parent_routed         = 12 if parent routing ran     (max 12)
+  parent_quality        = preserved_traces*7 + preserved_vias*3
+                          + added_copper*2 + copper_ratio*2   (max 14)
+  area_compactness      = (child_area / parent_area) * 9      (max 9)
+
+Improvement bonuses (relative to baseline and rolling average):
+  baseline_improvement  = max(0, min(10, delta_vs_baseline * 0.6))
+  recent_improvement    = max(0, min(4, delta_vs_recent * 1.0))
+  plateau_escape        = up to 4 when breaking out of plateau
 ```
+
+Area compactness rewards tighter parent boards -- higher child-to-board
+area ratio means less wasted space.
 
 ## DRC Scoring
 
@@ -141,5 +133,5 @@ In each autoexperiment round:
 
 If formulas in top-level docs diverge from implementation, prefer:
 
-- `autoplacer/brain/types.py` for placement and experiment objective math
-- `autoexperiment.py` for post-score penalties and keep/discard policy
+- `autoplacer/brain/types.py` for placement scoring types
+- `autoexperiment.py` `_score_round()` for the experiment objective and keep/discard policy

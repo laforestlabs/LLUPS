@@ -48,7 +48,7 @@ flowchart TD
   fullPipeline --> placementPhase[Placement]
   fullPipeline --> routingPhase[FreeRouting]
   routingPhase --> drc[kicad-cli DRC]
-  drc --> scorePenalty[ExperimentScore.compute]
+  drc --> scorePenalty[_score_round]
   scorePenalty --> keepCheck{score > best?}
   keepCheck -->|yes| copyBest[Copy best board]
   keepCheck -->|no| discard[Discard candidate]

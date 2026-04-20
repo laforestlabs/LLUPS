@@ -24,7 +24,7 @@ flowchart TD
   routingEngine --> freerouting[FreeRouting via DSN/SES]
   freerouting --> countTracks[count_board_tracks]
 
-  placementScorer --> experimentScore[ExperimentScore.compute]
+  placementScorer --> experimentScore[_score_round]
   countTracks --> experimentScore
   drcAnalysis --> experimentScore
 
@@ -42,8 +42,8 @@ flowchart TD
   - `graph.py`: netlist graph analysis for placement grouping
   - `types.py`: shared dataclasses and scoring objects
 - `freerouting_runner.py`: DSN export → FreeRouting CLI → SES import → track counting.
-- `pipeline.py` composes placement + routing + DRC and emits `ExperimentScore`.
-- `autoexperiment.py` runs iterative optimization rounds, keeps best board, writes artifacts.
+- `pipeline.py` composes placement + routing + DRC for single-board experiments.
+- `autoexperiment.py` runs iterative optimization rounds, scores via `_score_round()`, keeps best board, writes artifacts.
 
 ## Data Model Path
 
@@ -55,7 +55,7 @@ flowchart LR
   placementPhase --> placementMetrics[PlacementScore]
   boardState --> routingPhase[FreeRouting]
   routingPhase --> routingMetrics[traces, vias, length, unrouted]
-  placementMetrics --> expScore[ExperimentScore.compute]
+  placementMetrics --> expScore[_score_round]
   routingMetrics --> expScore
   expScore --> bestDecision[Best candidate decision]
   bestDecision --> bestBoard[best.kicad_pcb]
@@ -174,21 +174,23 @@ The `autoexperiment.py` outer loop runs each round through four phases:
 3. **DRC** — `quick_drc()` runs KiCad's design rule checker and counts
    shorts, unconnected nets, clearance violations, and courtyard overlaps.
 
-4. **Scoring** — `ExperimentScore.compute()` produces a single 0–100
-   metric combining all quality dimensions.
+4. **Scoring** -- `_score_round()` in `autoexperiment.py` produces a composite
+   metric combining leaf acceptance, routed copper, parent composition,
+   parent quality, and area compactness (max 89 absolute + improvement bonuses).
 
 ### Scoring System
 
-The unified `ExperimentScore` combines six weighted components:
+The subcircuit experiment scorer (`_score_round()`) combines bounded absolute
+components plus improvement bonuses:
 
-| Component | Weight | What it measures |
+| Component | Max Points | What it measures |
 |-----------|--------|------------------|
-| `placement` | 0.15 | Pre-routing placement quality (net distance, crossings, containment, group coherence, aspect ratio) |
-| `route_completion` | 0.50 | Fraction of nets successfully routed (dominates the score) |
-| `via_penalty` | 0.10 | Fewer vias per routed net = better; blended with trace length efficiency |
-| `containment` | 0.05 | Board containment from placement score |
-| `drc` | 0.20 | DRC violation count (shorts, unconnected, clearance, courtyard) |
-| `area` | 0.15 | Nonlinear reward for smaller board area (exponential decay) |
+| `leaf_acceptance` | 30 | Fraction of leaf subcircuits accepted |
+| `routed_copper` | 16 | Trace and via coverage across accepted leaves |
+| `parent_composition` | 8 | Whether parent compose succeeded |
+| `parent_routed` | 12 | Whether parent routing ran |
+| `parent_quality` | 14 | Preserved child copper + added parent copper |
+| `area_compactness` | 9 | Child area / parent board area ratio |
 
 **Hard score gates** prevent misleading totals:
 - Route completion ≤ 50% → score capped at 40
@@ -312,7 +314,7 @@ exceptions, and every round achieved 100% net routing.
 5. **Scoring blind spots** — The scoring system had no aspect ratio penalty
    (allowing long, thin boards) and no trace length efficiency metric. Added
    `aspect_ratio` to `PlacementScore` (penalizes boards elongated beyond
-   ~1.5:1) and `trace_length_score` to `ExperimentScore` (rewards shorter
+   ~1.5:1) and `trace_length_score` to the experiment scoring (rewards shorter
    total trace length relative to an MST estimate).
 
 6. **DSN clearance patch incomplete** — Only `smd_smd` clearance was patched
