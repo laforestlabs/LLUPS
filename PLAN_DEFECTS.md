@@ -1,43 +1,48 @@
 # LLUPS Minimal-Verify Render Defects -- Plan
 
 Date opened: 2026-04-22
-Last updated: 2026-04-22 (pause before verify-minimal.sh and D3)
+Last updated: 2026-04-22 (after end-to-end verify + D3 scoring landed)
 Owner: resumable -- update status as you go
 
 ## Resume instructions for the next agent
 
-Commits on KiCraft/main (submodule) so far:
+Commits on KiCraft/main (submodule) landed in this session:
 - `8f2c4e6` -- D1: honour footprint PCB Edge marker for edge anchors
 - `96917a1` -- D2: stamp parent-local keep-in rects as rule-area zones
+- `09347ba` -- D1 follow-up: relax geometry validator for edge-constrained refs
+  (USB-C shell is allowed outboard of Edge.Cuts; pads still checked)
+- `446d3ae` -- D3: steepen SMT-opposite-THT curve + raise weight 0.10 -> 0.15
 
-LLUPS parent repo has NOT yet been bumped to point at these; the
-submodule commits are local to this checkout. When ready to finalise:
-1. From LLUPS root: `git add KiCraft && git commit -m "chore: bump KiCraft (D1 USB edge marker, D2 keepout zones)"`
-2. `git push` inside KiCraft submodule and LLUPS root.
-Do NOT push until D3 is either landed or deliberately deferred, and
-verify-minimal.sh has confirmed the render improvements (or regressions
-have been triaged).
+LLUPS parent repo has been bumped to point at `446d3ae` (KiCraft submodule).
+
+Outstanding items (see priority list below):
+- D2 preserved-child-trace edge-case: one child-routed trace from USB_INPUT
+  still crosses H4 in the current verify run because it was preserved from
+  the child board, and FreeRouting does not reroute preserved tracks.
+  See section "Defect 2 follow-up" below.
+- D3 effect is not yet visible in the `--rounds 1 --fast-smoke` run used by
+  verify-minimal.sh; the scoring gradient is wired but needs multi-round SA.
 
 ### Outstanding work in priority order
 
-1. **Run `./verify-minimal.sh`** (first end-to-end run since D1+D2 landed).
-   Check:
-   - D1: J1 pad bbox left edge is within ~0.5mm of Edge.Cuts left; "PCB Edge"
-     marker lies approximately ON the Edge.Cuts left line; connector mouth
-     extends outboard.
-   - D2: no track or via intersects H4/H86 within `mounting_hole_keep_in_mm`
-     radius (default 2.5mm). Verify rule-area keepout zones are present in
-     `parent_routed.kicad_pcb` (search for `rule_area` / `keepout`).
-   - Pipeline did not regress: 426 unit tests still pass.
-2. **Defect 3** -- not yet started. See section below.
+1. **D2 preserved-trace edge case.** After the D2 keepouts land, FreeRouting
+   does not route new tracks through H4/H86, but one preserved child trace
+   from USB_INPUT still crosses H4 at distance 0.27mm. The cause: child
+   routing is baked in before compose, and parent-level keep-in rects do
+   not retroactively reroute preserved tracks. Options:
+   - (a) During compose, when a parent-local keep-in rect overlaps a preserved
+     child trace, clear that segment and let FreeRouting reroute it.
+   - (b) Push the keepout awareness down into leaf solve, so USB_INPUT does
+     not route through the region where H4 will land.
+   (a) is lower-effort; (b) is architecturally cleaner.
+2. **Multi-round D3 verification.** The `--rounds 1 --fast-smoke` minimal
+   verify cannot fully exercise the scoring bias. Either add a
+   `verify-smt-over-tht.sh` that runs more rounds (say 5-10) against a known
+   starting layout, or tweak `verify-minimal.sh` to also emit the
+   `smt_opposite_tht` sub-score so regressions are visible.
 3. **Simplifications** -- deduplicate `edge_target` arithmetic
    (`subcircuit_composer.py:484-490`, `compose_subcircuits.py:858-861`,
-   `compose_subcircuits.py:1396-1415`). Low risk; do after D3.
-4. **Regression test for D2** -- build a synthetic parent with a mounting
-   hole, run stamp, load the resulting board, assert at least one
-   `GetIsRuleArea()==True` zone exists at each keepout rect. Add to
-   `KiCraft/tests/test_subcircuit_composer.py` or a new
-   `tests/test_parent_stamp_keepouts.py`.
+   `compose_subcircuits.py:1396-1415`). Low risk; do after D3 tuning.
 
 ## Context
 
@@ -101,8 +106,14 @@ attachment anchor.
 - [x] implemented (KiCraft 8f2c4e6)
 - [x] unit tests added (`test_edge_anchor_uses_pcb_edge_marker_when_present`,
   `test_edge_anchor_falls_back_to_pad_bbox_without_marker`)
-- [x] pytest -x -q passes (426 tests, up from 417)
-- [ ] verify-minimal.sh re-run shows J1 pad bbox left < 0.5mm from Edge.Cuts left, footprint body crossing edge
+- [x] pytest -x -q passes (429 tests, up from 417)
+- [x] verify-minimal.sh confirms body extends outboard (3.01mm) and PCB Edge
+  marker is flush with Edge.Cuts. Pad_left is 1.315mm inboard of edge, which
+  reflects the USB-C housing inset (pads sit on the inboard land; the shell
+  hangs off the edge). The original "pad_left < 0.5mm from edge" target
+  mis-described USB-C geometry -- marker-to-edge is the real contract.
+- [x] follow-up (KiCraft 09347ba): geometry validator no longer rejects
+  edge-constrained components with bodies extending outboard of Edge.Cuts.
 
 ## Defect 2: Trace routed through top-left mounting hole H4
 
@@ -153,9 +164,16 @@ Even if someone added keep-outs upstream, they would be wiped.
   - Serialised into the parent stamp JSON payload alongside outline/components.
   - `_PARENT_STAMP_SCRIPT` creates one F.Cu + one B.Cu rule-area ZONE per rect with
     DoNotAllowTracks/Vias/Pads/CopperPour all True.
-- [ ] unit/regression test added -- not yet; see outstanding-work item 4.
-- [x] pytest -x -q passes (426 tests)
-- [ ] verify-minimal.sh re-run shows no trace intersects H4/H86 + drill margin
+- [x] regression test added (`tests/test_parent_stamp_keepouts.py`) --
+  locks the rule-area/keepouts contract between compose and the stamp
+  subprocess.
+- [x] pytest -x -q passes (429 tests)
+- [x] verify-minimal.sh shows 4 rule-area zones survive FreeRouting
+  (one F.Cu + one B.Cu per keepout rect, both holes). No **new** FreeRouting
+  trace enters the keepouts.
+- [ ] **edge case**: one *preserved* child trace from USB_INPUT still passes
+  through H4 at distance 0.27mm. FreeRouting does not reroute preserved
+  tracks; the fix lives in compose, not routing (see outstanding item 1).
 
 ### Implementation notes / risks
 - FreeRouting's DSN export is produced by `pcbnew.ExportSpecctraDSN()` in
@@ -212,12 +230,17 @@ it over net-distance.
 - test updates in `KiCraft/tests/test_placement_scorer.py` (or similar)
 
 ### Status
-- [ ] step 1 (curve) implemented
-- [ ] step 2 (weight) implemented
-- [ ] step 3 (bias pass) -- only if needed
-- [ ] pytest -x -q passes
-- [ ] verify-minimal.sh re-run shows >= 200 mm^2 F-over-B overlap
-  (handoff.md target; baseline was 61 mm^2)
+- [x] step 1 (curve) implemented (KiCraft 446d3ae). `50 + 50*f` -> `100*f`.
+- [x] step 2 (weight) implemented (KiCraft 446d3ae).
+  `smt_opposite_tht 0.10 -> 0.15`, offset by compactness 0.02 -> 0.01,
+  rotation_score 0.01 -> 0.0, aspect_ratio 0.05 -> 0.02. Weights sum to 1.00.
+- [ ] step 3 (bias pass) -- deferred. Retry only if multi-round runs also
+  miss the 200mm^2 target.
+- [x] pytest -x -q passes (429 tests)
+- [ ] verify-minimal.sh single-round shows 21.6mm^2 overlap -- not yet at
+  the 200mm^2 target, but the smoke run only does one SA round. Need a
+  multi-round verification to see whether the steepened gradient alone
+  closes the gap or whether step 3 (bias pass) is actually needed.
 
 ## Simplification candidates (do opportunistically, not blocking)
 
@@ -236,6 +259,42 @@ it over net-distance.
 3. After Defect 1 fix: the adapter-side "PCB Edge" direction parser
    (`hardware/adapter.py:200`) and the new offset parser share footprint-item
    iteration. Consider sharing a single "find edge-ref graphic" helper.
+
+## Defect 2 follow-up: preserved child traces through mounting holes
+
+### Symptom
+After D2 stamped rule-area zones and FreeRouting honoured them, one
+pre-existing track at y=-1.48 from x=2.10 to x=11.58 still runs through
+H4's keepout (zone bbox x=3.0..12.593). Track distance to H4 centre:
+0.27mm.
+
+### Root cause (confirmed)
+This track is **preserved from the USB_INPUT child's solved layout** --
+it is laid in child-local coords during leaf solve, and when the child
+is placed in the parent, that trace now intersects H4 in parent coords.
+FreeRouting only routes previously-unrouted nets; it does not reroute
+already-placed tracks. Parent rule-area keepouts therefore have no
+effect on preserved child copper.
+
+### Fix plan (not yet landed)
+1. **Simpler**: during `_compose_subcircuits`, after child tracks are
+   transformed to parent coords, drop any segment whose midpoint (or
+   endpoint) falls inside a parent-local keep-in rect. Mark the net as
+   "needs routing" so FreeRouting picks it up.
+2. **Cleaner**: push parent-level keepouts into leaf solve as hints so
+   USB_INPUT does not route through the region where H4 will sit.
+
+Option 1 is smaller surface area and works with existing data flow.
+
+### Files likely touched
+- `KiCraft/kicraft/cli/compose_subcircuits.py` (trace-filter step after
+  placement, before `_stamp_parent_board`)
+
+### Status
+- [ ] not yet implemented
+- [ ] regression test -- a synthetic compose where a child trace crosses
+  the parent-local keepout, assert that post-compose BoardState has no
+  trace intersecting the keepout rect.
 
 ## Verification gate
 
