@@ -1,8 +1,8 @@
 # LLUPS Roadmap
 
-> **Last updated:** 2026-04-19 (session 8)
-> **Current phase:** Phase 6 -- all planned work items complete (quality tuning remains as future work)
-> **Quick status:** Tests green (287 pass). All roadmap checkboxes complete. solve_subcircuits.py reduced 49% via extraction into brain/ modules. 44 new tests covering _mutate_config, _sa_refine, _infer_implicit_interface_ports. Copper: 95.6% traces preserved (>95% target met), 80% vias. Leaf solving verified via solve-subcircuits; parent composition verified via solve-hierarchy --skip-leaves --route. Note: real >2-level validation is not applicable -- LLUPS has only a 2-level hierarchy. Parent acceptance gate still rejects (geometry quality tuning needed -- not a functional gap).
+> **Last updated:** 2026-04-22 (session 9)
+> **Current phase:** Phase 7 -- parent composition quality tuning (SMT-over-THT stacking)
+> **Quick status:** Fixed parent packer to stack SMT leaves over back-dominant THT leaves (BT1). Previously the raster returned the *first* legal overlap, which was the y where candidate bboxes just touched. Now scores candidates by overlap area and picks max. Result on LLUPS: BOOST 5V, BATT PROT, and CHARGER now sit on the front side opposite the battery holders instead of a narrow 20 mm strip above them. KiCraft tests: 429 pass. Remaining tuning: overall parent board still 114x79 mm (should shrink further once iterative frame also shrinks on slack).
 
 ---
 
@@ -27,6 +27,7 @@ This replaces the scattered tracking previously split across NEXT_AGENT.md, docs
 | 4 | Parent composition MVP | Done | Compose parent from real routed leaves, parent FreeRouting |
 | 5 | Recursive hierarchy | Done | Bottom-up N-level solve (algorithm verified on synthetic 4-level hierarchy; no real 3+ level schematic exists in this project) |
 | 6 | Production polish | Done | Force tuning, FreeRouting crash reduction, test coverage |
+| 7 | Parent composition quality | In progress | SMT-over-THT stacking, board shrink, rotation search per unconstrained leaf |
 
 ---
 
@@ -210,6 +211,29 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 8. Leaf solving verified via solve-subcircuits --rounds 1 --route (all 6 leaves solved+routed+accepted)
 9. Copper preservation: 95.6% traces (237/248), 80% vias (4/5) -- trace target >95% met
 10. Implicit ports verified: USB INPUT leaf (implicit GND) solved by solve-subcircuits, then composed into parent by solve-hierarchy
+
+---
+
+## Phase 7: Parent Composition Quality (in progress)
+
+The pipeline is end-to-end functional, but the composed parent board is
+larger than it should be because unconstrained SMT leaves were not
+stacking onto the front side above back-dominant THT leaves (the
+battery holders).
+
+- [x] Fix `_find_non_overlapping_origin` to pick the candidate with
+      maximum overlap area instead of the first legal overlap encountered
+      in the y-major raster. (KiCraft `feat/project-plan-layer` 831be3b)
+- [ ] Allow the iterative frame to *shrink* when the last packed extents
+      fit inside the seed frame with slack. Currently it only grows on
+      overflow, so successful stacks still keep an oversized board.
+- [ ] Per-unconstrained-leaf rotation search during packing. The current
+      `_make_unconstrained_model` rotation is a static function of the
+      leaf index; real rotation search would let a leaf pick the
+      orientation that maximises overlap with already-placed leaves.
+- [ ] Verify the fix does not regress edge-constrained placements
+      (USB INPUT, LDO 3.3V). Visual check shows both still sit on their
+      assigned edges but full rerun with `autoexperiment` would confirm.
 
 ### Remaining (future improvements -- not required for functional MVP)
 
