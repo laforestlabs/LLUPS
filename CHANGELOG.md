@@ -1,5 +1,136 @@
 # LLUPS Engineering Changelog
 
+## 2026-04-21: Hierarchical compose progress, defect status, and handoff
+
+### KiCraft commits in this session
+- `91ddf09` `feat(composer): add layer-aware parent size estimation`
+- `a7bd531` `fix(composer): seed packed placement from layer-aware area`
+- `e1c40b7` `fix(composer): prioritize packed blockers by layer occupancy`
+- `15ab55f` `fix(composer): limit tht keepout to plated pad span`
+- `1cb90ba` `feat(composer): add sparse leaf blocker sets`
+- `115e9d3` `fix(composer): enforce sparse packed overlap guards`
+- `fc395eb` `fix(composer): reserve parent-local keep-in zones`
+- `5d4ce7a` `fix(freerouting): remove project-specific clearance fallback`
+- `089ee7a` `fix(routing): pass config into board validation`
+- `4eddb83` `fix(composer): guard missing mini pcb blockers`
+- `0cf1010` `fix(composer): bypass keep-ins for constrained children`
+- `b9d2bfc` `fix(composer): account for routed trace blockers`
+- `ad12e67` `fix(routing): separate copper edge drc failures`
+- `f6dd847` `fix(composer): sync parent-local anchors before stamping`
+- `f09b292` `fix(composer): use grouped outer edge for shared edge constraints`
+- `20b2307` `fix(subcircuits): persist routed leaf geometry in solved layouts`
+- `304f2f8` `fix(composer): anchor edge constraints to real leaf geometry`
+- `5b42bce` `fix(routing): retry transient board loads and ignore edge connector DRC`
+
+### Defect status
+- Defect 1 - FIXED and independently verified.
+  - H4 edge clearance: 4.80 mm
+  - H86 edge clearance: 4.83 mm
+  - Hole pad clearance: 3.30 mm and 2.69 mm
+- Defect 2 - edge-anchor math is fixed in code and covered by regression tests.
+  - Full end-to-end verification is still blocked by intermittent leaf solver routing failures.
+- Defect 3 - F-over-B stacking improved from 12.65 mm^2 to 61.00 mm^2.
+  - This is about a 5x improvement, but still below the 200 mm^2 target.
+
+### Additional improvements
+- Same-side collisions reduced from 3 to 0 in the verified compose path.
+- Solved leaf persistence now reloads real routed copper instead of stale solved-layout geometry.
+- Parent composition now uses real leaf outline and real constrained-footprint geometry for edge anchors.
+- Routed trace blocker accounting is included in sparse blocker modeling.
+- DRC bucketing now separates copper_edge_clearance from generic clearance.
+- Edge connector DRC handling is now treated as footprint and edge baseline data instead of generic illegal routed geometry when appropriate.
+- FreeRouting helper subprocesses now retry transient board-load failures.
+- Project-agnostic audit completed for the recent routing path. No J1-specific hardcode remains in freerouting_runner.py.
+
+### Known remaining work
+- Leaf solver intermittent transient routing failures still block full end-to-end regeneration.
+  - Current blockers observed in reruns: `/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3` and `/1dfeec7c-ad4b-4be7-8575-f37739ab0219`
+- Defect 3 still needs a stronger stacking enhancement pass.
+  - Current overlap is about 30 percent of target.
+- Board area is marginally over budget.
+  - Current measured area: 5677.73 mm^2
+  - Target: 5677.00 mm^2
+  - Excess: 0.73 mm^2
+
+### Verification commands run and outcomes
+- `cd /home/jason/Documents/LLUPS/KiCraft && python -m pytest -x -q`
+  - Passed: 417 passed
+- `python -c "from kicraft.autoplacer.brain.placement import PlacementSolver, PlacementScorer; from kicraft.autoplacer.brain.types import BoardState, Component, Point, SubCircuitLayout; from kicraft.autoplacer.brain.subcircuit_solver import infer_interface_anchors; from kicraft.autoplacer.brain.subcircuit_composer import build_parent_composition; from kicraft.autoplacer.brain.subcircuit_instances import load_solved_artifact, transform_subcircuit_instance; from kicraft.autoplacer.brain.subcircuit_extractor import extract_leaf_board_state; from kicraft.autoplacer.brain.hierarchy_parser import parse_hierarchy; from kicraft.autoplacer.config import DEFAULT_CONFIG; from kicraft.cli.solve_subcircuits import main as solve_main; from kicraft.cli.compose_subcircuits import main as compose_main; from kicraft.autoplacer.brain.leaf_acceptance import evaluate_leaf_acceptance, acceptance_config_from_dict; from kicraft.autoplacer.brain.copper_accounting import build_copper_manifest, verify_copper_preservation, CopperManifest; from kicraft.autoplacer.brain.leaf_passive_ordering import apply_leaf_passive_ordering, build_leaf_passive_topology_groups; from kicraft.autoplacer.brain.placement_scorer import PlacementScorer as PlacementScorer2; from kicraft.autoplacer.brain.placement_solver import PlacementSolver as PlacementSolver2; from kicraft.autoplacer.brain.leaf_geometry import tight_leaf_geometry_bounds; print('All critical imports OK')"`
+  - Passed: All critical imports OK
+- `timeout 1200 python3 -m kicraft.cli.solve_subcircuits LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route`
+  - Failed overall during reruns because intermittent leaf routing exceptions still occur.
+  - Earlier failing leaf `c6773def-39c2-4618-add5-8cf158f64b0e` dropped out of the final failure set after the routing acceptance fix.
+  - Latest rerun failed on `/f9f9a27d-ef6e-473d-8589-bb95c3fe74a3` and `/1dfeec7c-ad4b-4be7-8575-f37739ab0219`.
+- `timeout 600 python3 KiCraft/kicraft/cli/compose_subcircuits.py --project /home/jason/Documents/LLUPS --parent LLUPS --pcb LLUPS.kicad_pcb --mode packed --spacing-mm 2.0 --stamp --route --jar /home/jason/.local/lib/freerouting-1.9.0.jar`
+  - Blocked when full accepted leaf artifacts were unavailable.
+- `python3 /home/jason/Documents/LLUPS/user_defect_verification.py`
+  - Confirmed the script requires `board_path`, `--debug-json`, and `--config-json`.
+  - Full final QA rerun is still blocked because the parent artifact is not being regenerated cleanly.
+
+### Next session priorities
+- Fix the deeper subprocess handoff or post-stamp board-load instability behind the remaining routing exceptions.
+- Resume full leaf-first reruns until all leaves accept in a single pass.
+- Re-run parent compose and the user QA script with the correct generated parent paths.
+- Improve Defect 3 stacking volume from 61 mm^2 toward the 200 mm^2 target.
+
+## 2026-04-21: Session handoff -- parent composition regressions after Option B
+
+### Completed
+- Implemented and committed Option B constrained-child keep-in bypass in KiCraft:
+  - commit `0cf1010` `fix(composer): bypass keep-ins for constrained children`
+- Fixed parent compose copper preservation regression in the working tree:
+  - parent now preserves `217/217` child traces and `1/1` vias
+- Fixed routed-board DRC bucketing bug in the working tree:
+  - `copper_edge_clearance` is no longer folded into generic `clearance`
+- Extended sparse blocker extraction in the working tree to include routed trace rectangles:
+  - added `front_traces` / `back_traces` to `LeafBlockerSet`
+  - blocker extraction now includes `artifact.layout.traces`
+
+### Remaining blocker
+- Parent composition is still illegal before FreeRouting.
+- Fresh DRC on `parent_pre_freerouting.kicad_pcb` shows real pre-route failures:
+  - `shorting_items`
+  - `tracks_crossing`
+  - `courtyards_overlap`
+  - `copper_edge_clearance`
+- These cluster around composed leaf geometry such as:
+  - `U5` / `C4`
+  - `U6` / `J3`
+- This means the remaining issue is still in parent composition legality, not copper preservation and not FreeRouting.
+
+### Key diagnosis
+- The original LDO copper-loss regression was caused by parent-local/component-state inconsistency during composition/stamping and is fixed in the current worktree.
+- The remaining parent illegality appears to come from same-side composed leaf geometry still being under-modeled or otherwise mis-positioned even after adding routed trace blocker rectangles.
+- A naive attempt to make same-side outline rejection more conservative broke intended sparse opposite-side behavior and was reverted.
+
+### Exact files touched in current uncommitted work
+- `KiCraft/kicraft/autoplacer/brain/subcircuit_composer.py`
+- `KiCraft/kicraft/autoplacer/freerouting_runner.py`
+- `KiCraft/tests/test_parent_attachment_constraints.py`
+- `KiCraft/tests/test_sparse_keepouts.py`
+- Pre-existing drift not touched: `KiCraft/kicraft/cli/program.md`
+
+### Verification run in this session
+- `cd /home/jason/Documents/LLUPS/KiCraft && python -m pytest -x -q`
+  - latest result: `405 passed`
+- KiCraft import smoke from `AGENTS.md`
+  - latest result: passed
+- LSP diagnostics on changed files
+  - latest result: clean for changed files
+- Compose reproduction:
+  - `cd /home/jason/Documents/LLUPS && timeout 600 python3 KiCraft/kicraft/cli/compose_subcircuits.py --project /home/jason/Documents/LLUPS --parent LLUPS --pcb LLUPS.kicad_pcb --mode packed --spacing-mm 2.0 --stamp --route --jar /home/jason/.local/lib/freerouting-1.9.0.jar`
+  - latest result: parent still rejected with `illegal_routed_geometry`
+- Fresh manual DRC checks:
+  - `kicad-cli pcb drc -o /tmp/llups_parent_preroute_drc.txt .experiments/subcircuits/subcircuit__8a5edab282/parent_pre_freerouting.kicad_pcb`
+    - result: `112` violations, `18` unconnected items
+  - `kicad-cli pcb drc -o /tmp/llups_parent_drc_latest.json .experiments/subcircuits/subcircuit__8a5edab282/parent_routed.kicad_pcb`
+    - result: `115` violations, `1` unconnected item
+
+### Next recommended step
+- Compare the transformed child geometry for the failing leaves against the stamped parent board around `U5/C4` and `U6/J3` to determine whether the remaining issue is:
+  - incomplete blocker modeling for routed leaf copper/courtyard geometry, or
+  - a transform/stamping mismatch between composed children and the stamped parent board.
+
 ## 2026-04-19: Session 4 (continued) -- leaf_geometry extraction
 
 ### Code extraction (Phase 6)
