@@ -25,11 +25,11 @@ KiCraft `feat/project-plan-layer` 831be3b: score each legal candidate by total b
 
 Re-running `solve-hierarchy --skip-leaves --route`:
 
-| Leaf | Before (x, y) | After (x, y) |
-|------|---------------|--------------|
-| CHARGER | y=13-25 (above batteries) | y=41-52 (over batteries) |
-| BOOST 5V | y=13-25 (above batteries) | y=34-45 (over batteries) |
-| BATT PROT | y=19-26 (above batteries) | y=19-26 (marginal -- placed last, cluttered by CHARGER+BOOST) |
+| Leaf | Before (x, y) | After max-overlap (x, y) | After opposite-side weight (x, y) |
+|------|---------------|--------------------------|-----------------------------------|
+| CHARGER | y=13-25 (above batteries) | y=41-52 (over BT1) | y=41-52 (over BT1) |
+| BOOST 5V | y=13-25 (above batteries) | y=34-45 (over BT2) | y=34-45 (over BT2) |
+| BATT PROT | y=19-26 (above batteries) | y=19-26 (overlapped CHARGER instead of battery) | y=29-36 (fully inside BT2) |
 
 Parent_stamped.png and parent_routed.png in `.experiments/subcircuits/subcircuit__8a5edab282/renders/` both confirm visually: BOOST 5V, CHARGER, and BATT PROT silkscreen outlines now sit INSIDE the BT1 footprint rectangle, not in a strip above it.
 
@@ -43,9 +43,12 @@ Parent_stamped.png and parent_routed.png in `.experiments/subcircuits/subcircuit
 ## Commits
 
 - KiCraft `831be3b fix(compose): pick overlap candidate by max area instead of first`
+- KiCraft `dbe021a feat(compose): weight overlap scoring by opposite-side stacking`
 - LLUPS   `70a020b fix(compose): SMT leaves now stack over back-dominant battery leaf` (submodule bump + ROADMAP)
+- LLUPS   `75a466d docs: handoff for SMT-over-THT stacking fix`
+- LLUPS   `5d14253 chore: bump KiCraft -- opposite-side overlap weighting for parent compose`
 
-Neither pushed yet.
+Not yet pushed.
 
 ## Known Remaining Work (Phase 7)
 
@@ -55,7 +58,7 @@ Listed in ROADMAP.md. Priority order:
 
 2. **Per-unconstrained-leaf rotation search.** `_make_unconstrained_model` uses a static rotation from the leaf index. Real rotation search would let each leaf pick the orientation maximizing overlap with placed leaves. BATT PROT in particular might fit inside remaining BT1 holes if rotated.
 
-3. **BATT PROT sub-optimal placement** -- third unconstrained leaf gets squeezed between CHARGER and BOOST. Consider re-running unconstrained placement in reverse-size order, or iterating unconstrained placements until convergence.
+3. **~~BATT PROT sub-optimal placement~~** -- Fixed by opposite-side-weighted overlap scoring (`dbe021a`). BATT PROT now sits fully inside BT2's back-side footprint at y=29-36.
 
 4. Parent acceptance gate still rejects `illegal_routed_geometry` (existing issue, not caused by this fix).
 

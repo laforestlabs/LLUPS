@@ -224,6 +224,8 @@ battery holders).
 - [x] Fix `_find_non_overlapping_origin` to pick the candidate with
       maximum overlap area instead of the first legal overlap encountered
       in the y-major raster. (KiCraft `feat/project-plan-layer` 831be3b)
+- [x] Weight overlap scoring by opposite-side dominance so front-on-back
+      stacking wins over same-side pad-gap stacking. (KiCraft `dbe021a`)
 - [ ] Allow the iterative frame to *shrink* when the last packed extents
       fit inside the seed frame with slack. Currently it only grows on
       overflow, so successful stacks still keep an oversized board.
