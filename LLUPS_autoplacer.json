@@ -75,6 +75,7 @@
         "BT1": "BATTERY"
     },
     "enable_board_size_search": true,
+    "connector_edge_inset_mm": 0.0,
     "component_zones": {
         "J1": {
             "edge": "left"
