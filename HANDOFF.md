@@ -1,164 +1,143 @@
-# Session Handoff: Parent Composition Quality
+# Session Handoff: Experiment Manager UI Refresh
 
-Date: 2026-04-22
-Pushed: yes -- LLUPS main at 82d9581, KiCraft main at 88231c1
+Date: 2026-04-23
+Pushed: **not yet** — local commits on both repos.
 
 ## Scope
 
-User originally wanted:
-1. SMT leaves preferentially placed opposite battery (BT1) on front side
-2. Shrink the parent board now that stacking works
-3. Mounting hole (H4) interfering with connector leaf (USB INPUT) -- find the root cause and fix
+User asked for two Experiment Manager GUI changes:
 
-All three done and pushed to main.
+1. **Setup → Placement & Routing tab**: merge the separate "placement
+   procedures" and "mutation search bounds" sections into a single
+   per-group table with columns `Parameter | Start | Min | Max`.
+2. **Monitor tab**: add a parent-score plot at the top tracking score
+   per autoexperiment round. Clicking a point filters the leaves below
+   (renders and per-leaf round timelines) to that round's data. Default
+   = the best round so far.
 
-## Fixes shipped (in order)
+Full plan with per-file reasoning: `docs/experiment-manager-ui-refresh.md`.
 
-### 1. Max-overlap candidate selection (KiCraft 831be3b, LLUPS 70a020b)
+## Commits (local only, KiCraft submodule)
 
-`_find_non_overlapping_origin` returned the first legal overlap from a
-y-major raster. That's the position where candidate bboxes just start
-touching an existing leaf (0.1 mm overlap). Score candidates by total
-bbox overlap area, return max. Empty fallback only when no overlap
-legal.
+1. `a43ff2f` gui(setup): unify placement params and mutation bounds into one table
+2. `2704779` cli(solve): accumulate all_rounds across experiment rounds
+3. `410840d` gui(monitor): parent-round score plot with per-round leaf filtering
 
-Result on LLUPS: CHARGER and BOOST 5V moved from a 20 mm strip above
-the batteries onto the front side opposite BT1/BT2.
+LLUPS top-level repo still shows the submodule pointer drift + the new
+plan doc as unstaged — not yet committed in LLUPS main.
 
-### 2. Opposite-side overlap weighting (KiCraft dbe021a, LLUPS 5d14253)
+## What changed
 
-Same-side SMT leaves could overlap each other in pad gaps (legal per
-sparse rect check) instead of moving onto back-dominant leaves.
-Weight overlap 1.0 for opposite-side (front vs back dominant), 0.5 if
-either leaf is dual-side, 0.2 for same-side.
+### Part 1 — Unified parameter table (`kicraft/gui/pages/setup.py`)
 
-Result: BATT PROT moved from y=19-26 (overlapping CHARGER) to y=29-36
-(fully inside BT2's back-side footprint). All three unconstrained SMT
-leaves now on the front opposite the batteries.
+- `_placement_routing_panel` rewritten. One set of expansions (grouped by
+  `group` in `PLACEMENT_PARAMS`); inside each expansion a 4-col grid
+  (`2fr 1.5fr 1.5fr 1.5fr`) with header row `Parameter | Start | Min | Max`.
+- `_render_param_row` renders one param as a row. Non-numeric (bool/text/
+  list) params and params absent from `CONFIG_SEARCH_SPACE` show "—" in
+  Min/Max cells.
+- Old `_mutation_bounds_panel` deleted. "Reset All Bounds" button moved
+  up to the unified panel header.
+- `state.py`: added `parent_spacing_mm` to `PLACEMENT_PARAMS` — it's in
+  `CONFIG_SEARCH_SPACE` but was previously only visible via the separate
+  bounds panel.
 
-### 3. Mounting hole clears leaf component bodies (KiCraft 08ba7a3, LLUPS 1a5ad4d)
+### Part 2a+b — Round accumulation (`kicraft/cli/solve_subcircuits.py`, `kicraft/cli/autoexperiment.py`)
 
-`_placed_item_blocker_rects` only exposed pads + THT drills to the
-parent-local keep-in check. Result: H4 sat visually inside USB INPUT's
-silkscreen box because no individual pad was at that exact spot -- but
-the USB-C receptacle housing (which projects past its pads) was right
-there. Mechanically the screw head would collide with the connector body.
+Existing behavior: each autoexperiment round invokes `solve_subcircuits`
+which **overwrites** each leaf's `debug.json` with fresh `all_rounds`
+indexed `0..effective_rounds-1`. Prior rounds were lost.
 
-Added `blocker_set.component_rects` (courtyard bboxes) to the keep-in
-check. Also raised `mounting_hole_keep_in_mm` default from 2.5 to 5.0
-mm (M3 screw head + washer clearance).
+New behavior:
+- `solve_subcircuits` takes `--experiment-round N` (default 0 = unknown).
+- Before the round loop in `_solve_leaf_subcircuit`, it reads any prior
+  `debug.json` for the leaf, finds `max(round_index) + 1`, and uses that
+  as `base_offset`. New rounds get indices `base_offset + 0..N-1`, so
+  `round_NNNN_*.png` filenames never collide.
+- `SolvedLeafSubcircuit` gained `experiment_round` and `prior_rounds`
+  fields.
+- `_persist_solution` stamps each new round dict with `experiment_round=N`,
+  merges with `prior_rounds` (dedup by `round_index`), sorts, and writes.
+- `autoexperiment._build_solve_cmd` gained `experiment_round` kwarg; both
+  call sites pass `round_num`.
 
-Result: H4 moved from (7.8, -1.2) [inside USB INPUT box] to (27.8,
-1.3) [clear of leaf]. Parent status also changed from
-`illegal_routed_geometry` to **accepted** as a side-effect.
+Backward-compat: rounds without `experiment_round` key → treated as 0.
 
-### 4. Post-iteration free-axis compaction (KiCraft 88231c1, LLUPS 82d9581)
+### Part 2c+d+e — Monitor UI
 
-Constrained leaves' non-constrained axes defaulted to `frame_min` --
-leaves with only an x-constraint (USB INPUT on left edge, LDO 3.3V on
-right edge) all hugged the top of the frame, forcing a large empty
-strip between the top edge and the battery area.
+- `kicraft/gui/components/parent_score_chart.py` (new): `build_parent_round_figure`
+  (plotly), `parent_score_chart` (with `plotly_click` handler), `pick_best_round`.
+- `kicraft/gui/components/pipeline_graph.py`: `RoundInfo.experiment_round`
+  field, populated from debug.json. `gather_pipeline_state` gained
+  `selected_round: int | None` kwarg. When set and the leaf has rounds
+  matching that experiment round, rounds list is narrowed to that round
+  and `best_render` is the highest-scoring thumbnail from it. Fallback
+  to unfiltered when no matches (preserves display for legacy artifacts).
+- `kicraft/gui/pages/monitor.py`: new parent-chart container above the
+  graph/detail row. State dicts for `selected_parent_round` (value +
+  `user_pinned` bool). On each tick: if user hasn't pinned, auto-follow
+  the best round; if pinned, show "Auto-track best" button to revert.
+  Plotly click fires `_on_parent_round_select`. Status label shows
+  "Viewing R<N> (best is R<M>)" when a pinned selection isn't the best.
 
-Added `_compact_free_axes`: after the placement iteration converges,
-for each leaf, binary-search the max safe shift along each
-unconstrained axis toward the cluster centroid. Updates entries,
-placed_envelopes, placed_child_bboxes, child_artifact_placements, and
-transformed_payloads so the actual stamping sees the shifted positions.
-Recomputes outline from the new bboxes.
+## Runtime validation — what is and isn't proven
 
-Result on LLUPS:
-- USB INPUT y: -2..10 -> 16..25 (down 18 mm)
-- LDO 3.3V y: -2..4 -> 19..25 (down 21 mm)
-- H4/H86 follow via subsequent _reposition_parent_local_components
-- **Board: 114x79 mm -> 114x64 mm (-18.7% area)**
-- Composition score: 66.9 -> 71.0
-- Parent status: accepted
+- All modules `import` cleanly.
+- Unit-level: loaded `.experiments/experiments.jsonl` (3 historical
+  rounds), `pick_best_round` returned 2, `build_parent_round_figure`
+  produced a 2-trace figure with x=[1,2,3] y≈[72.78, 78.46, 59.46].
+- Unit-level: `gather_pipeline_state(selected_round=2)` on existing
+  artifacts didn't raise; 6 leaves rendered with best_render populated.
+  Historical debug.json has no `experiment_round` stamp so filtering
+  matched 0 rounds and correctly fell back to showing all.
+- **Not proven**: live browser render, plotly click handler firing,
+  "Auto-track best" button behavior, multi-round accumulation with
+  fresh experiment. Need to start a small experiment (2 rounds × 2
+  leaf rounds, no fast-smoke so renders exist) and:
+  1. Watch the plot grow from 1 → 2 points.
+  2. Click the older point, confirm leaves below update to that round's
+     renders only.
+  3. Confirm "Auto-track best" button appears, click it, confirm
+     selection snaps back to best.
+  4. Inspect one leaf's `debug.json` — confirm rounds from both
+     experiment rounds are present and stamped.
 
-## Final metrics
+## How to resume
 
-| Metric | Pre-session | Post-session |
-|--------|-------------|--------------|
-| Board dimensions | 99 x 79 mm | 114 x 64 mm |
-| Board area | 7821 mm^2 | 7315 mm^2 (-6.5%) |
-| SMT leaves on front opposite BT1 | 0 / 3 | 3 / 3 |
-| H4 inside USB INPUT silkscreen | yes | no |
-| Parent acceptance | rejected (illegal_routed_geometry) | accepted |
-| Composition score | 66.9 | 71.0 |
-| KiCraft tests | 429 pass | 429 pass |
+1. Start the GUI: `python -m kicraft.gui` (currently hardcoded port 8080
+   — an earlier dev session may still hold the port; check with
+   `ss -tlnp | grep :8080` and kill any stragglers).
+2. Setup tab → Placement & Routing: visually confirm the new 4-column
+   tables look right. Pay attention to:
+   - Row widths on the Routing group (trace-width entries are a mix of
+     searchable floats and non-searchable text like `gnd_zone_net`,
+     which should dash out).
+   - The "Reset All Bounds to Defaults" button still reloads the page.
+3. Kick off a small autoexperiment (2 rounds × 2 leaf rounds). Watch
+   the Monitor tab do its thing.
+4. If anything looks off, `docs/experiment-manager-ui-refresh.md` has the
+   change rationale file-by-file. `git log --oneline -4` inside `KiCraft`
+   maps commits to parts.
 
-Width went UP (99->114) because the edge-pinned connector constraints
-(J1 USB-C housing overhang on left, J3/H86 on right) drive the board
-width. The remaining width is largely fixed by those constraints.
+## Follow-ups worth considering
 
-## Remaining work (not required)
+- The `Zone Pour` group was missing from `group_icons` in the previous
+  Setup code (it still rendered, just with the default `settings` icon).
+  I added an entry; purely cosmetic.
+- Legacy debug.json entries (written before this session) have no
+  `experiment_round` stamp. The filter code treats them as round 0 and
+  falls back to "show all" when no matches exist. If you want historical
+  artifacts to surface too, we could group them into round 0 explicitly
+  and add a "(pre-instrumentation)" badge on the plot. Not done.
+- The parent-round plot doesn't persist the user's click across page
+  reloads. That's fine for now; adding it would be an extra session-state
+  entry.
+- I did not push to remote — the user didn't ask, and the token budget
+  is near the self-imposed limit for this session.
 
-1. **Width shrink.** Right edge sits at ~107 mm because H86 mounting hole
-   (bottom-right corner constraint) + J3 edge=right + keep-in combine
-   there. If H86's corner placement is computed from the outline _after_
-   compaction, H86 could shift left and the outline could follow. Worth
-   trying: move `_reposition_parent_local_components` into the compaction
-   loop so it runs iteratively.
+## Prior handoff
 
-2. **Per-leaf rotation search.** Current `_make_unconstrained_model` uses
-   a static rotation per leaf index. Real rotation search would let each
-   leaf pick the orientation that maximizes overlap / minimizes the
-   cluster bbox.
-
-3. **x-axis compaction for BT1.** BT1 is zone-constrained (zone=bottom),
-   which my `_constraint_axes_used` treats as a y-constraint. Its x is
-   free but probably doesn't shift because the only bboxes in its row
-   are itself. Verify and refine if BT1 position matters.
-
-4. **Mounting hole keep-in as per-ref override.** `mounting_hole_keep_in_mm`
-   is now a global default (5.0 mm). Users may want M2 vs M3 vs M4 per
-   hole. Add `component_zones.<ref>.keep_in_mm` override.
-
-5. **Autoexperiment re-baseline.** Score jumped from ~66 to 71 post-fix.
-   Existing elite_configs.json may be stale and drag new runs toward the
-   old layout. Consider invalidating or adding a migration.
-
-## Reproduction
-
-```bash
-cd /home/jason/Documents/LLUPS
-timeout 120 solve-hierarchy LLUPS.kicad_sch --pcb LLUPS.kicad_pcb \
-  --rounds 1 --skip-leaves --route
-xdg-open .experiments/subcircuits/subcircuit__8a5edab282/renders/parent_stamped.png
-```
-
-## Test gate
-
-```bash
-cd KiCraft && python -m pytest -x -q
-# 429 passed expected
-```
-
-## Files modified
-
-KiCraft:
-- `kicraft/cli/compose_subcircuits.py` -- max-overlap selection,
-  opposite-side weighting, component-bodies in keep-in,
-  `_compact_free_axes` + wiring, `_constraint_axes_used`, `_bbox_overlap_area`
-- `kicraft/autoplacer/brain/subcircuit_composer.py` -- raised default
-  `mounting_hole_keep_in_mm` from 2.5 to 5.0
-
-LLUPS:
-- `ROADMAP.md` -- Phase 7 tracker
-- `HANDOFF.md` -- this file
-- `KiCraft` submodule pointer -- four bumps
-
-## Commit log (main)
-
-LLUPS:
-- 82d9581 chore: bump KiCraft -- post-iteration compaction for parent composition
-- 1a5ad4d chore: bump KiCraft -- include leaf component bodies in parent-local keep-in
-- 4258a38 docs: update handoff + roadmap for BATT PROT opposite-side fix
-- 5d14253 chore: bump KiCraft -- opposite-side overlap weighting for parent compose
-- 75a466d docs: handoff for SMT-over-THT stacking fix
-- 70a020b fix(compose): SMT leaves now stack over back-dominant battery leaf
-
-KiCraft:
-- 88231c1 feat(compose): post-iteration free-axis compaction
-- 08ba7a3 fix(compose): include leaf component bodies in parent-local keep-in
-- dbe021a feat(compose): weight overlap scoring by opposite-side stacking
-- 831be3b fix(compose): pick overlap candidate by max area instead of first
+`HANDOFF.md` previously covered the parent-composition quality work
+(finished and pushed on 2026-04-22). That content is fully superseded
+by the next_agent handoff / commit log; intentionally removed here to
+keep this doc scoped to the current session.
