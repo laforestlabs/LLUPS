@@ -119,20 +119,28 @@ echo "    pinned $pinned_count leaves"
 
 echo "==> [4/4] Parents-only: --rounds 1 (consumes pinned leaves)"
 start_stage="$(date +%s)"
-# Clear the hierarchy run dir + experiments.jsonl from the leaves-only
-# run so the parents-only run starts with clean parent-side state.
+# Clear the hierarchy run dir + experiments.jsonl + rounds/ from the
+# leaves-only run so the parents-only run starts with clean parent-side
+# state AND so the post-run acceptance check sees only parent rounds
+# (leaves-only also writes round_NNNN.json, and those have parent_routed
+# false, which would falsely flag the run as failed).
 # Per-leaf state under .experiments/subcircuits/ stays intact -- pins
 # and the leaves-only debug.json drive the parents-only compose.
 python3 -c "
 import shutil, os
 shutil.rmtree('.experiments/hierarchical_autoexperiment', ignore_errors=True)
+shutil.rmtree('.experiments/rounds', ignore_errors=True)
 if os.path.exists('.experiments/experiments.jsonl'):
     os.unlink('.experiments/experiments.jsonl')
 "
-# Tolerate non-zero exit only for the parent acceptance gate
-# (illegal_routed_geometry from FreeRouting clearance violations) so
-# the verify script still surfaces the inspectable parent_routed.kicad_pcb.
-set +e
+# We do NOT swallow non-zero exits here. A previous version of this
+# script tolerated rc=1 on the rationale that an "illegal_routed_geometry"
+# rejection still produces an inspectable parent_routed.kicad_pcb -- but
+# that turned the script into a liar: any parent route failure was
+# printed as "Done". Now the script always exits non-zero when the
+# parent doesn't actually route, regardless of how autoexperiment chose
+# to signal it (process exit code OR per-round acceptance flag in
+# .experiments/rounds/round_*.json).
 timeout "$PARENT_TIMEOUT" python3 -u -m kicraft.cli.autoexperiment \
     "$PCB" \
     --schematic "$SCH" \
@@ -142,16 +150,9 @@ timeout "$PARENT_TIMEOUT" python3 -u -m kicraft.cli.autoexperiment \
     --parents-only \
     --jar "$FREEROUTING_JAR"
 parent_rc=$?
-set -e
 echo "    parents-only took $(( $(date +%s) - start_stage ))s (rc=$parent_rc)"
 
-if [[ "$parent_rc" -ne 0 && "$parent_rc" -ne 1 ]]; then
-    echo "error: parents-only failed with rc=$parent_rc" >&2
-    exit "$parent_rc"
-fi
-
-echo
-echo "==> Done in $(( $(date +%s) - start_total ))s"
+# Artifacts are always printed -- failure mode debugging needs them.
 echo
 echo "Pinned leaves (canonical state on disk):"
 python3 -c "
@@ -166,3 +167,83 @@ find .experiments/subcircuits -maxdepth 2 -name "parent_routed.kicad_pcb" \
     -printf '  %T@ %p\n' 2>/dev/null \
     | sort -rn \
     | awk '{ $1=""; sub(/^ /, ""); print }'
+
+# Now check the actual outcome. autoexperiment normally returns 0 even
+# when every round was rejected by the acceptance gate, so the only
+# truthful signal is the per-round JSON. A round counts as "passed"
+# when hierarchy.parent_routed is true AND no rejection_reasons were
+# recorded.
+echo
+parent_outcome="$(python3 - <<'PY'
+import json
+import sys
+from pathlib import Path
+
+rounds_dir = Path('.experiments/rounds')
+if not rounds_dir.is_dir():
+    print('no_rounds_dir', file=sys.stderr)
+    sys.exit(0)
+
+round_files = sorted(rounds_dir.glob('round_*.json'))
+if not round_files:
+    print('no_round_files', file=sys.stderr)
+    sys.exit(0)
+
+results = []
+for path in round_files:
+    try:
+        data = json.loads(path.read_text())
+    except Exception as exc:
+        results.append((path.name, 'parse_error', str(exc)))
+        continue
+    hier = data.get('hierarchy') or {}
+    routed = bool(hier.get('parent_routed', False))
+    tier = hier.get('tier', '?')
+    score = data.get('score')
+    results.append((path.name, routed, tier, score))
+
+print(json.dumps(results))
+PY
+)"
+
+# Decide pass/fail. Surface the table either way.
+echo "Parent route outcomes:"
+python3 - <<PY
+import json
+results = json.loads('''$parent_outcome''') if '''$parent_outcome''' else []
+for r in results:
+    if len(r) == 3:
+        print(f"  {r[0]}: parse error -- {r[2]}")
+    else:
+        name, routed, tier, score = r
+        flag = 'OK' if routed else 'FAIL'
+        print(f"  {name}: {flag} tier={tier} score={score}")
+PY
+
+# Compute exit status:
+#   * autoexperiment hard-failed (rc not in {0}) -> propagate rc
+#   * any round failed acceptance               -> exit 3
+#   * everything routed                          -> exit 0
+if [[ "$parent_rc" -ne 0 ]]; then
+    echo "error: autoexperiment exited rc=$parent_rc" >&2
+    exit "$parent_rc"
+fi
+
+acceptance_rc="$(python3 - <<PY
+import json
+results = json.loads('''$parent_outcome''') if '''$parent_outcome''' else []
+if not results:
+    print(4)
+    raise SystemExit
+ok = all(len(r) == 4 and r[1] for r in results)
+print(0 if ok else 3)
+PY
+)"
+
+if [[ "$acceptance_rc" -ne 0 ]]; then
+    echo "error: parents-only completed but no round accepted (rc=$acceptance_rc)" >&2
+    exit "$acceptance_rc"
+fi
+
+echo
+echo "==> Done in $(( $(date +%s) - start_total ))s"
