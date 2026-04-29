@@ -216,11 +216,11 @@
 			(color 255 255 194 1)
 		)
 		(uuid "fb6d4d08-8299-415a-93e2-10cfee17e511")
-		(property "Sheetname" "BT1"
+		(property "Sheetname" "BATT"
 			(at 230 39 0)
 			(effects (font (size 1.27 1.27)) (justify left bottom))
 		)
-		(property "Sheetfile" "BT1.kicad_sch"
+		(property "Sheetfile" "BATT.kicad_sch"
 			(at 230 56 0)
 			(effects (font (size 1.27 1.27)) (justify left top) (hide yes))
 		)
