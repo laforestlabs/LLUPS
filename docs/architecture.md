@@ -2,48 +2,91 @@
 
 This document describes how the autoplacer stack operates.
 
-## High-Level System Map
+## High-Level Pipeline
+
+The autoexperiment runner is the user-facing entry point. Each round spawns
+two subprocesses (leaf solver, parent composer), then scores the combined
+result and decides whether to promote it to the running best.
 
 ```mermaid
 flowchart TD
-  autoplaceCli[autoplace.py] --> placementEngine[PlacementEngine.run]
-  autorouteCli[autoroute.py] --> routingEngine[RoutingEngine.run]
-  autopipelineCli[autopipeline.py] --> fullPipeline[FullPipeline.run]
-  autoexperimentCli[autoexperiment.py] --> fullPipeline
+  user([user]) -->|autoexperiment LLUPS.kicad_pcb --rounds N| ax[autoexperiment.py<br/>outer loop]
 
-  fullPipeline --> placementEngine
-  fullPipeline --> routingEngine
-  fullPipeline --> drcAnalysis[kicad-cli DRC]
+  ax -->|subprocess per round| solve[solve_subcircuits.py<br/>leaf solver]
+  ax -->|subprocess per round<br/>--stamp --route| compose[compose_subcircuits.py<br/>parent composer]
+  ax --> score[_score_round<br/>3-tier]
 
-  placementEngine --> adapterLoad[KiCadAdapter.load]
-  adapterLoad --> boardState[BoardState]
-  boardState --> placementSolver[PlacementSolver.solve]
-  placementSolver --> placementScorer[PlacementScorer.score]
-  placementSolver --> applyPlacement[KiCadAdapter.apply_placement]
+  solve -->|writes per leaf| leafArt[(.experiments/subcircuits/&lt;leaf&gt;/<br/>solved_layout.json<br/>leaf_routed.kicad_pcb)]
+  leafArt --> compose
 
-  routingEngine --> freerouting[FreeRouting via DSN/SES]
-  freerouting --> countTracks[count_board_tracks]
+  compose -->|writes| parentArt[(.experiments/subcircuits/__parent__/<br/>parent_routed.kicad_pcb<br/>composer report.json)]
+  compose -->|auto-emit| inspector[(inspect/<br/>annotated_top.png<br/>stacking_heatmap.png<br/>summary.md)]
+  parentArt --> score
 
-  placementScorer --> experimentScore[_score_round]
-  countTracks --> experimentScore
-  drcAnalysis --> experimentScore
+  score --> accept{score improved by keep_threshold<br/>AND subprocesses succeeded?}
+  accept -->|kept| best[(LLUPS_best.kicad_pcb)]
+  accept -->|next round| ax
 
-  applyPlacement --> pcbArtifact[PCB file output]
-  freerouting --> pcbArtifact
-  experimentScore --> autoexperimentLoop[Experiment keep/discard loop]
-  autoexperimentLoop --> artifacts[JSONL + report + GIF + status files]
+  ax -.atomic write.-> status[(.experiments/run_status.json)]
+  status -.poll ~2s.-> gui[GUI monitor]
 ```
 
 ## Layer Responsibilities
 
-- `hardware/adapter.py` is the I/O boundary with KiCad (`pcbnew`): loads board state, applies placement.
-- `brain/` modules are pure-Python algorithmic logic:
-  - `placement.py`: footprint placement and placement scoring
-  - `graph.py`: netlist graph analysis for placement grouping
-  - `types.py`: shared dataclasses and scoring objects
-- `freerouting_runner.py`: DSN export → FreeRouting CLI → SES import → track counting.
-- `pipeline.py` composes placement + routing + DRC for single-board experiments.
-- `autoexperiment.py` runs iterative optimization rounds, scores via `_score_round()`, keeps best board, writes artifacts.
+CLI entry points (`kicraft/cli/`):
+- `autoexperiment.py` -- outer loop: per-round subprocess fan-out, scoring, accept/reject, atomic status writes, run archive.
+- `solve_subcircuits.py` -- leaf solver: per-leaf placement + FreeRouting + DRC + acceptance gate; writes `solved_layout.json` and `leaf_routed.kicad_pcb`.
+- `compose_subcircuits.py` -- parent composer: discovers solved leaf artifacts, calls parent_adapter to bridge into `PlacementSolver`, stamps parent PCB, runs FreeRouting on parent, auto-emits the inspector bundle.
+- `solve_hierarchy.py` -- standalone end-to-end orchestrator (not used inside the autoexperiment loop, but available for one-shot full-hierarchy runs).
+- `inspect_parent.py` -- annotated PNGs, stacking heatmap, clustered DRC issue list, suggested next actions, optional baseline diff. Auto-runs after parent route.
+- `score_layout.py` -- score a single PCB without re-running the pipeline.
+
+Algorithmic core (`kicraft/autoplacer/brain/`):
+- `placement_solver.py` -- unified `PlacementSolver` (cluster placement, force-directed iteration, simulated-annealing refinement). Used for both leaf and parent placement.
+- `parent_adapter.py` -- bridges compose data to `PlacementSolver`: `artifact_to_component`, `attachment_constraints_to_zones`, `placements_from_solved_state`.
+- `subcircuit_composer.py` -- constraint-aware outline derivation, child geometry transforms.
+- `placement_scorer.py` -- inner placement-quality score, used by `PlacementSolver` during iteration.
+- `types.py` -- shared dataclasses (`BoardState`, `Component`, `PlacementScore`, `DRCScore`).
+
+I/O bridges:
+- `autoplacer/freerouting_runner.py` -- DSN export, FreeRouting subprocess (xvfb-wrapped on FR 1.x, `--gui.enabled=false` on FR 2.x), SES import, retry-on-crash.
+- `autoplacer/hardware/adapter.py` -- KiCad I/O via the `pcbnew` SWIG bindings.
+- `scoring/` -- DRC, connectivity, geometry, placement-fit, trace-width checks.
+
+GUI (`kicraft/gui/`):
+- Polls `.experiments/run_status.json` every ~2 s. Anchors a local 1 s clock to the backend `elapsed_s` only when it advances; otherwise extrapolates locally, so long subprocess phases do not stall the displayed clock.
+
+## Status JSON Flow
+
+The runner writes `.experiments/run_status.json` and `.experiments/run_status.txt` at every stage transition. The GUI polls these files every ~2 s and renders timing, progress, the current node, and preview paths.
+
+```mermaid
+sequenceDiagram
+  participant W as autoexperiment
+  participant FS as run_status.json
+  participant G as GUI monitor
+
+  loop per stage transition
+    W->>FS: write run_status.json.tmp
+    W->>FS: os.replace(.tmp, .json) -- atomic
+  end
+
+  loop every ~2s
+    G->>FS: read run_status.json
+    alt backend_elapsed advanced
+      G->>G: re-anchor local 1s ticker
+    else stale (no advance)
+      G->>G: keep extrapolating from last anchor
+    end
+  end
+```
+
+Two invariants keep the GUI clock smooth during long subprocess phases:
+
+1. **Writer side**: `_write_json` writes to `<path>.tmp` then `os.replace()`. The rename is atomic on POSIX, so the GUI never reads a torn JSON.
+2. **Reader side**: GUI extrapolates a local 1 s ticker from the last backend-anchored value. It only re-anchors when `backend_elapsed` actually advances. Stale reads do not snap the displayed clock backward.
+
+If either invariant is violated, the user sees toggling or stuck counters (the diagnostic pattern documented in commit `105c8b6`).
 
 ## Data Model Path
 
@@ -63,12 +106,11 @@ flowchart LR
 
 ## Configuration System
 
-Configuration is split into two layers in `autoplacer/config.py`:
+Configuration starts from `DEFAULT_CONFIG` in `autoplacer/config.py` and is layered with project-specific overrides at runtime:
 
-- **`DEFAULT_CONFIG`**: Generic defaults for any PCB project. Contains placement algorithm parameters (clearance, grid, forces), routing settings (timeout, passes, ignore nets), and feature toggles (scatter_mode, reheat, courtyard padding). Project-specific fields like `ic_groups`, `component_zones`, and `signal_flow_order` default to empty.
-- **`LLUPS_CONFIG`**: Project-specific overrides for the LLUPS board. Contains IC groupings with thermal refs, component zone assignments (connectors→edges, batteries→center-bottom, mounting holes→corners), and signal flow ordering for ICs.
-
-Configs are merged via `{**DEFAULT_CONFIG, **LLUPS_CONFIG, **(user_overrides or {})}` in both `pipeline.py` and `autoexperiment.py`.
+- **`DEFAULT_CONFIG`**: Generic defaults for any PCB project. Placement algorithm parameters (clearance, grid, forces), routing settings (timeout, passes, ignore nets), and feature toggles (scatter_mode, reheat, courtyard padding). Project-specific fields like `ic_groups`, `component_zones`, and `signal_flow_order` default to empty.
+- **Project overrides**: loaded from a project-local JSON (e.g. `LLUPS_autoplacer.json`) and merged on top: `{**DEFAULT_CONFIG, **project_overrides}`. The merge is performed in `solve_subcircuits.py` (line 315 area) for leaf solves and in `autoexperiment.py` (line 1885 area) for the experiment loop's initial config.
+- **Per-round mutations**: the experiment loop further mutates the config each round (minor / major / explore modes; see Evolutionary Search Strategy below).
 
 ### Key Config Features
 
@@ -150,67 +192,100 @@ The `PlacementSolver.solve()` method runs the following pipeline in order:
 | 10–12 | **Clamp & validate** | Hard-clamp all components inside the board outline, then verify every electrical pad is within the boundary (up to 3 passes). |
 | 13 | **Restore pinned positions** | Re-pin edge/corner components that may have drifted during overlap resolution. Re-resolve overlaps, then re-pin again. |
 
-### Experiment Loop (4 Phases)
+### Experiment Loop (per round)
 
-The `autoexperiment.py` outer loop runs each round through four phases:
+Each autoexperiment round runs the leaf solver, then the parent composer,
+then scores the combined result.
 
+```mermaid
+flowchart LR
+  start([round N start]) --> leafSolve[solve_subcircuits.py<br/>per leaf: place + FreeRoute + DRC]
+  leafSolve --> leafGate{all leaves accepted?}
+  leafGate -->|no| partial[tier=partial_leaves]
+  leafGate -->|yes| compose[compose_subcircuits.py<br/>--stamp --route]
+  compose --> parentGate{parent routed?}
+  parentGate -->|no| notRouted[tier=not_routed]
+  parentGate -->|yes| functional[tier=functional]
+
+  partial --> score
+  notRouted --> score
+  functional --> score{is_meaningful_improvement<br/>AND subprocesses_ok?}
+
+  score -->|yes| keep[promote to best]
+  score -->|no| discard[discard]
 ```
-/dev/null/pipeline.txt#L1-8
-┌─────────────┐     ┌──────────────┐     ┌───────────┐     ┌──────────┐
-│  Placement   │────▶│   Routing    │────▶│    DRC    │────▶│ Scoring  │
-│  (solver)    │     │ (FreeRouting)│     │  (KiCad)  │     │ (unified)│
-└─────────────┘     └──────────────┘     └───────────┘     └──────────┘
-     ~1-3s               ~10-30s             ~1-2s             <1s
+
+Per-leaf solve, inside `solve_subcircuits.py`:
+
+```mermaid
+flowchart LR
+  leaf([leaf input]) --> extract[extract leaf board state<br/>from parent PCB]
+  extract --> place[PlacementSolver:<br/>cluster + force-dir + SA refine]
+  place --> stamp[stamp leaf PCB]
+  stamp --> fr[FreeRouting]
+  fr --> drc[quick_drc]
+  drc --> gate{legality + DRC<br/>+ unrouted budget}
+  gate -->|reject| nextRound[next round]
+  gate -->|accept| persist[(solved_layout.json<br/>leaf_routed.kicad_pcb)]
 ```
 
-1. **Placement** — `PlacementSolver.solve()` arranges components on the
-   board. If the placement score is below `min_placement_score`, routing
-   is skipped entirely (saves 15–30 s on degenerate layouts).
+Parent compose, inside `compose_subcircuits.py`:
 
-2. **Routing** — Export to DSN, run FreeRouting (Java), import SES result.
-   FreeRouting auto-routes all nets with up to `freerouting_max_passes`
-   passes within `freerouting_timeout_s`.
+```mermaid
+flowchart LR
+  start([routed leaf artifacts]) --> discover[_discover_artifact_dirs +<br/>filter by hierarchy parent]
+  discover --> adapt[parent_adapter:<br/>artifact_to_component +<br/>attachment_constraints_to_zones]
+  adapt --> solver[PlacementSolver.solve<br/>blocker-aware on synthetic blocks]
+  solver --> placements[placements_from_solved_state]
+  placements --> stampPcb[(parent_pre_freerouting.kicad_pcb)]
+  stampPcb --> fr[FreeRouting<br/>preserves child copper]
+  fr --> routedPcb[(parent_routed.kicad_pcb)]
+  routedPcb --> inspector[inspect_parent auto-emit:<br/>annotated_top.png<br/>stacking_heatmap.png<br/>summary.md]
+```
 
-3. **DRC** — `quick_drc()` runs KiCad's design rule checker and counts
-   shorts, unconnected nets, clearance violations, and courtyard overlaps.
+### Scoring
 
-4. **Scoring** -- `_score_round()` in `autoexperiment.py` produces a composite
-   metric combining leaf acceptance, routed copper, parent composition,
-   parent quality, and area compactness (max 89 absolute + improvement bonuses).
+`_score_round()` produces a 3-tier score in roughly `[0, 90]`. The composer's
+own quality score (anchor coverage, area utilization, child layout quality,
+interconnect compactness, DRC penalty) is the source of truth for the
+`functional` tier.
 
-### Scoring System
+```mermaid
+flowchart TD
+  start([round result]) --> leaf{leaf_accepted /<br/>leaf_total}
+  leaf -->|< 1.0| partial[tier=partial_leaves<br/>score = leaf_ratio * 15<br/>range 0-15]
+  leaf -->|= 1.0| routed{parent_routed?}
+  routed -->|no| notRouted[tier=not_routed<br/>score = 20]
+  routed -->|yes| functional[tier=functional<br/>score = composer_score_total<br/>typical 50-90]
+```
 
-The subcircuit experiment scorer (`_score_round()`) combines bounded absolute
-components plus improvement bonuses:
+A round is promoted to "best" only when both gates pass:
 
-| Component | Max Points | What it measures |
-|-----------|--------|------------------|
-| `leaf_acceptance` | 30 | Fraction of leaf subcircuits accepted |
-| `routed_copper` | 16 | Trace and via coverage across accepted leaves |
-| `parent_composition` | 8 | Whether parent compose succeeded |
-| `parent_routed` | 12 | Whether parent routing ran |
-| `parent_quality` | 14 | Preserved child copper + added parent copper |
-| `area_compactness` | 9 | Child area / parent board area ratio |
+1. `is_meaningful_improvement` -- score exceeds the prior best by `keep_threshold` (0.5), or this is the first round, AND
+2. all subprocesses succeeded (`solve_rc == 0` if leaves run, `parent_route_rc == 0` if parent runs).
 
-**Hard score gates** prevent misleading totals:
-- Route completion ≤ 50% → score capped at 40
-- Route completion < 90% → score capped at 70
+The subprocess gate prevents a failed first round from being promoted to
+"best" (which would otherwise pollute every subsequent improvement
+comparison). See `is_meaningful_improvement` in `autoexperiment.py`.
 
-The inner `PlacementScore` (used within placement before routing) has its
-own weight distribution:
+The inner `PlacementScore`, used inside `PlacementSolver.solve()` to drive
+each iteration, has its own component weights, defined in
+`autoplacer/brain/types.py`:
 
 | Component | Weight | Description |
 |-----------|--------|-------------|
-| `net_distance` | 0.22 | Connected components close together |
-| `crossover_score` | 0.18 | Fewer ratsnest crossings |
+| `net_distance` | 0.20 | Connected components close together |
+| `crossover_score` | 0.17 | Fewer ratsnest crossings |
+| `smt_opposite_tht` | 0.15 | SMT on opposite side of THT |
 | `board_containment` | 0.12 | All pads/bodies inside board |
 | `edge_compliance` | 0.10 | Connectors/holes on edges |
 | `courtyard_overlap` | 0.10 | No overlapping courtyards |
-| `smt_opposite_tht` | 0.10 | SMT on opposite side of THT |
-| `group_coherence` | 0.10 | Functional groups stay compact |
-| `aspect_ratio` | 0.05 | Penalize elongated boards |
-| `compactness` | 0.02 | Tighter layouts |
-| `rotation_score` | 0.01 | Pad alignment quality |
+| `group_coherence` | 0.08 | Functional groups stay compact |
+| `topology_structure` | 0.05 | Topology-aware passive ordering |
+| `aspect_ratio` | 0.02 | Penalize elongated boards |
+| `compactness` | 0.01 | Tighter layouts |
+| `block_opposite_side` | 0.0 | Parent-side opposite-side block stacking (plumbed but disabled by default; see `types.py` for rationale) |
+| `rotation_score` | 0.0 | Pad alignment quality |
 
 ### Evolutionary Search Strategy
 
@@ -362,30 +437,13 @@ The following parameter ranges consistently produce the best results
 
 ### Anti-patterns (what does NOT work)
 
-- `placement_clearance_mm` < 2.0 — causes unresolvable courtyard overlaps.
-- `force_repel_k` > 400 — components oscillate and never converge.
-- `orderedness` = 0.0 with `scatter_mode: "cluster"` — organic layouts
-  that FreeRouting struggles to route cleanly.
-- Board aspect ratio > 2:1 — long thin boards waste area and create
-  long traces.
-- `max_placement_iterations` < 100 — not enough iterations for the
-  force simulation to converge.
+- `placement_clearance_mm` < 2.0 -- causes unresolvable courtyard overlaps.
+- `force_repel_k` > 400 -- components oscillate and never converge.
+- `orderedness` = 0.0 with `scatter_mode: "cluster"` -- organic layouts that FreeRouting struggles to route cleanly.
+- Board aspect ratio > 2:1 -- long thin boards waste area and create long traces.
+- `max_placement_iterations` < 100 -- not enough iterations for the force simulation to converge.
 
 ---
-
-### Anti-patterns (what does NOT work)
-
-- `placement_clearance_mm` < 2.0 — causes unresolvable courtyard overlaps.
-- `force_repel_k` > 400 — components oscillate and never converge.
-- `orderedness` = 0.0 with `scatter_mode: "cluster"` — organic layouts
-  that FreeRouting struggles to route cleanly.
-- Board aspect ratio > 2:1 — long thin boards waste area and create
-  long traces.
-- `max_placement_iterations` < 100 — not enough iterations for the
-  force simulation to converge.
-
----
-
 
 ## Observability Model
 
