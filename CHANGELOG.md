@@ -1,5 +1,40 @@
 # LLUPS Engineering Changelog
 
+## 2026-05-02: Parent layout variation fix + score reweighting (overnight loop)
+
+### Headline result
+
+- Parent layouts had near-zero variation across rounds even with `--random-search`. Root cause: `compose_subcircuits.py` had no `--seed` argparse arg, so the parent `PlacementSolver` always ran with `seed=0` regardless of round.
+- After fix, random search produces meaningfully different parent layouts per round.
+- Best layout discovered (iter3b R6): **117.6 x 86.8 mm = 10,208 mm**, area_utilization **37.7%**, score 70.35. That is **18% smaller than the iter1 baseline** (12,395 mm, 31.1% utilization).
+
+### KiCraft commits
+
+- `d4ec6ad` `fix(compose): wire round_seed through autoexperiment to parent placer`
+  - `compose_subcircuits.py`: add `--seed` argparse, forward into `_compose_artifacts(seed=...)`.
+  - `autoexperiment.py`: append `--seed <round_seed>` to `parent_route_cmd`.
+- `e438586` `feat(score): bump area_utilization weight 0.15 -> 0.25, drop packing 0.25 -> 0.15`
+  - `subcircuit_composer.py::_score_parent_composition`: rebalance weights so the optimizer prefers smaller boards over densely-packed-but-large boards.
+- `8a24335` (later reverted by `96ab494`) `feat(compose): tighten _seed_outline_dimensions area factor 2.5 -> 1.8`
+  - Iter7 with the tighter factor produced 0/4 routed rounds; routing channels need the slack. Reverted.
+
+### Iteration log
+
+- Iter1 baseline (random search, no seed fix): best score 65.70 / 12,395 mm.
+- Iter2 (random search after seed fix): 4/6 routed, best 69.24 / 10,750 mm (-13%).
+- Iter3b (greedy mutation around iter2 best): best 70.35 / 10,208 mm (-18%, current best).
+- Iter4-5 (greedy from iter3b best, fresh random search): no improvement.
+- Iter6 (--parents-only random search on iter5 leaves): best 64.69 / 12,719 mm.
+- Iter7 (tight seed_outline + util weights): 0/4 routed, REVERTED.
+- Iter8-9 (greedy from iter3b best, seeds 9-10): best 66.03, no improvement.
+- Iter10-11 (--leaves-only -> pin best -> --parents-only): in progress at handoff.
+
+### Open follow-ups
+
+- The score-weight bump and seed wiring are independent improvements. The weight bump did not produce measurable PCB shrink in the iters where it was active (iter5+). Likely needs more rounds or a different search strategy than uniform random.
+- `_seed_outline_dimensions` 2.5x area factor is load-bearing for FreeRouting feasibility -- if revisited, expose it as a search-space param rather than a hardcoded constant.
+- Greedy mutation with seed 4 (iter3b) found the best layout. Other seeds with the same approach (5, 9, 10) did not. Search variance is high; consider 2-3x more rounds per iter or a population-based search.
+
 ## 2026-04-21: Hierarchical compose progress, defect status, and handoff
 
 ### KiCraft commits in this session
