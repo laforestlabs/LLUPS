@@ -41,6 +41,14 @@ logs/
 
 # === Claude local settings ===
 .claude/settings.local.json
+.claude/references/
+.claude/scheduled_tasks.lock
+
+# === sisyphus session artifacts ===
+.sisyphus/
+
+# === DRC reports (regenerated on every kicad-cli run) ===
+*-drc.rpt
 
 # === OS ===
 .DS_Store
