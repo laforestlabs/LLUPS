@@ -180,7 +180,6 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 | KiCraft/kicraft/autoplacer/brain/leaf_routing.py | FreeRouting leaf routing orchestration (~750 lines) |
 | KiCraft/kicraft/autoplacer/brain/leaf_size_reduction.py | Leaf size reduction + local solver config (~500 lines) |
 | KiCraft/kicraft/autoplacer/brain/hierarchy_parser.py | Schematic hierarchy parsing |
-| KiCraft/kicraft/autoplacer/brain/placement.py | Backward-compatible re-export hub |
 | KiCraft/kicraft/autoplacer/brain/placement_solver.py | Force-directed placement solver |
 | KiCraft/kicraft/autoplacer/brain/placement_scorer.py | Placement quality scorer |
 | KiCraft/kicraft/autoplacer/brain/placement_utils.py | Shared placement geometry helpers |

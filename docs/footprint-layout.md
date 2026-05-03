@@ -1,6 +1,6 @@
 # Footprint Layout Flow
 
-This page documents how footprint placement currently works in `autoplacer/brain/placement.py`.
+This page documents how footprint placement currently works. The solver lives in `autoplacer/brain/placement_solver.py`; scoring is in `placement_scorer.py`; shared geometry helpers are in `placement_utils.py`.
 
 ## Placement Pipeline
 
