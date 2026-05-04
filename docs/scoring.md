@@ -11,18 +11,35 @@ They are related but not identical.
 
 ## PlacementScore (pre-routing quality signal)
 
-`PlacementScorer.score()` emits sub-metrics, then `PlacementScore.compute_total()` aggregates:
+`PlacementScorer.score()` emits sub-metrics, then `PlacementScore.compute_total()` aggregates with weights summing to 1.0 (see `KiCraft/kicraft/autoplacer/brain/types.py`):
 
 ```text
 placement_total =
-  0.25*net_distance +
-  0.20*crossover_score +
-  0.10*compactness +
+  0.20*net_distance +
+  0.17*crossover_score +
+  0.00*compactness +          # absorbed by bbox_packing; seed-frame ratio
+                              # was constant during a solve (SA could not
+                              # move it) so the weight was redirected.
   0.10*edge_compliance +
-  0.03*rotation_score +
-  0.15*board_containment +
-  0.12*courtyard_overlap +
-  0.05*smt_opposite_tht
+  0.00*rotation_score +
+  0.12*board_containment +
+  0.10*courtyard_overlap +
+  0.15*smt_opposite_tht +
+  0.08*group_coherence +
+  0.02*aspect_ratio +
+  0.05*topology_structure +
+  0.01*bbox_packing +         # tight packing vs the *placed* bbox
+                              # (dynamic under SA), mirroring the parent-
+                              # composition packing_density via the
+                              # shared placement_utils.packing_metrics
+                              # helper. Single source of truth so the
+                              # in-loop SA score and the post-compose
+                              # round score agree on "tightly packed".
+  0.00*block_opposite_side    # parent-side reward for stacking blocker-
+                              # compatible pairs; plumbing in place,
+                              # weight 0 until a stronger initial-
+                              # placement hint or higher weight produces
+                              # measurable lift.
 ```
 
 All terms are normalized to a 0-100 range by scorer functions.

@@ -137,7 +137,7 @@ generate-report .experiments/ -o report.html
 xdg-open report.html
 ```
 
-Full details on every artifact, the web dashboard, the HTML report sections, DRC overlays, failure heatmaps, dependencies, and troubleshooting: [`docs/monitoring-guide.md`](docs/monitoring-guide.md)
+For monitoring during a run, the KiCraft GUI (`python -m kicraft.gui`) is the primary tool — it shows live per-leaf round progress, score plots, render thumbnails, and per-component pin controls. The CLI artifacts above (`run_status.txt`, `progress.gif`, `experiments_dashboard.png`, `report.html`) are still produced for headless workflows.
 
 ## Architecture & Scoring
 
@@ -145,7 +145,6 @@ Full details on every artifact, the web dashboard, the HTML report sections, DRC
 - [`docs/footprint-layout.md`](docs/footprint-layout.md) — placement engine details
 - [`docs/auto-trace.md`](docs/auto-trace.md) — routing engine details
 - [`docs/scoring.md`](docs/scoring.md) — scoring formulas and weight breakdowns
-- [`docs/monitoring-guide.md`](docs/monitoring-guide.md) — reports, dashboard, and monitoring
 
 Static QA score (independent of the optimizer):
 

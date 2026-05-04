@@ -1,8 +1,8 @@
 # LLUPS Roadmap
 
-> **Last updated:** 2026-04-22 (session 9)
-> **Current phase:** Phase 7 -- parent composition quality tuning (SMT-over-THT stacking)
-> **Quick status:** Fixed parent packer to stack SMT leaves over back-dominant THT leaves (BT1). Previously the raster returned the *first* legal overlap, which was the y where candidate bboxes just touched. Now scores candidates by overlap area and picks max. Result on LLUPS: BOOST 5V, BATT PROT, and CHARGER now sit on the front side opposite the battery holders instead of a narrow 20 mm strip above them. KiCraft tests: 429 pass. Remaining tuning: overall parent board still 114x79 mm (should shrink further once iterative frame also shrinks on slack).
+> **Last updated:** 2026-05-04
+> **Current phase:** Phase 7 -- parent composition quality tuning (board shrink + SMT-over-THT stacking)
+> **Quick status:** Cluster-slide post-pass (KiCraft `072ceb6`) drops parent area 18-29% on seeds 4/7/42 by pulling drifting edge/corner-pinned components back into the cluster bbox after `solve()`. Best result: seed 7 at 11,058 mm² (was 15,400+). Follow-up `bbox_packing` sub-metric (KiCraft `a1456db`) adds an in-SA signal that drift costs PCB area, but at its current weight (0.01) it's below the SA temperature noise floor — plumbing is correct, layout impact is below detection threshold. KiCraft tests: 493 pass.
 
 ---
 
@@ -12,7 +12,7 @@ This is the **single canonical plan document** for the LLUPS project. Every sess
 1. **Start** by reading this file to understand current state
 2. **End** by updating the checkboxes, status line, and Last Session section below
 
-This replaces the scattered tracking previously split across NEXT_AGENT.md, docs/next-steps.md, and CHANGELOG.md handoff entries. The CHANGELOG remains for detailed per-session engineering notes (append-only history).
+This is the canonical plan; the CHANGELOG remains for detailed per-session engineering notes (append-only history).
 
 ---
 
@@ -33,7 +33,7 @@ This replaces the scattered tracking previously split across NEXT_AGENT.md, docs
 
 ## Phase 0: Repo Cleanup and KiCraft Extraction (done)
 
-All complete. See docs/CLEANUP_PLAN.md for details.
+All complete.
 
 - [x] Untrack .experiments/ and generated artifacts from git
 - [x] Consolidate .gitignore
@@ -191,25 +191,24 @@ Key MVP milestone: a parent board composed from real routed leaves, inspectable 
 
 ## Last Session Handoff
 
-**Date:** 2026-04-19 (session 8)
+**Date:** 2026-05-04
 
-### Completed this session
-1. Fixed 42 ruff lint errors (all F401 unused imports, auto-fixed)
-2. Verified parent composition via solve-hierarchy --skip-leaves --route (47.1s, composes 6 pre-solved leaves)
-3. Verified copper preservation: 95.6% traces (237/248), 80% vias (4/5) -- trace target >95% MET
-4. Updated ROADMAP.md: all phases documented, 44 new tests documented, extraction documented
+### Completed since last handoff (sessions spanning 2026-05-02 → 2026-05-04)
 
-### Completed sessions 7-8 (since last handoff)
-1. Added 44 new tests: test_mutate_config (26), test_sa_refine (8), test_implicit_interface_ports (10)
-2. Extracted _attempt_leaf_size_reduction into brain/leaf_size_reduction.py (~500 lines)
-3. Extracted _route_local_subcircuit into brain/leaf_routing.py (~750 lines)
-4. Moved SolveRoundResult to brain/types.py
-5. Reduced solve_subcircuits.py from 2579 to 1315 lines (49%)
-6. Fixed 42 ruff F401 errors across KiCraft
-7. Parent composition verified via solve-hierarchy --skip-leaves --route (47.1s)
-8. Leaf solving verified via solve-subcircuits --rounds 1 --route (all 6 leaves solved+routed+accepted)
-9. Copper preservation: 95.6% traces (237/248), 80% vias (4/5) -- trace target >95% met
-10. Implicit ports verified: USB INPUT leaf (implicit GND) solved by solve-subcircuits, then composed into parent by solve-hierarchy
+1. Wired `--seed` through `compose_subcircuits` so random search varies parent layouts per round (KiCraft `d4ec6ad`).
+2. Rebalanced parent-composition weights: `area_utilization` 0.15→0.25, `packing_density` 0.25→0.15 (KiCraft `e438586`).
+3. Tightened LLUPS-level DRC defaults to OSH Park 2-layer service spec: `min_clearance` 0.2→0.1524 mm, `min_copper_edge_clearance` 0.0→0.381 mm (LLUPS `9fc6488`).
+4. Cluster-slide post-pass: pulls drifting edge/corner-pinned components back into the cluster bbox after `solve()` (KiCraft `072ceb6`). Parent area drops 18-29% on seeds 4/7/42; best 11,058 mm² on seed 7.
+5. Shared `packing_metrics` helper extracted to `placement_utils.py` so `_score_parent_composition` and the new `_score_bbox_packing` cannot drift in their definition of "tightly packed" (KiCraft `7491fdd`).
+6. New `bbox_packing` sub-metric on `PlacementScorer` at weight 0.01 absorbed from `compactness` (KiCraft `a1456db`). Plumbing is correct; weight is below SA temperature noise floor and layouts stay bit-identical to the slide-only baseline. C3 attempt at weight 0.05 (sourced from `crossover_score`) also bit-identical, reverted before commit.
+7. Tests: 488 → 493. New `tests/test_placement_scorer_bbox_packing.py` covers tight (>=90), spread (<50), single, empty, and zero-area NaN-defence.
+
+### Open follow-ups (for next session)
+
+- Find a working weight for `bbox_packing` (0.05 was insufficient; 0.10+ or a different intervention point may be needed).
+- Per-unconstrained-leaf rotation search during packing (still open).
+- Verify the cluster-slide pass does not regress edge-constrained placements under longer autoexperiment runs (visual check on seeds 4/7/42 is fine).
+- Locally-modified GUI / CLI files popped from a 2026-05-03 stash on 2026-05-04 (within-run leaf round accumulation feature + KiCraft-side OSH Park sync) — review and commit when ready. Touches `kicraft/autoplacer/config.py`, `kicraft/cli/program.md`, `kicraft/cli/solve_subcircuits.py`, `kicraft/gui/components/{node_detail,pipeline_graph,per_component}.py`, `kicraft/gui/pages/monitor.py`, `tests/test_run_artifact_cleanup.py`.
 
 ---
 
@@ -225,16 +224,33 @@ battery holders).
       in the y-major raster. (KiCraft `feat/project-plan-layer` 831be3b)
 - [x] Weight overlap scoring by opposite-side dominance so front-on-back
       stacking wins over same-side pad-gap stacking. (KiCraft `dbe021a`)
-- [ ] Allow the iterative frame to *shrink* when the last packed extents
-      fit inside the seed frame with slack. Currently it only grows on
-      overflow, so successful stacks still keep an oversized board.
+- [x] Wire `--seed` through `compose_subcircuits` -> `_compose_artifacts`
+      so parent random search actually varies layouts per round.
+      (KiCraft `d4ec6ad`)
+- [x] Reweight parent composition score: `area_utilization` 0.15 -> 0.25,
+      `packing_density` 0.25 -> 0.15, so the optimiser prefers smaller
+      boards over densely-packed-but-large boards. (KiCraft `e438586`)
+- [x] Slide edge/corner-pinned components back to the cluster bbox after
+      `solve()`. (KiCraft `072ceb6`) Drops parent area 18-29% on seeds
+      4/7/42 (best: seed 7 at 11,058 mm²).
+- [x] Extract a shared `packing_metrics` helper and add a position-
+      dependent `bbox_packing` sub-metric to `PlacementScorer` (the
+      pre-existing `compactness` divided by the fixed seed frame, which
+      contributed a constant during a solve). (KiCraft `7491fdd`,
+      `a1456db`) At weight 0.01 the metric is below the SA temperature
+      noise floor; layouts are bit-identical to the slide-only baseline.
+- [ ] Find a working weight for `bbox_packing`. Tried 0.05 sourced from
+      `crossover_score: 0.17 -> 0.13` -- still bit-identical. The
+      dominant placement metrics drown out a 5-weighted-points attractor.
+      Future options: weight 0.10+, a different SA temperature schedule,
+      or wiring the metric into the force-directed phase.
 - [ ] Per-unconstrained-leaf rotation search during packing. The current
       `_make_unconstrained_model` rotation is a static function of the
       leaf index; real rotation search would let a leaf pick the
       orientation that maximises overlap with already-placed leaves.
-- [ ] Verify the fix does not regress edge-constrained placements
-      (USB INPUT, LDO 3.3V). Visual check shows both still sit on their
-      assigned edges but full rerun with `autoexperiment` would confirm.
+- [ ] Verify the slide pass does not regress edge-constrained placements
+      under autoexperiment-scale runs (USB INPUT, LDO 3.3V). Visual check
+      on seeds 4/7/42 shows both still on their assigned edges.
 
 ### Remaining (future improvements -- not required for functional MVP)
 

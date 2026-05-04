@@ -1,5 +1,34 @@
 # LLUPS Engineering Changelog
 
+## 2026-05-03 / 2026-05-04: Cluster-slide post-pass + bbox_packing scorer plumbing
+
+### Headline result
+
+Parent area dropped 18-29% on seeds 4 / 7 / 42 from a post-solve cluster-slide pass that pulls drifting edge/corner-pinned components back into the cluster bbox. Follow-up plumbing for an in-SA `bbox_packing` sub-metric is now in place but at its current weight (0.01) is below the SA temperature noise floor and produces bit-identical layouts to the slide-only baseline.
+
+### KiCraft commits
+
+- `072ceb6` `feat(compose): slide edge/corner-pinned components to cluster post-solve`
+  - `compose_subcircuits.py::_slide_constrained_to_cluster` — new pass after `PlacementSolver.solve()`. Edge-pinned blocks slide on their free axis until they fall inside the cluster's perpendicular span; corner-pinned parent-local components (mounting holes) jump to the cluster's matching corner. Walked back via `_largest_safe_slide` if a slide would create an incompatible block overlap.
+  - The seed frame is intentionally oversized (2.5x area slack for routing); without this pass, leaves pinned to the seed corners inflated `_compute_final_outline`. Result: tight final outline without losing routing slack.
+  - Verified seeds 4 / 7 / 42: 12,628 / 11,058 / 12,311 mm² (vs 15,400+ before).
+- `7491fdd` `refactor(placement): extract packing_metrics helper to placement_utils`
+  - New `packing_metrics(component_area, placed_bbox_area) -> PackingMetrics(density, score)` in `placement_utils.py`. Both `subcircuit_composer._score_parent_composition` and (next commit) `placement_scorer._score_bbox_packing` route through this helper so the in-loop SA score and the post-compose round score share one definition of "tightly packed."
+  - Pure refactor: bit-identical `packing_density=0.389` / `score_total=65.306` on a `--stamp seed=7` run before and after.
+- `a1456db` `feat(placement): add bbox_packing sub-metric (weight 0.01 from compactness)`
+  - New `PlacementScore.bbox_packing` field, `_score_bbox_packing` method, weight 0.01 absorbed from `compactness` (0.01 -> 0.00). Defaults still sum to 1.0.
+  - `_score_compactness` divides by the *seed* frame which is fixed for the whole solve and contributes a constant — SA cannot move it. `bbox_packing` divides by the dynamic placed bbox, so an isolated leaf parked in a corner inflates the bbox and reduces the score.
+  - Tests: 488 -> 493. New `tests/test_placement_scorer_bbox_packing.py` covers tight (>=90), spread (<50), single-component, empty-state, and zero-area NaN-defence (`math.exp(NaN)` would silently reject every SA move).
+
+### Honest finding on bbox_packing
+
+At weight 0.01, layouts and `Cluster-slide:` counts on seeds 4/7/42 are bit-identical to the slide-only baseline — the metric isn't moving SA. A C3 attempt bumped weight to 0.05 (sourced from `crossover_score: 0.17 -> 0.13`) but produced the same bit-identical outcome and was reverted before commit. The dominant terms (`net_distance` 0.20, `smt_opposite_tht` 0.15, `board_containment` 0.12, `courtyard_overlap` 0.10) drown out a 0.05-weighted attractor at SA temperature. The plumbing is correct (verified by unit tests + bit-identity); the lever just needs more force or a different intervention point. Future options: weight 0.10+, a different SA temperature schedule, or wiring the metric into the force-directed phase.
+
+### Out of scope (preserved)
+
+- `_seed_outline_dimensions` 2.5x area factor stays — load-bearing for FreeRouting feasibility (1.8x produced 0/4 routes in earlier work).
+- `_slide_constrained_to_cluster` is the safety net and stays even if SA later produces tight pre-slide layouts.
+
 ## 2026-05-02: Parent layout variation fix + score reweighting (overnight loop)
 
 ### Headline result
