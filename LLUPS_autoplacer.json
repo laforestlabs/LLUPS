@@ -112,7 +112,9 @@
     "parent_placement": {
         "candidate_search": {
             "k": 4,
-            "time_budget_s": 240.0
+            "time_budget_s": 240.0,
+            "max_outline_height_mm": 120.0,
+            "max_outline_width_mm": 160.0
         }
     }
 }
