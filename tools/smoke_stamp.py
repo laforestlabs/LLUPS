@@ -68,14 +68,23 @@ def _pick_pcb_and_schematic(project_root: Path) -> tuple[Path, Path]:
 def _verify_leaf_silk(project_root: Path) -> tuple[int, int, Path | None, str | None]:
     """Open the freshest ``leaf_routed.kicad_pcb`` and count F.SilkS shapes.
 
+    Globs both the canonical ``leaf_routed.kicad_pcb`` and the per-round
+    snapshots (``round_NNNN_leaf_routed.kicad_pcb``). solve_subcircuits
+    writes round snapshots only -- the canonical is promoted later by
+    pin_best_leaves -- so a fresh ``--rounds 1`` smoke run leaves the
+    canonical untouched. Picking the freshest by mtime lands on the
+    round snapshot we just produced and verifies its silk against the
+    code we just shipped.
+
     Returns ``(poly_count, text_count, path, error)``. ``error`` is None
     on success, otherwise a short string describing why introspection
     couldn't run (missing pcbnew, no board on disk, load failed).
     """
+    sub_root = project_root / ".experiments" / "subcircuits"
+    boards = list(sub_root.glob("*/leaf_routed.kicad_pcb"))
+    boards += list(sub_root.glob("*/round_*_leaf_routed.kicad_pcb"))
     boards = sorted(
-        (project_root / ".experiments" / "subcircuits").glob(
-            "*/leaf_routed.kicad_pcb"
-        ),
+        boards,
         key=lambda p: p.stat().st_mtime if p.exists() else 0,
         reverse=True,
     )
