@@ -65,6 +65,42 @@ def _pick_pcb_and_schematic(project_root: Path) -> tuple[Path, Path]:
     return pcb, sch
 
 
+def _verify_leaf_silk(project_root: Path) -> tuple[int, int, Path | None, str | None]:
+    """Open the freshest ``leaf_routed.kicad_pcb`` and count F.SilkS shapes.
+
+    Returns ``(poly_count, text_count, path, error)``. ``error`` is None
+    on success, otherwise a short string describing why introspection
+    couldn't run (missing pcbnew, no board on disk, load failed).
+    """
+    boards = sorted(
+        (project_root / ".experiments" / "subcircuits").glob(
+            "*/leaf_routed.kicad_pcb"
+        ),
+        key=lambda p: p.stat().st_mtime if p.exists() else 0,
+        reverse=True,
+    )
+    if not boards:
+        return 0, 0, None, "no_leaf_routed_kicad_pcb_on_disk"
+    board_path = boards[0]
+    try:
+        import pcbnew  # type: ignore
+    except ImportError as exc:
+        return 0, 0, board_path, f"pcbnew_import_failed:{exc}"
+    board = pcbnew.LoadBoard(str(board_path))
+    if board is None:
+        return 0, 0, board_path, "pcbnew_load_returned_none"
+    polys = 0
+    texts = 0
+    for dwg in board.GetDrawings():
+        if dwg.GetLayer() != pcbnew.F_SilkS:
+            continue
+        if isinstance(dwg, pcbnew.PCB_TEXT):
+            texts += 1
+        elif isinstance(dwg, pcbnew.PCB_SHAPE) and dwg.GetShape() == pcbnew.SHAPE_T_POLY:
+            polys += 1
+    return polys, texts, board_path, None
+
+
 def _ensure_manual_layout(project_root: Path) -> Path:
     """Use the saved manual_layout.json if present, else synthesise one
     from the most recent auto layout so the parent-stamp path can run."""
@@ -141,12 +177,32 @@ def main(argv: list[str] | None = None) -> int:
         failures.append("leaf-stamp")
         print("=== leaf-stamp stderr ===")
         print(leaf_stderr[:4000])
-    elif "routed        : True" not in leaf_stdout:
-        # solve_subcircuits sometimes prints "routed: False" while
-        # exiting 0 if the round was rejected for non-stamp reasons.
-        # That's fine for the smoke goal (stamp didn't crash) but
-        # worth surfacing.
-        print("[leaf-stamp] note: solver exited 0 but reported routed=False")
+    else:
+        if "routed        : True" not in leaf_stdout:
+            # solve_subcircuits sometimes prints "routed: False" while
+            # exiting 0 if the round was rejected for non-stamp reasons.
+            # That's fine for the smoke goal (stamp didn't crash) but
+            # worth surfacing.
+            print("[leaf-stamp] note: solver exited 0 but reported routed=False")
+
+        # Verify the leaf .kicad_pcb actually carries the rounded silk
+        # outline + label produced by leaf_routing._silk_for_leaf. If
+        # this regresses, the round-selector PNGs and manual-layout
+        # canvas leaf images go back to bare boards.
+        polys, texts, board_path, silk_err = _verify_leaf_silk(project_root)
+        if silk_err is not None:
+            print(f"[leaf-silk] could not introspect: {silk_err}")
+        else:
+            print(
+                f"[leaf-silk] {board_path.name if board_path else '?'}: "
+                f"poly={polys} text={texts}"
+            )
+            if polys < 1:
+                failures.append("leaf-silk")
+                print(
+                    "[leaf-silk] FAIL: expected >=1 F.SilkS poly on the "
+                    "leaf board (group_labels covers IC refs U1-U5+BT1)"
+                )
 
     # Parent stamp path (compose_subcircuits invokes
     # _parent_stamp_subprocess.py).
