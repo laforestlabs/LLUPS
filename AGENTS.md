@@ -146,8 +146,56 @@ solve-subcircuits LLUPS.kicad_sch --pcb LLUPS.kicad_pcb --rounds 1 --route
 
 ### When to run what
 
-| Change type | pytest | import smoke | pipeline |
-|------------|--------|-------------|----------|
-| Any Python file in KiCraft | Yes | Yes | - |
-| brain/*.py, cli/solve_subcircuits.py, cli/compose_subcircuits.py, freerouting_runner.py | Yes | Yes | Yes |
-| Tests, docs, comments only | Yes | - | - |
+| Change type | pytest | import smoke | pipeline | stamp smoke |
+|------------|--------|-------------|----------|-------------|
+| Any Python file in KiCraft | Yes | Yes | - | - |
+| brain/*.py, cli/solve_subcircuits.py, cli/compose_subcircuits.py, freerouting_runner.py | Yes | Yes | Yes | - |
+| Tests, docs, comments only | Yes | - | - | - |
+| `_stamp_subcircuit_subprocess.py`, `_parent_stamp_subprocess.py`, `adapter._apply_board_outline`, `adapter.stamp_subcircuit_board*`, `compose._stamp_parent_board`, anything that introspects pcbnew `GetDrawings()`/`Footprints()`/`GetTracks()`/`Zones()` | Yes | Yes | - | Yes |
+
+### 4. Stamp smoke test (~30 s - run after touching either subprocess script)
+
+```bash
+python tools/smoke_stamp.py
+```
+
+Exercises BOTH the leaf stamp path (`solve_subcircuits` →
+`adapter.stamp_subcircuit_board_subprocess` →
+`_stamp_subcircuit_subprocess.py`) AND the parent stamp path
+(`compose_subcircuits._stamp_parent_board` →
+`_parent_stamp_subprocess.py`) on a single small leaf plus the saved
+manual layout. Exits non-zero with the failing script's stderr.
+
+Why: these are two different (now lifted) subprocess scripts.
+Testing only one (e.g. running `compose_subcircuits` and assuming
+the leaf path works the same way) is exactly how the May 2026
+"`AttributeError: 'PCB_TEXT' object has no attribute 'GetShape'`"
+regression slipped through review -- the parent stamp had no silk
+text on F.Silkscreen so the bad filter ran clean, while every leaf
+solve failed and degraded to "routing_exception" with cached
+on-disk leaves still being reported as "accepted."
+
+Treat any failure here as blocking until fixed.
+
+### Defensive coding rules for pcbnew API
+
+* **Never call `board.GetDrawings()` / `Footprints()` / `GetTracks()`
+  / `Zones()` more than once across a board mutation in the same
+  process.** KiCad 9's SWIG bindings return a non-iterable
+  `SwigPyObject` from the second call once the board has been
+  mutated. Snapshot all four containers via `list(...)` UPFRONT,
+  before any `board.Add` / `board.Remove` of footprints, then
+  iterate the captured Python lists.
+* **Don't call `GetShape()` / `GetWidth()` on the result of
+  `board.GetDrawings()` without `hasattr` guards.** That iterator
+  returns a heterogeneous mix of `PCB_SHAPE`, `PCB_TEXT`,
+  `PCB_DIMENSION`, etc.; only `PCB_SHAPE` exposes those methods.
+  Filtering by `GetLayer()` is safe (every drawing has it). Anything
+  shape-specific must guard or wrap in `try/except`.
+* **Inline subprocess scripts are off-limits for new code.** When
+  you need a fresh pcbnew interpreter, write a real `.py` file under
+  `kicraft/autoplacer/hardware/` or `kicraft/cli/` and invoke it
+  via `_run_pcbnew_script_file(SCRIPT_PATH, *args)`. Inline strings
+  are not lintable, not type-checkable, and obscure stack traces.
+  The two stamping scripts already follow this pattern --
+  `_stamp_subcircuit_subprocess.py` and `_parent_stamp_subprocess.py`.
