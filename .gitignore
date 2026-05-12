@@ -56,3 +56,4 @@ Thumbs.db
 desktop.ini
 .~lock.*
 ~*.lck
+tools/.verify_renders/
