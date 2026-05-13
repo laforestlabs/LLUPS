@@ -35,6 +35,16 @@ explicitly so the next drift fails CI rather than a screenshot.
   7. ``metadata.json`` ``local_board_outline`` width/height ==
      Edge.Cuts AABB width/height (within 0.01 mm).
 
+FABRICATION-SAFETY invariants (per-leaf):
+
+  8. Every footprint's solder-pad bbox is inside Edge.Cuts (within
+     0.01 mm). Pads physically past the board edge are fab-fatal --
+     the solder pad needs on-board copper substrate, so a pad
+     overhanging the cut line either gets sliced in half during
+     fabrication or ends up dangling without copper. (Courtyards
+     extending off-board are fine for edge-mounted connectors;
+     pads are not.)
+
 PLACEMENT invariants (run once over manual_layout.json):
 
   8. For every pair of placements, the Edge.Cuts AABBs in parent
@@ -213,8 +223,8 @@ def main() -> int:
     # silk==edge-inset, metadata==edge. Any FAIL is what the user
     # would otherwise see as a visual misalignment in the canvas.
     print()
-    print(f"{'leaf':<13}   sidecar=edge   alpha⊆edge   silk=edge-inset   meta=edge   verdict")
-    print("-" * 80)
+    print(f"{'leaf':<13}   sidecar=edge   alpha⊆edge   silk=edge-inset   meta=edge   pads⊆edge   verdict")
+    print("-" * 92)
     for leaf_key, pin in pins.items():
         leaf_dir = EXPERIMENTS / "subcircuits" / leaf_key
         try:
@@ -223,15 +233,18 @@ def main() -> int:
         except (OSError, json.JSONDecodeError):
             sheet = leaf_key[:12]
         agree_ok, labels = _check_representation_agreement(leaf_dir)
-        overall_ok = overall_ok and agree_ok
+        fab_ok, fab_label = _check_pads_inside_edge_cuts(leaf_dir)
+        ok = agree_ok and fab_ok
+        overall_ok = overall_ok and ok
         sc, al, sk, md = labels
-        verdict = "PASS" if agree_ok else "FAIL"
+        verdict = "PASS" if ok else "FAIL"
         print(
             f"  {sheet:<11}   "
             f"{sc:<13}  "
             f"{al:<11}  "
             f"{sk:<16}  "
             f"{md:<10}  "
+            f"{fab_label:<10}  "
             f"{verdict}"
         )
 
@@ -420,6 +433,106 @@ def _alpha_bbox_mm(
         ex0 + x1_px * sx,
         ey0 + y1_px * sy,
     )
+
+
+def _check_pads_inside_edge_cuts(leaf_dir: Path) -> tuple[bool, str]:
+    """Assert every solder pad on the leaf sits inside Edge.Cuts AABB.
+
+    Reads each ``(footprint ...)`` block's origin/rotation and every
+    pad's ``(at ...) (size ...)``, computes the world-space pad
+    bbox, and compares to the Edge.Cuts AABB. Returns
+    ``(ok, label)``; the label names the worst overshoot in mm or
+    a worst-offending pad reference.
+
+    The parser is regex-based (no pcbnew dependency) so this test
+    can run in CI without KiCad installed. Pad rotation within the
+    footprint is approximated as axis-aligned for the bbox check;
+    the small angular error is well below ALPHA_OVERSHOOT_MM. (For
+    the actual fab-safety scoring, ``KiCraft/kicraft/scoring/
+    placement_check.py`` uses pcbnew's exact pad bbox.)
+    """
+    import math
+    import re
+
+    pcb = leaf_dir / "leaf_routed.kicad_pcb"
+    if not pcb.is_file():
+        return True, "N/A"
+    ec = _parse_edge_cuts_bbox(pcb)
+    if ec is None:
+        return True, "N/A"
+    ex0, ey0, ex1, ey1 = ec
+
+    try:
+        text = pcb.read_text(encoding="utf-8")
+    except OSError:
+        return True, "N/A"
+
+    # One footprint per (footprint "..." ...) block. End is the next
+    # (footprint or (gr_ block at the same indentation, or end-of-file.
+    # KiCad indents these with tabs, so the boundary regex uses
+    # ``\n\s*`` rather than column-0.
+    fp_blk_re = re.compile(
+        r'\(footprint\s+"[^"]+".*?(?=\n\s*\(footprint\s|\n\s*\(gr_|\Z)',
+        re.S,
+    )
+    at_re = re.compile(
+        r'^\s*\(at\s+([-\d.eE+]+)\s+([-\d.eE+]+)(?:\s+([-\d.eE+]+))?\s*\)',
+        re.M,
+    )
+    ref_re = re.compile(r'\(property\s+"Reference"\s+"([^"]+)"')
+    pad_re = re.compile(
+        r'\(pad\s+"([^"]*)"[^()]*'
+        r'(?:thru_hole|smd|np_thru_hole|connect)[^()]*'
+        r'\(at\s+([-\d.eE+]+)\s+([-\d.eE+]+)(?:\s+[-\d.eE+]+)?\s*\)\s*'
+        r'\(size\s+([-\d.eE+]+)\s+([-\d.eE+]+)\)',
+        re.S,
+    )
+
+    worst_overshoot = 0.0
+    worst_ref = ""
+    worst_pad = ""
+    offending = 0
+
+    for fm in fp_blk_re.finditer(text):
+        blk = fm.group(0)
+        am = at_re.search(blk[:300])  # footprint origin is near the top
+        rm = ref_re.search(blk)
+        if not (am and rm):
+            continue
+        fx, fy = float(am.group(1)), float(am.group(2))
+        frot = float(am.group(3)) if am.group(3) else 0.0
+        ref = rm.group(1)
+        c, s = math.cos(math.radians(frot)), math.sin(math.radians(frot))
+        fp_offending = False
+        for pm in pad_re.finditer(blk):
+            pad_num = pm.group(1) or "?"
+            lx, ly, pw, ph = (float(pm.group(i)) for i in range(2, 6))
+            # World-space pad bbox: rotate the pad-local rectangle
+            # corners around the footprint origin, then translate.
+            corners = []
+            for dx in (-pw / 2, pw / 2):
+                for dy in (-ph / 2, ph / 2):
+                    px = fx + c * (lx + dx) - s * (ly + dy)
+                    py = fy + s * (lx + dx) + c * (ly + dy)
+                    corners.append((px, py))
+            xs = [c_[0] for c_ in corners]
+            ys = [c_[1] for c_ in corners]
+            px0, py0, px1, py1 = min(xs), min(ys), max(xs), max(ys)
+            overshoot = max(
+                ex0 - px0, ey0 - py0, px1 - ex1, py1 - ey1, 0.0
+            )
+            if overshoot > EPS_MM:
+                if not fp_offending:
+                    offending += 1
+                    fp_offending = True
+                if overshoot > worst_overshoot:
+                    worst_overshoot = overshoot
+                    worst_ref = ref
+                    worst_pad = pad_num
+
+    if offending == 0:
+        return True, "Y"
+    return False, f"{offending}fp +{worst_overshoot:.2f}mm({worst_ref}.{worst_pad})"
 
 
 def _check_representation_agreement(
