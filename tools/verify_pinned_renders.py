@@ -68,6 +68,11 @@ except ImportError:
     print("Install Pillow: pip install pillow", file=sys.stderr)
     sys.exit(2)
 
+# Shared parser used by the renderer and the manual layout runner.
+# Keeping a single Edge.Cuts source-of-truth here means the test
+# cannot drift from the production code path it's verifying.
+from kicraft.render.edge_cuts import parse_edge_cuts_aabb as _parse_edge_cuts_bbox
+
 
 EXPERIMENTS = Path(__file__).resolve().parent.parent / ".experiments"
 OUT_DIR = Path(__file__).resolve().parent / ".verify_renders"
@@ -90,6 +95,14 @@ EPS_MM = 0.01
 # checking that the rendered PNG stays inside Edge.Cuts.
 ALPHA_OVERSHOOT_MM = 0.05
 
+# metadata.local_board_outline records the board's pcbnew bounding
+# box, which includes the Edge.Cuts line stroke half-width on each
+# side. parse_edge_cuts_aabb reads the geometric line coordinates,
+# which are the stroke centerline. The expected delta is one full
+# Edge.Cuts stroke width (default ~0.05 mm); 0.06 mm tolerance covers
+# that plus float round-trip noise.
+EDGE_CUTS_STROKE_MM = 0.06
+
 
 def md5_hex(p: Path) -> str:
     return hashlib.md5(p.read_bytes()).hexdigest()
@@ -110,30 +123,12 @@ def perceptual_sim(p1: Path, p2: Path) -> float:
 
 
 def render_truth(pcb: Path, out: Path) -> None:
-    """Same kicad-cli args as KiCraft/kicraft/gui/pages/leaf_canvas_render.py.
-    A fresh render of the canonical PCB is the truth the manual-layout
-    canvas should match."""
-    svg = out.with_suffix(".svg")
-    try:
-        subprocess.run(
-            [
-                "kicad-cli", "pcb", "export", "svg",
-                "--layers", "F.Cu,F.SilkS,Edge.Cuts",
-                "--mode-single", "--fit-page-to-board",
-                "--exclude-drawing-sheet", "--drill-shape-opt", "2",
-                "-o", str(svg), str(pcb),
-            ],
-            check=True, capture_output=True, timeout=30,
-        )
-        subprocess.run(
-            [
-                "magick", "-background", "none", "-density", "420",
-                str(svg), "PNG32:" + str(out),
-            ],
-            check=True, capture_output=True, timeout=30,
-        )
-    finally:
-        svg.unlink(missing_ok=True)
+    """Same pipeline the canvas uses: the unified renderer with no
+    monitor style. Any change to the production renderer flows into
+    the test automatically, so the truth and the cached canvas PNG
+    cannot drift from each other."""
+    from kicraft.render import render_pcb
+    render_pcb(pcb, out, layers="F.Cu,F.SilkS,Edge.Cuts", style=None)
 
 
 def main() -> int:
@@ -259,41 +254,6 @@ def main() -> int:
     print()
     print("ALL PASS" if overall_ok else "SOME FAILED -- see rows above")
     return 0 if overall_ok else 1
-
-
-def _parse_edge_cuts_bbox(pcb_path: Path) -> tuple[float, float, float, float] | None:
-    """Same Edge.Cuts parser the canvas uses. Returns (xmin, ymin, xmax,
-    ymax) in leaf-local mm, or None when the PCB has no Edge.Cuts."""
-    import re
-
-    try:
-        text = pcb_path.read_text(encoding="utf-8")
-    except OSError:
-        return None
-    xs: list[float] = []
-    ys: list[float] = []
-    block_re = re.compile(
-        r'\(gr_(line|arc|rect|poly|circle)\s+(.*?)\)\s*(?=\(gr_|\(footprint|\Z)',
-        re.S,
-    )
-    point_re = re.compile(
-        r'(?:\((?:start|end|center|mid)\s+([-\d.eE+]+)\s+([-\d.eE+]+)\))'
-        r'|(?:\(xy\s+([-\d.eE+]+)\s+([-\d.eE+]+)\))'
-    )
-    for m in block_re.finditer(text):
-        blk = m.group(0)
-        if 'Edge.Cuts' not in blk:
-            continue
-        for pm in point_re.finditer(blk):
-            if pm.group(1) is not None:
-                xs.append(float(pm.group(1)))
-                ys.append(float(pm.group(2)))
-            else:
-                xs.append(float(pm.group(3)))
-                ys.append(float(pm.group(4)))
-    if not xs:
-        return None
-    return (min(xs), min(ys), max(xs), max(ys))
 
 
 def _check_placement_overlap() -> list[tuple[str, str, float, float]] | None:
@@ -552,7 +512,10 @@ def _check_representation_agreement(
     else:
         mw, mh = meta
         max_delta = max(abs(mw - ew), abs(mh - eh))
-        meta_ok = max_delta <= EPS_MM
+        # Tolerance includes one Edge.Cuts stroke width because the
+        # metadata records the pcbnew bounding box (line stroke
+        # included) while Edge.Cuts is the geometric centerline.
+        meta_ok = max_delta <= EDGE_CUTS_STROKE_MM
         meta_label = "Y" if meta_ok else f"d={max_delta:.2f}mm"
 
     ok = sidecar_ok and alpha_ok and silk_ok and meta_ok
