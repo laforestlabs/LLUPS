@@ -509,11 +509,20 @@ def _check_pads_inside_edge_cuts(leaf_dir: Path) -> tuple[bool, str]:
             lx, ly, pw, ph = (float(pm.group(i)) for i in range(2, 6))
             # World-space pad bbox: rotate the pad-local rectangle
             # corners around the footprint origin, then translate.
+            # KiCad uses Y-DOWN screen coordinates and positive
+            # rotation = CCW visually, which inverts the sign of the
+            # sin terms compared to the standard Y-up math convention.
+            # Cross-checked against pcbnew's PAD.GetPosition() for
+            # rotated USB-C footprints (J1 in the LLUPS USB INPUT
+            # leaf): pad local (-1.35, 0.98) on a footprint at world
+            # (9.955, 4.0068) rot=-90 lands at world (8.97, 2.66),
+            # which this formula reproduces and the alternate sign
+            # convention does NOT.
             corners = []
             for dx in (-pw / 2, pw / 2):
                 for dy in (-ph / 2, ph / 2):
-                    px = fx + c * (lx + dx) - s * (ly + dy)
-                    py = fy + s * (lx + dx) + c * (ly + dy)
+                    px = fx + c * (lx + dx) + s * (ly + dy)
+                    py = fy - s * (lx + dx) + c * (ly + dy)
                     corners.append((px, py))
             xs = [c_[0] for c_ in corners]
             ys = [c_[1] for c_ in corners]
