@@ -1,6 +1,7 @@
-"""Deterministic verification that pinned leaves render consistently.
+"""Deterministic verification that pinned leaves render consistently
+AND that the saved manual layout produces a physically-valid parent.
 
-For every pinned leaf, verify three invariants:
+PER-LEAF invariants (run for every pinned leaf):
 
   1. ``leaf_routed.kicad_pcb`` (canonical) is byte-identical to
      ``round_NNNN_leaf_routed.kicad_pcb`` (the pinned snapshot).
@@ -8,28 +9,33 @@ For every pinned leaf, verify three invariants:
 
   2. ``renders/routed_front_all.png`` (monitor + pipeline-graph use
      this) is byte-identical to ``round_NNNN_routed_front_all.png``.
-     pin_leaf must copy the round's render snapshots, not just the
-     core three files. Treated as N/A when neither file exists --
-     leaves with no copper routing (e.g. battery connectors) produce
-     no routed render.
+     Treated as N/A when neither file exists -- leaves with no copper
+     routing (e.g. battery connectors) produce no routed render.
 
   3. ``renders/leaf_canvas.png`` (manual layout uses this) is
      perceptually identical (dhash similarity >= 0.85) to a fresh
      kicad-cli render of the canonical PCB. The manual layout's
      render cache must be invalidated whenever the canonical PCB
-     changes content -- including pin operations that use
-     shutil.copy2 / shutil.copy and may set mtimes earlier than the
-     cached PNG.
+     changes content.
 
-Run from the project root. Does NOT require the GUI to be up: works
-entirely off the on-disk artifacts the GUI serves.
+PLACEMENT invariants (run once over manual_layout.json):
+
+  4. For every pair of placements, the Edge.Cuts AABBs in parent
+     space must NOT overlap by more than 0.01 mm. Edge.Cuts is the
+     leaf's TRUE physical extent (the rectangle stamped on the parent
+     board) -- if two AABBs intersect, the stamped output has two
+     leaves trying to occupy the same physical space, which surfaces
+     as DRC shorts. Re-uses the same Edge.Cuts parsing the canvas
+     uses, so the check answers exactly the question "is what got
+     saved physically valid?"
+
+Run from the project root. Does NOT require the GUI to be up.
 
   $ python tools/verify_pinned_renders.py
 
-Exit code 0 = all pinned leaves consistent. Non-zero = at least one
-canonical artifact disagreed with the pinned round; see the failing
-row(s) plus ``tools/.verify_renders/<sheet>_truth.png`` for the truth
-render that was compared against.
+Exit code 0 = all invariants hold. Non-zero = at least one failed;
+see the row(s) and the ``tools/.verify_renders/*_truth.png`` truth
+renders.
 """
 from __future__ import annotations
 
@@ -170,9 +176,119 @@ def main() -> int:
             f"{verdict}"
         )
 
+    # Placement-level invariant: no two leaves' Edge.Cuts AABBs may
+    # overlap in parent space (>0.01 mm). Re-uses the same parser the
+    # canvas uses, so a PASS here means the saved manual layout will
+    # not produce inter-leaf shorts when stamped.
+    overlaps = _check_placement_overlap()
+    print()
+    if overlaps is None:
+        print("placement-overlap: SKIPPED (no manual_layout.json or no Edge.Cuts data)")
+    elif not overlaps:
+        print("placement-overlap: PASS (no leaves overlap)")
+    else:
+        overall_ok = False
+        print("placement-overlap: FAIL")
+        for (a, b, ox, oy) in overlaps:
+            print(f"  {a:<12} overlaps {b:<12} by {ox:.2f} x {oy:.2f} mm ({ox*oy:.2f} mm^2)")
+
     print()
     print("ALL PASS" if overall_ok else "SOME FAILED -- see rows above")
     return 0 if overall_ok else 1
+
+
+def _parse_edge_cuts_bbox(pcb_path: Path) -> tuple[float, float, float, float] | None:
+    """Same Edge.Cuts parser the canvas uses. Returns (xmin, ymin, xmax,
+    ymax) in leaf-local mm, or None when the PCB has no Edge.Cuts."""
+    import re
+
+    try:
+        text = pcb_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    xs: list[float] = []
+    ys: list[float] = []
+    block_re = re.compile(
+        r'\(gr_(line|arc|rect|poly|circle)\s+(.*?)\)\s*(?=\(gr_|\(footprint|\Z)',
+        re.S,
+    )
+    point_re = re.compile(
+        r'(?:\((?:start|end|center|mid)\s+([-\d.eE+]+)\s+([-\d.eE+]+)\))'
+        r'|(?:\(xy\s+([-\d.eE+]+)\s+([-\d.eE+]+)\))'
+    )
+    for m in block_re.finditer(text):
+        blk = m.group(0)
+        if 'Edge.Cuts' not in blk:
+            continue
+        for pm in point_re.finditer(blk):
+            if pm.group(1) is not None:
+                xs.append(float(pm.group(1)))
+                ys.append(float(pm.group(2)))
+            else:
+                xs.append(float(pm.group(3)))
+                ys.append(float(pm.group(4)))
+    if not xs:
+        return None
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+def _check_placement_overlap() -> list[tuple[str, str, float, float]] | None:
+    """Read manual_layout.json + every leaf's Edge.Cuts and return the
+    list of overlapping pairs (sheet_a, sheet_b, overlap_x, overlap_y)
+    in mm. Returns None when manual_layout.json is missing or no leaf
+    has Edge.Cuts data (test inapplicable)."""
+    import math
+
+    ml_path = EXPERIMENTS / "manual" / "manual_layout.json"
+    if not ml_path.exists():
+        return None
+    try:
+        ml = json.loads(ml_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    key2info: dict[str, tuple[str, tuple[float, float, float, float]]] = {}
+    for d in (EXPERIMENTS / "subcircuits").iterdir():
+        meta = d / "metadata.json"
+        pcb = d / "leaf_routed.kicad_pcb"
+        if not (meta.exists() and pcb.exists()):
+            continue
+        try:
+            md = json.loads(meta.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        ec = _parse_edge_cuts_bbox(pcb)
+        if ec is None:
+            continue
+        key2info[md["instance_path"]] = (md["sheet_name"], ec)
+
+    if not key2info:
+        return None
+
+    placements = []
+    for p in ml.get("placements", []):
+        info = key2info.get(p["instance_path"])
+        if not info:
+            continue
+        sheet, (x0, y0, x1, y1) = info
+        r = math.radians(p["rotation"])
+        c, s = math.cos(r), math.sin(r)
+        xs, ys = [], []
+        for lx, ly in [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]:
+            xs.append(p["origin"]["x"] + lx * c + ly * s)
+            ys.append(p["origin"]["y"] - lx * s + ly * c)
+        placements.append((sheet, (min(xs), min(ys), max(xs), max(ys))))
+
+    EPS = 0.01
+    bad: list[tuple[str, str, float, float]] = []
+    for i in range(len(placements)):
+        for j in range(i + 1, len(placements)):
+            a, b = placements[i][1], placements[j][1]
+            ox = min(a[2], b[2]) - max(a[0], b[0])
+            oy = min(a[3], b[3]) - max(a[1], b[1])
+            if ox > EPS and oy > EPS:
+                bad.append((placements[i][0], placements[j][0], ox, oy))
+    return bad
 
 
 if __name__ == "__main__":
