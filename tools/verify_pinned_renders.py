@@ -280,14 +280,30 @@ def _check_placement_overlap() -> list[tuple[str, str, float, float]] | None:
         placements.append((sheet, (min(xs), min(ys), max(xs), max(ys))))
 
     EPS = 0.01
+
+    def contains(outer, inner):
+        """outer fully contains inner (within EPS)?"""
+        return (
+            outer[0] <= inner[0] + EPS
+            and outer[1] <= inner[1] + EPS
+            and outer[2] + EPS >= inner[2]
+            and outer[3] + EPS >= inner[3]
+        )
+
     bad: list[tuple[str, str, float, float]] = []
     for i in range(len(placements)):
         for j in range(i + 1, len(placements)):
             a, b = placements[i][1], placements[j][1]
             ox = min(a[2], b[2]) - max(a[0], b[0])
             oy = min(a[3], b[3]) - max(a[1], b[1])
-            if ox > EPS and oy > EPS:
-                bad.append((placements[i][0], placements[j][0], ox, oy))
+            if ox <= EPS or oy <= EPS:
+                continue
+            # Containment exception: one leaf encompassing another is
+            # intentional stacking (e.g. BATT substrate) -- the canvas
+            # uses the same rule, so the test matches the visual.
+            if contains(a, b) or contains(b, a):
+                continue
+            bad.append((placements[i][0], placements[j][0], ox, oy))
     return bad
 
 
