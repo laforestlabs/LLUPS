@@ -13,10 +13,16 @@ PER-LEAF invariants (run for every pinned leaf):
      routing (e.g. battery connectors) produce no routed render.
 
   3. ``renders/leaf_canvas.png`` (manual layout uses this) is
-     perceptually identical (dhash similarity >= 0.85) to a fresh
-     kicad-cli render of the canonical PCB. The manual layout's
-     render cache must be invalidated whenever the canonical PCB
-     changes content.
+     perceptually identical (dhash similarity >= 0.97) to a fresh
+     kicad-cli render of the ROUND-NNNN SNAPSHOT PCB -- not the
+     current canonical, which a later leaf solve may have overwritten.
+     The pinned-snapshot anchor catches the failure mode the previous
+     ``canvas vs canonical`` check missed: a canvas rendered before
+     pin completion (same-wall-clock-second mtime collision) used to
+     pass because canvas matched the pre-pin canonical even though the
+     user was seeing a different leaf than the one they pinned.
+     Threshold raised from 0.85 because 0.85 dhash on a 17x16 thumbnail
+     let real placement swaps through.
 
 REPRESENTATION-AGREEMENT invariants (per-leaf). The same physical
 leaf is described by five files; they MUST agree because the manual
@@ -191,12 +197,19 @@ def main() -> int:
             mon_ok = False
             mon_label = "MISS"
 
-        # 3) manual layout canvas ~= fresh kicad-cli truth
-        if canvas.exists() and canonical_pcb.exists():
+        # 3) manual layout canvas ~= fresh render of the PINNED SNAPSHOT
+        # PCB (round_NNNN), not the current canonical. Anchoring on the
+        # snapshot is what makes this check answer "is the canvas the
+        # leaf the user pinned?" rather than the weaker "is the canvas
+        # consistent with whatever the canonical is right now?".
+        # Threshold 0.97 = at most ~7 of 256 dhash bits may differ;
+        # that's tight enough to flag a placement swap while still
+        # tolerating kicad-cli's nondeterministic PNG encoder noise.
+        if canvas.exists() and pinned_pcb.exists():
             try:
-                render_truth(canonical_pcb, truth)
+                render_truth(pinned_pcb, truth)
                 s = perceptual_sim(canvas, truth)
-                canvas_ok = s >= 0.85
+                canvas_ok = s >= 0.97
                 canvas_label = f"{s:.2f}"
             except subprocess.CalledProcessError:
                 canvas_ok = False
