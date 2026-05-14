@@ -95,11 +95,11 @@ OUT_DIR = Path(__file__).resolve().parent / ".verify_renders"
 
 # Default uniform gap between silkscreen poly and Edge.Cuts on every
 # side. Sourced from leaf_routing.py::_outline_around_geometry which
-# sets ``edge_margin = silk_margin + 0.3`` (so the silk-to-edge gap is
-# always 0.3 mm regardless of silk_margin). If you change that
-# relationship in the leaf solver, update this constant too -- this
-# test exists to catch silent drift.
-SILK_TO_EDGE_INSET_MM = 0.30
+# sets ``edge_margin = silk_margin``, so the silk poly coincides with
+# Edge.Cuts (zero gap). If you change that relationship in the leaf
+# solver, update this constant too -- this test exists to catch silent
+# drift.
+SILK_TO_EDGE_INSET_MM = 0.0
 
 # Tolerance for "two coordinates that come from the same physical
 # thing should be equal". 0.01 mm = 10 microns, well below kicad-cli's
