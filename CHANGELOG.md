@@ -1,5 +1,97 @@
 # LLUPS Engineering Changelog
 
+## 2026-05-16: KiCraft upstream pipeline (NL chat -> KiCad file set)
+
+### Headline result
+
+KiCraft's "natural language to KiCad project" gap is closed. A new
+`kicraft/upstream/` subpackage exposes a five-stage chat (intent /
+functional_spec / architecture / bom / synthesis) that emits the
+hierarchical KiCad 9 file set the existing layout pipeline ingests --
+the same shape as `LLUPS.kicad_sch` + `LLUPS.kicad_pro` +
+`LLUPS_autoplacer.json`, without anyone hand-writing
+`generate_project.py`.
+
+### Usage
+
+```bash
+# install
+pip install -e "./KiCraft[upstream]"
+export ANTHROPIC_API_KEY=sk-...
+
+# interactive chat (GUI)
+python -m kicraft.gui                  # -> Upstream Chat tab
+
+# interactive chat (terminal)
+kicraft-new
+
+# headless synthesis from a saved state
+kicraft-new --load state.json --synthesize ./generated/MYPROJ
+```
+
+After synthesis the existing `autoexperiment` / `solve-subcircuits`
+commands run unchanged on the generated `MYPROJ.kicad_pcb`.
+
+### KiCraft commits
+
+- `f13a45a` `feat(upstream): add mechanical synthesis pipeline (stage 5)`
+  - Pydantic models for every state slot with the contract-doc
+    validators (ref regex, footprint Library:Name shape, sheet name
+    patterns, power-net recognition).
+  - `synthesis/symbol_library.py` pulls `(symbol ...)` blocks from
+    `/usr/share/kicad/symbols/*.kicad_sym` and resolves
+    `(extends ...)` chains; replaces the hand-rolled extractor in
+    `generate_project.py`.
+  - `synthesis/emitter.py` emits hierarchical `.kicad_sch` with the
+    `(instances ...)` blocks KiCraft's `hierarchy_parser` needs to
+    extract refs per leaf.
+  - `synthesis/validation.py` implements §9.1-§9.6 of the contract
+    doc and an opt-in §9.7 (`solve-subcircuits`) smoke. §9.2
+    correctly ignores `lib_symbols` templates and `#PWR`
+    power-flag pseudo-components.
+  - 88 mechanical tests (no API calls) including a golden round
+    trip: a frozen state is synthesized, KiCraft's hierarchy
+    parser walks it, every BOM ref lands in the expected leaf.
+- `9032b8d` `feat(upstream): LLM stages + orchestrator + chat UI`
+  - Anthropic wrapper with `cache_control` on system prompts and a
+    `call_with_tool` helper that maps Pydantic schemas to forced
+    tool use.
+  - One module per LLM stage (intent / functional_spec /
+    architecture / bom) plus stage prompts shipped as package data.
+  - Orchestrator: one Anthropic call per turn picks among three
+    tools (`run_stage`, `ask`, `respond`). Derives a default
+    `project_stem` from the captured intent so synthesis has a
+    target name.
+  - `cli.py` (`kicraft-new`) for stdin/stdout chat with save/load
+    of state JSON and headless `--synthesize`.
+  - `gui/pages/upstream_chat.py` adds an "Upstream Chat" tab to
+    the existing NiceGUI app: transcript on the left, state panel
+    on the right (Expert mode switches it between prose and full
+    JSON), Synthesize button drives stage 5.
+  - 22 additional non-LLM tests for tool schemas, prompt loading,
+    and CLI synthesize round trip. Live LLM round trip is gated
+    behind `RUN_LIVE_LLM_TESTS=1`.
+
+### Design choices
+
+- **No fallbacks** (per AGENTS.md memory): stages are stateless and
+  re-runnable; on revision, re-run the affected stage and all
+  downstream stages. No diffing, no migration shims.
+- **§9 is enforced**: every synthesis run executes §9.1-§9.6 against
+  the just-written files and raises `SynthesisValidationError` if
+  anything fails. The contract is the single source of truth for
+  what a "valid KiCraft input" means.
+- **Custom footprints out of scope for v1**: if the BOM picks a
+  footprint not in stock KiCad libraries, the orchestrator surfaces
+  a blocking question rather than half-implementing a `.pretty/`
+  generator.
+
+### Out of scope (preserved from brief)
+
+- Audit trails / dependency tracking / undo / cross-session memory.
+- Replay logic for revisions (just re-run downstream stages).
+- Hand-placing components or routing -- KiCraft owns `.kicad_pcb`.
+
 ## 2026-05-03 / 2026-05-04: Cluster-slide post-pass + bbox_packing scorer plumbing
 
 ### Headline result
